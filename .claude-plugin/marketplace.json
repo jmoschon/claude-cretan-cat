@@ -1,0 +1,5 @@
+{
+  "name": "claude-cretan-cat",
+  "owner": { "name": "Yiannis Moschonas" },
+  "plugins": [{ "name": "cretan-cat", "source": "./" }]
+}
