@@ -79,7 +79,7 @@ One setting, under `/config` as "Cretan cat: language":
 
 | Setting | Values | Default |
 |---|---|---|
-| Language | `greek`, `english`, `spanish` | `greek` |
+| Language | `greek`, `english`, `spanish`, `polish` | `greek` |
 
 It sets the language of what Clawd says and of Manousos' short replies. The
 mantinades are always in Greek; they are Cretan songs, and they stay that way.

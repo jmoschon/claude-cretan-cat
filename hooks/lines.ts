@@ -2,7 +2,7 @@
 // in each language the "language" setting offers. The mantinades are not
 // here: they are Cretan, and stay in Greek whatever the setting.
 
-export const LANGUAGES = ['greek', 'english', 'spanish'] as const
+export const LANGUAGES = ['greek', 'english', 'spanish', 'polish'] as const
 export type Language = (typeof LANGUAGES)[number]
 
 export const isLanguage = (v: unknown): v is Language => typeof v === 'string' && (LANGUAGES as readonly string[]).includes(v)
@@ -42,6 +42,8 @@ export const shortTool = (tool: string) => tool.split('__').pop() ?? tool
 
 const N_GR = 'Μανούσο'
 const N = 'Manousos'
+// Polish addresses him in the vocative.
+const N_PL = 'Manousosie'
 
 export const LINES: Record<Language, Lines> = {
   greek: {
@@ -119,6 +121,31 @@ export const LINES: Record<Language, Lines> = {
     oops: `Ay, ${N}... ¿qué ha pasado?`,
     hiss: '¡Fffs! Algo salió mal.',
   },
+  polish: {
+    nudges: [
+      t => `${N_PL}, zerknij na „${t}”!`,
+      t => `Jak idzie „${t}”, ${N_PL}?`,
+      t => `Nie śpij! „${t}” czeka.`,
+      t => `${N_PL}, chcę mieć „${t}” do południa!`,
+      t => `Napraw „${t}”, a będzie sardynka.`,
+      t => `No dalej, ${N_PL}, jeszcze chwila nad „${t}”.`,
+    ],
+    vague: [`${N_PL}, do roboty!`, `Co tam robisz, ${N_PL}?`, `No dalej, ${N_PL}, zaczynamy!`],
+    tool: tool =>
+      ({
+        run: `${N_PL}, odpal komendę!`,
+        read: `Przeczytaj plik, ${N_PL}!`,
+        edit: `Popraw kod, ${N_PL}!`,
+        search: `Znajdź to, ${N_PL}! Szukaj wszędzie.`,
+        web: `Poszukaj w internecie, ${N_PL}!`,
+        agents: `Zawołaj kociaki do pomocy, ${N_PL}!`,
+        mcp: `Zapytaj naszych przyjaciół, ${N_PL}: ${shortTool(tool)}`,
+        other: `${N_PL}, użyj ${tool}!`,
+      })[kind(tool)],
+    done: `Brawo, ${N_PL}! Masz smakołyk.`,
+    oops: `Ojej, ${N_PL}... co się stało?`,
+    hiss: 'Fffff! Coś poszło nie tak.',
+  },
 }
 
 // Words that say nothing about what a prompt is about, in the languages
@@ -132,7 +159,10 @@ const STOP = new Set(
     'how what why where when which who new like out up down one two not no yes ok hi hey hello thanks ' +
     'και να το τα τη την της του των σε με για από που ένα μια στο στη στην ' +
     'el la los las de del que y en un una unos unas para por con sin es son se lo le les como más pero al ' +
-    'ya o este esta estos estas ese esa mi tu su hola gracias por favor haz hacer arregla cambia añade'
+    'ya o este esta estos estas ese esa mi tu su hola gracias por favor haz hacer arregla cambia añade ' +
+    'i w z na do że się nie jest są czy jak co ten ta te tego tej tym ale lub albo oraz po od dla przez przy ' +
+    'mój moja moje nasz już teraz też tylko jeszcze proszę dzięki cześć hej możesz zrób napraw dodaj zmień popraw ' +
+    'sprawdź użyj chcę trzeba'
   ).split(' '),
 )
 
@@ -142,7 +172,7 @@ const STOP = new Set(
 export function topicOf(text: string): string {
   const words = text
     .toLowerCase()
-    .replace(/[`"'«»“”¡!¿?()[\]{}<>.,;:]/g, ' ')
+    .replace(/[`"'«»“”„¡!¿?()[\]{}<>.,;:]/g, ' ')
     .split(/\s+/)
     .filter(w => [...w].length >= 3 && !STOP.has(w) && !/^[\d/~._-]+$/.test(w) && !w.includes('/'))
   const two = words.slice(-2).join(' ')

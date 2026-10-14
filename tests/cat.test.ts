@@ -88,6 +88,7 @@ describe('cretan-cat', () => {
   for (const [language, nudge] of [
     ['english', '"checkout tests"'],
     ['spanish', '«checkout tests»'],
+    ['polish', '„checkout tests”'],
   ] as const) {
     test(`with language ${language}, Clawd speaks it; the mantinada stays Greek`, { options: { language } }, async ($, on) => {
       mock.clock(on, { now: 1_700_000_000_000 })
