@@ -1,6 +1,6 @@
 {
   "name": "cretan-cat",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Manousos, a pixel-art Cretan cat above the prompt. Clawd tells him what to do while Claude works, and he answers in mantinades.",
   "author": {
     "name": "Yiannis Moschonas"
