@@ -497,92 +497,31 @@ export function drawCells(scene: Scene): Uint32Array {
   const edge: Rgb = [196, 198, 214]
   const panel: Rgb = [32, 33, 44]
   // Clawd's words: a one-line bubble above him, its tail on him.
-  const saidLine = top > 0 && said !== '' ? (wrap([said], Math.max(10, catTo - 6), 1)[0] ?? '') : ''
-  // The column of its right edge (none: 0).
-  const saidRight = saidLine !== '' ? [...saidLine].length + 4 : 0
-  if (saidLine !== '') {
-    const width = [...saidLine].length + 2
+  if (top > 0 && said !== '') {
+    const line = wrap([said], Math.max(10, catTo - 6), 1)[0] ?? ''
+    const width = [...line].length + 2
     text(1, 0, '╭' + '─'.repeat(width) + '╮', edge, panel)
     text(1, 1, '│ ' + ' '.repeat(width - 1) + '│', edge, panel)
-    text(3, 1, saidLine, [238, 238, 246], panel)
+    text(3, 1, line, [238, 238, 246], panel)
     text(1, 2, '╰' + '─'.repeat(width) + '╯', edge, panel)
     put(Math.min(width, CLAWD_X + CLAWD_W / 2), 2, '┬', edge, panel)
   }
 
-  // Manousos' reply in a bubble that goes where he goes: above him on the
-  // full strip, its tail down to his head; beside him when there's no room
-  // over him (the yard alone, or a long reply), a short tail to his mouth.
-  // Never over Clawd's bubble, never past where it used to sit (bx).
+  // Manousos' reply in a bubble on the right, a dotted line from him to it.
   if (hasReply) {
     const height = replyLines.length + 2
+    const by = Math.max(0, Math.floor((rows - height) / 2))
     const ink: Rgb = [246, 186, 230]
-    // His head: between his ears, in the top row of the sprite with any
-    // pixel in it (mirrored when he faces left).
-    const earRow = sprite.find(line => /[^.]/.test(line)) ?? ''
-    const ears = [...earRow].flatMap((ch, i) => (ch === '.' ? [] : [i]))
-    const mid = Math.round(((ears[0] ?? 0) + (ears[ears.length - 1] ?? 0)) / 2)
-    const headX = cat.x + (cat.isLeft ? spriteW - 1 - mid : mid)
-    // The lowest row a line can take at a column and not cover him.
-    const clearTo = (col: number) => {
-      const sx = cat.isLeft ? spriteW - 1 - (col - cat.x) : col - cat.x
-      const sy = sx < 0 || sx >= spriteW ? -1 : sprite.findIndex(line => line[sx] !== '.')
-      return sy < 0 ? rows - 1 : Math.floor((catTop + sy) / 2) - 1
-    }
-    const isAbove = top > 0 && height - 1 <= top
-    const by = isAbove ? 0 : Math.max(0, Math.floor((rows - height) / 2))
-    const bottom = by + height - 1
-    // Two cells clear of Clawd's bubble, when they share rows.
-    const least = by < top && saidRight > 0 ? saidRight + 3 : 1
-    const want = isAbove ? headX - 3 : cat.x + spriteW + 2
-    const left = least <= bx ? Math.max(least, Math.min(bx, want)) : bx
-    const right = left + replyWidth + 1
-    text(left, by, '╭' + '─'.repeat(replyWidth) + '╮', edge, panel)
+    text(bx, by, '╭' + '─'.repeat(replyWidth) + '╮', edge, panel)
     replyLines.forEach((l, i) => {
-      text(left, by + 1 + i, '│ ' + ' '.repeat(replyWidth - 1) + '│', edge, panel)
-      text(left + 2, by + 1 + i, l, ink, panel)
+      text(bx, by + 1 + i, '│ ' + ' '.repeat(replyWidth - 1) + '│', edge, panel)
+      text(bx + 2, by + 1 + i, l, ink, panel)
     })
-    text(left, bottom, '╰' + '─'.repeat(replyWidth) + '╯', edge, panel)
-    // A line of the tail, over the yard but not over a z, ! or heart.
-    const isMark = (col: number, row: number) => col >= 0 && col < cols && row >= 0 && row < rows && !' ▀▄'.includes(String.fromCodePoint(words[(row * cols + col) * 3]!))
-    const line = (col: number, row: number, char: string) => {
-      if (!isMark(col, row)) over(col, row, char, edge)
-    }
-    if (isAbove) {
-      const tx = Math.max(left + 1, Math.min(right - 1, headX))
-      if (tx === headX) {
-        // Right over his head: straight down.
-        put(tx, bottom, '┬', edge, panel)
-        for (let row = bottom + 1; row <= clearTo(tx); row++) line(tx, row, '│')
-      } else {
-        // Pushed right by Clawd's: across to him, then down, along the row
-        // under the bubble (from a '┬') or its bottom edge (from a '┴'),
-        // whichever gets nearer his head; an ear in the way ends it there.
-        const reach = (row: number, from: number) => {
-          let col = from
-          while (col - 1 >= headX && clearTo(col - 1) >= row && (row >= top || col - 1 > saidRight + 1)) col--
-          return col
-        }
-        const under = reach(bottom + 1, left + 1)
-        const along = reach(bottom, left)
-        const isUnder = under < left + 1 && under <= along
-        const to = isUnder ? under : along
-        if (to < (isUnder ? left + 1 : left) && to - headX <= 6) {
-          const row = isUnder ? bottom + 1 : bottom
-          if (isUnder) {
-            put(left + 1, bottom, '┬', edge, panel)
-            line(left + 1, row, '╯')
-          } else put(left, bottom, '┴', edge, panel)
-          for (let col = to + 1; col < (isUnder ? left + 1 : left); col++) line(col, row, '─')
-          line(to, row, '╭')
-          for (let r = row + 1; r <= clearTo(to); r++) line(to, r, '│')
-        } else put(left + 1, bottom, '┬', edge, panel)
-      }
-    } else {
-      // At his mouth's height, from just past his right-most pixel.
-      const row = Math.min(bottom - 1, Math.max(by + 1, Math.floor((catTop + 6) / 2)))
-      for (let col = Math.min(cat.x + spriteW + 1, left - 1); col < left; col++) line(col, row, '─')
-      put(left, row, '┤', edge, panel)
-    }
+    text(bx, by + height - 1, '╰' + '─'.repeat(replyWidth) + '╯', edge, panel)
+    // At his mouth's height, from just past his right-most pixel.
+    const row = Math.min(by + height - 2, Math.max(by + 1, Math.floor((catTop + 6) / 2)))
+    for (let col = Math.min(cat.x + spriteW + 1, bx - 1); col < bx; col++) over(col, row, '·', edge)
+    put(bx, row, '┤', edge, panel)
   }
   return words
 }

@@ -447,11 +447,13 @@ const NEVER_BORING = new Set([...ASKS_YOU, 'Agent', 'Task', 'Workflow'])
 const PROMPT_DELAY_MS = 300
 
 function sound($: EngineInterface, which: Sound) {
-  if (!isSoundOn || isSounding) return
+  // The mew tells you Claude is waiting: it always plays, whatever just did.
+  const isUrgent = which === 'mew'
+  if (!isSoundOn || (isSounding && !isUrgent)) return
   isSounding = true
   void (async () => {
     const now = await $.clock.now()
-    if (now - soundAt < SOUND_GAP_MS) return
+    if (!isUrgent && now - soundAt < SOUND_GAP_MS) return
     soundAt = now
     void $.audio.play({ asset: `sounds/${which}.wav` }).catch(() => {})
   })()

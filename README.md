@@ -3,7 +3,7 @@
 Manousos is a Cretan cat who lives above your Claude Code prompt.
 
 While Claude works, Clawd tells him what to do, and Manousos answers in song,
-in a speech bubble above him: Cretan *mantinades* by default, or Spanish
+in a speech bubble beside him: Cretan *mantinades* by default, or Spanish
 coplas, or English couplets. When the work is done he sits and purrs; when
 nothing is happening he sleeps on his cushion. Behind them stands Psiloritis,
 under the sun or the moon as your clock says.
