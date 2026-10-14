@@ -184,7 +184,7 @@ const FRAMES = Object.fromEntries(
 ) as Record<Mood, string[][]>
 
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${NAME} is napping · /cat hides him · /cat ginger, tuxedo or manousos changes his coat`,
+  nap: () => `${NAME} is napping · /cat hide hides him · /cat ginger, tuxedo or manousos changes his coat`,
   think: () => `${NAME} is thinking it over`,
   tool: c => `${NAME} is on it: ${shortTool(c.tool ?? 'a tool')}`,
   happy: () => `${NAME} purrs: done!`,
@@ -457,7 +457,7 @@ export const register: Register = (on, options) => {
   deck = []
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'cat', description: `Show or hide ${NAME}; /cat manousos, ginger or tuxedo changes his coat` })
+    await $.command.register({ name: 'cat', description: `Show or hide ${NAME} (/cat hide, /cat show); /cat manousos, ginger or tuxedo changes his coat` })
     await quietly(async () => {
       const saved = await $.store.get('coat')
       if (isCoat(saved)) await update($, coat, () => saved)
@@ -510,11 +510,11 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // /cat hides or shows him; /cat <coat> changes his coat, kept across sessions.
+  // /cat hides or shows him (or /cat hide, /cat show); /cat <coat> changes his coat, kept across sessions.
   on('command.run', { command: 'cat' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
-    if (arg === '') {
-      const hidden = await update($, isHidden, h => !h)
+    if (arg === '' || arg === 'hide' || arg === 'show') {
+      const hidden = await update($, isHidden, h => (arg === '' ? !h : arg === 'hide'))
       return { text: hidden ? `${NAME} went to hide under the sofa.` : `${NAME} is back.` }
     }
     if (arg === 'stats') {
@@ -531,7 +531,7 @@ export const register: Register = (on, options) => {
       return { text: `${NAME} is wearing his ${arg} coat now.` }
     }
     return {
-      text: `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>). /cat stats: his sardines and pets. /cat alone hides or shows ${NAME}. Language and sound: /config, "Cretan cat".`,
+      text: `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>). /cat stats: his sardines and pets. /cat hide and /cat show (or /cat alone, to toggle) put ${NAME} away and back. Language and sound: /config, "Cretan cat".`,
     }
   })
 
