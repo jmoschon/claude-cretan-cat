@@ -28,7 +28,7 @@ An independent project, not affiliated with or endorsed by Anthropic.
 | Tests fail | Hisses | *Tests are red...* |
 | A commit goes in | Catches the sardine Clawd tosses him, and eats it | Tosses it |
 | A tool runs for over 20 seconds | Yawns, then dozes off until it's done (not for questions or helpers) | *Don't fall asleep, it's still running!* |
-| The work is done | Sits, wags his tail, sings one more couplet | Cheers |
+| The work is done | If Claude ran any tools, eats a sardine first; then sits, wags his tail, sings one more couplet | Tosses a sardine, then cheers |
 | Something failed | Jumps, tail puffed up | Asks what happened |
 | You pressed Esc | Goes back to sleep | Dozes |
 
@@ -98,7 +98,7 @@ To update, run `git pull` in the folder.
 | `/cat manousos` | The original coat: dark brown with a white bib and mittens. |
 | `/cat ginger` | An orange tabby. |
 | `/cat tuxedo` | Black and white. |
-| `/cat stats` | How many sardines he has had today and in all, and how often he has been petted. |
+| `/cat stats` | How many sardines he has had today and in all (one per commit, or per finished task that used tools), and how often he has been petted. |
 | `/cat help` | Lists the coats, and where the settings are. |
 
 The coat you pick, his sardines and his pets are remembered across sessions.
