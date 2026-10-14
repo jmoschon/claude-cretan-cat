@@ -120,6 +120,7 @@ To update, run `git pull` in the folder.
 | `/cat asturias` | Asturias, all at once: named Asturias, in the ginger coat, Clawd in rioplatense, coplas and tangos, temper on. She answers in her own words (*¿Qué querés?*, *Yo no fui, che*, *¿Sardina? ¿Y el asado?*). |
 | `/cat reset` | Manousos as he came: his name and coat, Greek, mantinades, no temper. |
 | `/cat stats` | How many sardines he has had today and in all (one per commit, or per finished task that used tools), and how often he has been petted. |
+| `/cat config` | Every setting and what it is now, sound included. `/cat settings` works too. |
 | `/cat help` | Lists all of this. Anything `/cat` doesn't know says so, then shows the same. |
 
 The coat you pick, whether he is hidden, his sardines and his pets are

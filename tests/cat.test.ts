@@ -108,9 +108,17 @@ describe('cretan-cat', () => {
     expect(help).toMatch(/manousos, ginger, tuxedo/)
     expect(help).toMatch(/\/cat pet/)
     expect(help).not.toMatch(/doesn't know/)
+    // A list, one command a line, not one long run of text.
+    expect(help!.split('\n').filter(l => l.trimStart().startsWith('/cat')).length).toBeGreaterThanOrEqual(10)
     const slip = await run('patt')
     expect(slip).toMatch(/doesn't know "\/cat patt"/)
     expect(slip).toMatch(/\/cat pet/)
+    // /cat config: each setting on its own line, with what it is now.
+    const config = await run('config')
+    expect(config).toMatch(/^ {2}name +Manousos$/m)
+    expect(config).toMatch(/^ {2}language +greek$/m)
+    expect(config).toMatch(/^ {2}temper +off$/m)
+    expect(config).toMatch(/^ {2}sound +off$/m)
   })
 
   test('/cat pet pets him from the prompt; hidden, he waits to come back first', async ($, on) => {
