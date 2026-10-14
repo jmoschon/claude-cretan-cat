@@ -183,7 +183,7 @@ const RUNNERS = new Set(['pytest', 'jest', 'vitest', 'mocha', 'ava', 'tap', 'rsp
 const WITH_TEST = new Set(['go', 'cargo', 'mix', 'dotnet', 'swift', 'deno', 'bun', 'zig', 'flutter', 'dart', 'gradle', 'gradlew', 'mvn', 'mvnw', 'sbt', 'lein', 'stack', 'cabal'])
 const PACKAGE = new Set(['npm', 'pnpm', 'yarn', 'bun'])
 // Ahead of the real command: a variable, a wrapper, a runner of runners.
-const PREFIX = /^(?:\w+=\S*\s+|(?:sudo|time|nice|env|command|exec|if|then|else|do|while|until)\s+|!\s*|timeout\s+(?:-\S+\s+)*\S+\s+|(?:npx|bunx|pnpx)\s+(?:-y\s+|--yes\s+)?|(?:pnpm|yarn)\s+(?:exec|dlx)\s+|(?:uv|poetry|pipenv|hatch|pdm|rye)\s+run\s+|python3?\s+-m\s+)/
+const PREFIX = /^(?:\w+=\S*\s+|(?:sudo|time|nice|env|command|exec|if|then|else|do|while|until)\s+|!\s*|timeout\s+(?:-\S+\s+)*\S+\s+|(?:npx|bunx|pnpx)\s+(?:-y\s+|--yes\s+)?|(?:pnpm|yarn|npm)\s+(?:exec|dlx)\s+|bundle\s+exec\s+|(?:uv|poetry|pipenv|hatch|pdm|rye)\s+run\s+|python3?\s+-m\s+)/
 
 export type BashKind = 'tests' | 'commit'
 
@@ -193,13 +193,19 @@ export type BashKind = 'tests' | 'commit'
 function commandsOf(line: string): { words: string[]; isExitTold: boolean }[] {
   // A heredoc's body is text, not commands: `cat > run.sh <<'EOF'` ... `EOF`.
   const noHeredocs = line.replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, '<<HEREDOC')
-  const bare = noHeredocs.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""')
+  // Quoted text set aside, and redirections (`2>&1`, `&>log`), whose `&` is
+  // no background.
+  const bare = noHeredocs.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""').replace(/\d*[<>]&[\d-]*|&>>?/g, ' ')
   const parts = bare.split(/(\|\||&&|[;|&\n])/)
   const out: { words: string[]; isExitTold: boolean }[] = []
   for (let i = 0; i < parts.length; i += 2) {
-    let text = (parts[i] ?? '').trim().replace(/^[({]\s*/, '')
+    let text = (parts[i] ?? '')
+      .trim()
+      .replace(/^[({]\s*/, '')
+      .replace(/\s*[)}]\s*$/, '')
     for (let prefix = PREFIX.exec(text); prefix; prefix = PREFIX.exec(text)) text = text.slice(prefix[0].length)
-    const after = parts.filter((_, j) => j > i && j % 2 === 1 && (parts[j + 1] ?? '').trim() !== '')
+    // A trailing `&` sends it to the background: its exit code is the shell's.
+    const after = parts.filter((p, j) => j > i && j % 2 === 1 && (p === '&' || (parts[j + 1] ?? '').trim() !== ''))
     out.push({ words: text.split(/\s+/).filter(Boolean), isExitTold: after.every(sep => sep === '&&') })
   }
   return out
@@ -218,12 +224,12 @@ function isTests(words: string[]): boolean {
     const words2: string[] = []
     for (let i = 1; i < words.length; i++) {
       const w = words[i]!
-      if (/^--?(filter|prefix|dir|cwd|workspace|C|F)$/.test(w)) i++
+      if (/^--?(filter|prefix|dir|cwd|workspace|C|F|w)$/.test(w)) i++
       else if (!w.startsWith('-')) words2.push(w)
     }
     const at = words2[0] === 'workspace' ? 2 : 0
     const script = words2[at] === 'run' ? words2[at + 1] : words2[at]
-    if (script !== undefined && (['test', 't', 'tests'].includes(script) || script.startsWith('test:'))) return true
+    if (script !== undefined && (['test', 't', 'tests'].includes(script) || script.startsWith('test:') || RUNNERS.has(script))) return true
   }
   if (name === 'cargo' && rest[0] === 'nextest') return true
   if (name === 'make') return rest.some(w => ['test', 'tests', 'check'].includes(w))

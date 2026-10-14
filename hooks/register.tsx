@@ -293,11 +293,18 @@ async function setMood($: EngineInterface, mood: Mood, tool: string | null = nul
   settle?.cancel()
   settle = null
   if (current === mood && currentTool === tool) return
+  const [was, wasTool] = [current, currentTool]
   current = mood
   currentTool = tool
-  const moodAt = (await $.clock.now()) / 1000
-  const c = await update($, cat, cur => ({ ...cur, mood, tool }))
-  Object.assign(stage, { mood, moodAt, said: saidOf(c), reply: replyOf(c) })
+  try {
+    const moodAt = (await $.clock.now()) / 1000
+    const c = await update($, cat, cur => ({ ...cur, mood, tool }))
+    Object.assign(stage, { mood, moodAt, said: saidOf(c), reply: replyOf(c) })
+  } catch (error) {
+    // Not shown after all: the next try at this mood must not be skipped.
+    if (current === mood && currentTool === tool) [current, currentTool] = [was, wasTool]
+    throw error
+  }
 }
 
 // The mood now, and what it's about; the timer ending a short reaction.
@@ -342,7 +349,13 @@ async function react($: EngineInterface, mood: Mood) {
   stopFlash()
   const claim = { cancel: () => {} }
   flash = claim
-  await setMood($, mood)
+  try {
+    await setMood($, mood)
+  } catch {
+    // The reaction didn't show: let go of it, so he can resume.
+    if (flash === claim) flash = null
+    return resume($)
+  }
   if (flash !== claim) return
   let timer: { cancel: () => void } | null = null
   const mine = { cancel: () => timer?.cancel() }
@@ -637,16 +650,23 @@ export const register: Register = (on, options) => {
     stopFlash()
     await quietly(async () => {
       // Stopped by you (Esc): no fuss, he just curls up again.
-      if (e.reason === 'aborted') return setMood($, 'nap')
+      if (e.reason === 'aborted') return inTurn ? undefined : setMood($, 'nap')
       const isDone = e.reason === 'answer'
       if (isDone) {
         const verse = await nextVerse($, (await read($, cat)).verse)
         await update($, cat, c => ({ ...c, verse }))
       }
+      // A new turn may have begun while this one wrapped up: it wins.
+      const ended = turn
+      if (inTurn) return
       await setMood($, isDone ? 'happy' : 'oops')
       if (isDone) meow($)
-      // Long enough to read the couplet before he curls up again.
-      settle = $.clock.after(isDone ? 12000 : 5000, () => void setMood($, 'nap').catch(() => {}))
+      // Long enough to read the couplet before he curls up again, unless a
+      // new turn has begun by then.
+      if (inTurn || turn !== ended) return
+      settle = $.clock.after(isDone ? 12000 : 5000, () => {
+        if (!inTurn && turn === ended) void setMood($, 'nap').catch(() => {})
+      })
     })
     return next(e)
   })
@@ -663,7 +683,7 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const c = await read($, cat)
     const reply = replyOf(c)
-    const kittens = c.helpers > 0 ? ` · ${c.helpers} helper${c.helpers === 1 ? '' : 's'} ${'=^.^= '.repeat(Math.min(c.helpers, 5))}` : ''
+    const kittens = c.helpers > 0 ? ` · ${c.helpers} helper${c.helpers === 1 ? '' : 's'} ${'=^.^= '.repeat(Math.min(c.helpers, 4))}` : ''
     // The clock now (the frame loop's last reading, if the clock won't say).
     const now = await $.clock.now().catch(() => seconds * 1000)
     const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000

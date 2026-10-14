@@ -517,6 +517,27 @@ describe('cretan-cat', () => {
     expect((saved.sardines as { today: number }).today).toBe(1)
   })
 
+  test('`npm test 2>&1` trusts its own exit code: passing output that says FAIL still dances', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const run = $.tool.call({ tool: 'Bash', command: 'npm test 2>&1' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'x', text: '✓ handles the FAIL state\nTests: 41 passed' })
+    await run
+    expect(await caption($, /dances: the tests passed/)).toBe(true)
+  })
+
+  test('a turn ending as the next begins: the new turn wins, no nap in the middle of it', async ($, on) => {
+    const { clock } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    const ending = $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    const starting = $.turn.start({ turnId: 't2' } as never)
+    await Promise.all([ending, starting])
+    await clock.advance(13_000)
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
   test('the yard follows the clock and the helpers', () => {
     const base = { mood: 'think', coat: 'manousos', t: 3, since: 3, cols: 110, rows: 11 } as const
     const day = drawCat({ ...base, hour: 12, month: 6 })
