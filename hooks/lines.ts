@@ -217,8 +217,8 @@ const RIOPLATENSE = (n: Name): Lines => ({
   bored: [`${n.latin}, no te duermas, ¡todavía sigue!`, 'Qué embole... zzz'],
   slapped: '¡Ay! ¿Y eso por qué?',
   snubbed: `¿${n.latin}? ¿Hola?`,
-  retort: ['¿Qué querés?', '¡Qué pesado!', '¡Tomá!', '¡Qué plomo!', 'Ni a palos.', '¡Salí de acá!', '¿Me estás cargando?'],
-  shrug: ['...', 'Ni ahí.', 'Qué pesado...', 'Mmm. No.', 'Después vemos.'],
+  retort: ['¿Qué querés?', '¡Qué pesado!', '¡Tomá!', '¡Qué hincha pelotas!', '¡Qué plomo!', 'Ni en pedo.', 'Ni a palos.', '¡Salí de acá!', '¿Me estás cargando?'],
+  shrug: ['...', 'Ni ahí.', 'Qué pesado...', 'Mmm. No.', 'Estoy ocupada.', 'Después vemos.'],
   swat: '¡Ey! Sin tocar.',
   asks: '¿Y mis mimos?',
 })
