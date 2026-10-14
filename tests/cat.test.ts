@@ -40,6 +40,19 @@ describe('cretan-cat', () => {
     expect((await run('zebra')).text).toMatch(/manousos, ginger, tuxedo/)
   })
 
+  test('/cat hide and /cat show are explicit; bare /cat toggles', async ($, on) => {
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('hide')).toMatch(/under the sofa/)
+    expect(await run('HIDE ')).toMatch(/under the sofa/)
+    expect(await run('show')).toMatch(/is back/)
+    expect(await run('show')).toMatch(/is back/)
+    expect(await run('')).toMatch(/under the sofa/)
+    expect(await run('')).toMatch(/is back/)
+  })
+
   test('Clawd nudges Manousos about the prompt\'s topic, not the prompt itself', async ($, on) => {
     on('prompt.submit', async (_$, e) => ({ text: e.text }) as never)
     mock.clock(on, { now: 1_700_000_000_000 })

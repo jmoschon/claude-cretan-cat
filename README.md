@@ -105,7 +105,7 @@ To update, run `git pull` in the folder.
 
 | Command | What it does |
 |---|---|
-| `/cat` | Hide him, or bring him back. |
+| `/cat hide`, `/cat show` | Hide him, or bring him back. A bare `/cat` toggles. |
 | `/cat manousos` | The original coat: dark brown with a white bib and mittens. |
 | `/cat ginger` | An orange tabby. |
 | `/cat tuxedo` | Black and white. |
@@ -139,7 +139,7 @@ The full scene is 11 rows plus a caption line, in a terminal at least about
 `cretan-cat`. If they say hook modules are turned off, your Claude Code
 doesn't have the feature yet.
 
-**He disappeared.** You may have hidden him: type `/cat`.
+**He disappeared.** You may have hidden him: type `/cat show`.
 
 **No meow.** Sound is off unless you turn it on in `/config`, and it plays on
 macOS only.
