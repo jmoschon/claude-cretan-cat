@@ -1,6 +1,6 @@
 {
   "name": "cretan-cat",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "A pixel-art Cretan cat above the prompt, Manousos unless you name it. Clawd tells the cat what to do while Claude works, and it answers in song: Cretan mantinades, coplas and tangos, or English couplets.",
   "author": {
     "name": "Yiannis Moschonas"
