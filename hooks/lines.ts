@@ -155,24 +155,39 @@ const STOP = new Set(
     'can could would should will please pls me my we our you your i im do does did make add fix change update ' +
     'use using get set run check look see want need let lets just also some any all more again now then there ' +
     'how what why where when which who new like out up down one two not no yes ok hi hey hello thanks ' +
+    'u ur pls plz says say said tell show give try keep start stop open turn put take find help know think go ' +
+    'refactor rewrite write create remove delete review investigate explain implement rename move improve ' +
+    'clean migrate convert generate analyze analyse summarize summarise draft prepare compare verify ensure ' +
+    // When it is due is not what it is about: "the cost report for October".
+    'today tomorrow yesterday tonight morning afternoon evening week weekend month year asap eod soon later ' +
+    'january february march april may june july august september october november december ' +
+    'jan feb mar apr jun jul aug sep sept oct nov dec ' +
+    'monday tuesday wednesday thursday friday saturday sunday ' +
+    'διόρθωσε φτιάξε άλλαξε πρόσθεσε κοίτα δες τρέξε γράψε σβήσε έλεγξε σήμερα αύριο ' +
+    'enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre hoy mañana revisa ' +
     'και να το τα τη την της του των σε με για από που ένα μια στο στη στην ' +
     'el la los las de del que y en un una unos unas para por con sin es son se lo le les como más pero al ' +
     'ya o este esta estos estas ese esa mi tu su hola gracias por favor haz hacer arregla cambia añade'
   ).split(' '),
 )
 
-// The topic of a prompt in a word or two: its last two words that carry
-// meaning, which is usually what the work is about; one word when two run
-// long; a very long word is cut.
+// The topic of a prompt in a few words: its last words that carry meaning,
+// which is usually what the work is about, as written ("BigQuery"): three
+// when they fit, else two, else one; a very long word is cut.
+const TOPIC_MOST = 26
 export function topicOf(text: string): string {
   const words = text
-    .toLowerCase()
     .replace(/[`"'«»“”¡!¿?()[\]{}<>.,;:]/g, ' ')
     .split(/\s+/)
-    .filter(w => [...w].length >= 3 && !STOP.has(w) && !/^[\d/~._-]+$/.test(w) && !w.includes('/'))
-  const two = words.slice(-2).join(' ')
-  const topic = [...two].length > 26 ? (words[words.length - 1] ?? '') : two
-  return [...topic].slice(0, 26).join('')
+    .filter(w => {
+      const low = w.toLowerCase()
+      return [...w].length >= 3 && !STOP.has(low) && !/^[\d/~._-]+$/.test(w) && !w.includes('/')
+    })
+  for (const n of [3, 2, 1]) {
+    const topic = words.slice(-n).join(' ')
+    if ([...topic].length <= TOPIC_MOST) return topic
+  }
+  return [...(words[words.length - 1] ?? '')].slice(0, TOPIC_MOST).join('')
 }
 
 // What a Bash command was, as the cat cares: a test run, a commit, or

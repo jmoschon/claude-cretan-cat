@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
+import { topicOf } from '../hooks/lines'
 import { drawCat } from '../hooks/manousos'
 
 const BAND = { component: 'AbovePrompt' } as const
@@ -148,7 +149,7 @@ describe('cretan-cat', () => {
     const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     const raster = (await ui.find({ type: 'Raster' })) as { props: { cells: string } } | undefined
     const text = cellsText(raster?.props.cells ?? '')
-    expect(text).toContain('«checkout tests»')
+    expect(text).toContain('«failing checkout tests»')
     expect(text).not.toContain('fix the failing')
     await ui.unmount()
   })
@@ -187,8 +188,8 @@ describe('cretan-cat', () => {
   })
 
   for (const [language, nudge] of [
-    ['english', '"checkout tests"'],
-    ['spanish', '«checkout tests»'],
+    ['english', '"failing checkout tests"'],
+    ['spanish', '«failing checkout tests»'],
   ] as const) {
     test(`with language ${language}, Clawd speaks it; the mantinada stays Greek`, { options: { language } }, async ($, on) => {
       mock.clock(on, { now: 1_700_000_000_000 })
@@ -672,6 +673,18 @@ describe('cretan-cat', () => {
     await Promise.all([ending, starting])
     await clock.advance(13_000)
     expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test('the topic is what the work is about, as written: not when it is due, nor the verb', () => {
+    expect(topicOf('refactor the BigQuery cost report for October')).toBe('BigQuery cost report')
+    expect(topicOf('investigate the Datastream error alert today')).toBe('Datastream error alert')
+    expect(topicOf('arregla el informe de costes para octubre')).toBe('informe costes')
+    expect(topicOf('διόρθωσε το checkout service')).toBe('checkout service')
+    // Nothing to speak of: Clawd falls back to a general nudge.
+    expect(topicOf('can u turn it on?')).toBe('')
+    // Three words when they fit, else fewer; a very long word is cut.
+    expect(topicOf('fix the payments reconciliation job')).toBe('reconciliation job')
+    expect([...topicOf('supercalifragilisticexpialidociousness')].length).toBe(26)
   })
 
   test('the yard follows the clock and the helpers', () => {

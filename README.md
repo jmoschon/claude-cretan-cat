@@ -33,7 +33,9 @@ An independent project, not affiliated with or endorsed by Anthropic.
 | You pressed Esc | Goes back to sleep | Dozes |
 
 The topic Clawd mentions is picked from the last meaningful words of your
-prompt. Slash commands are never picked up.
+prompt, as you wrote them: "refactor the BigQuery cost report for October"
+becomes "BigQuery cost report", leaving out the verb and when it is due.
+Slash commands are never picked up.
 
 A few more things:
 
