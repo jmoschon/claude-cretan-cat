@@ -4,6 +4,7 @@ import type { EngineInterface, Register, RenderNode } from 'claude-code'
 import type { Cat, Coat, Mood } from '../types'
 import { bashKind, isLanguage, LANGUAGES, LINES, NAME_MOST, catNameOf, saysFailed, shortTool, topicOf, type Language, type Name } from './lines'
 import { COATS, drawCat, drawCells, fit, PETTING_S, replyFits, skyAt } from './manousos'
+import { base64, cellsOf, drawHd, sameWords, type Overlay } from './hd'
 import { cellsToSvg, SVG_MOST } from './svg'
 import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
 
@@ -25,7 +26,7 @@ const linesOf = () => LINES[language](catName)
 // it can; where it can't, it keeps the value in the store, with the /config
 // value it was set over. Whichever changed last wins: a /config value that
 // has changed since replaces the command's.
-const FIELDS = ['name', 'language', 'songs', 'temper'] as const
+const FIELDS = ['name', 'language', 'songs', 'temper', 'resolution'] as const
 type Field = (typeof FIELDS)[number]
 type Override = { value: string; over: unknown }
 let fromConfig: Partial<Record<Field, unknown>> = {}
@@ -38,6 +39,77 @@ function apply(field: Field, value: unknown) {
     songLanguage = next
   }
   if (field === 'temper') isTempered = value === 'on'
+  if (field === 'resolution') resolution = value === 'high' ? 'high' : 'low'
+}
+// How finely the yard is drawn ("resolution" setting): low, two pixels a
+// cell; high, a picture (hd.ts) where the terminal shows pictures.
+type Resolution = 'low' | 'high'
+let resolution: Resolution = 'low'
+// Whether this terminal shows pictures: kitty or Ghostty, not under a
+// multiplexer (tmux, screen, Zellij pass no pictures through), an editor's
+// terminal (VS Code, Neovim, Emacs) or ssh, as the environment says; and
+// whether it refused one all the same, which holds for the session (until
+// /cat resolution high asks again).
+let picturesShow: boolean | undefined
+let picturesRefused = false
+// Why the yard last drew in cells though the resolution is high; what /cat config says.
+let hdWhy = 'not drawn yet'
+let envSeen = ''
+let refusals = 0
+async function showsPictures($: EngineInterface): Promise<boolean> {
+  if (picturesShow !== undefined) return picturesShow
+  try {
+    const [tmux, sty, zellij, term, program, kitty, ghostty, nvim, emacs, sshConnection, sshTty] = await Promise.all([
+      $.env.get('TMUX'),
+      $.env.get('STY'),
+      $.env.get('ZELLIJ'),
+      $.env.get('TERM'),
+      $.env.get('TERM_PROGRAM'),
+      $.env.get('KITTY_WINDOW_ID'),
+      $.env.get('GHOSTTY_RESOURCES_DIR'),
+      $.env.get('NVIM'),
+      $.env.get('INSIDE_EMACS'),
+      $.env.get('SSH_CONNECTION'),
+      $.env.get('SSH_TTY'),
+    ])
+    const isMultiplexed = !!tmux || !!sty || zellij !== undefined || /^(screen|tmux)/.test(term ?? '') || program === 'tmux'
+    const isHosted = nvim !== undefined || emacs !== undefined || program === 'vscode' || !!sshConnection || !!sshTty
+    const isKittyProgram = /^(kitty|ghostty)$/i.test(program ?? '')
+    // kitty's and Ghostty's own variables leak into what runs inside them, so
+    // they count only where no other program says it is the terminal.
+    const isKittyLike = term === 'xterm-kitty' || term === 'xterm-ghostty' || isKittyProgram || ((program === undefined || isKittyProgram) && (!!kitty || !!ghostty))
+    picturesShow = !isMultiplexed && !isHosted && isKittyLike
+    envSeen = [
+      `TERM=${term ?? '-'} TERM_PROGRAM=${program ?? '-'}`,
+      ...([['GHOSTTY', ghostty], ['KITTY', kitty], ['TMUX', tmux], ['SCREEN', sty], ['ZELLIJ', zellij], ['NVIM', nvim], ['EMACS', emacs], ['SSH', sshConnection ?? sshTty]] as const).filter(([, v]) => v !== undefined).map(([k]) => k),
+    ].join(' ')
+  } catch {
+    picturesShow = false
+  }
+  return picturesShow
+}
+// A picture blit refused because the terminal draws the picture's alt, or
+// refused for the picture itself (a bad source, a file it cannot read) this
+// many times running: back to cells for the session. A refusal for where it
+// went (not mounted yet, another size, no surface) is no word on pictures.
+const MOST_REFUSALS = 3
+const DRAWS_ALT = /\balt\b|placeholder/i
+const ABOUT_PLACE = /not mounted|mounted|another size|size|not this plugin|plugin's|no-surface|no surface/i
+const ABOUT_PICTURE = /source|decode|read|file|image|picture/i
+// Sent at the first frame after a drawing, whatever the picture: no hash is this.
+const UNSENT = -1
+// At high resolution the yard is repainted every HD_EVERY frames (five a
+// second), and only what changed: the picture, a text box, or, when the
+// text moved, the whole band once.
+const HD_EVERY = 2
+const sigOf = (overlays: Overlay[]) => overlays.map(o => `${o.col},${o.row},${o.columns},${o.rows}`).join(' ')
+// The most columns an Image takes.
+const IMAGE_MOST_COLS = 255
+const pictureHash = (rgba: Uint8Array) => {
+  const words = new Uint32Array(rgba.buffer, rgba.byteOffset, rgba.byteLength >> 2)
+  let h = 0x811c9dc5
+  for (let i = 0; i < words.length; i++) h = Math.imul(h ^ words[i]!, 0x01000193)
+  return h >>> 0
 }
 const TICK_MS = 400
 const CAPTION_WIDTH = 60
@@ -99,6 +171,9 @@ type Stage = {
   isSwatted: boolean
   isOnKeys: boolean
   kittens: number
+  // At high resolution: where the text boxes are, the picture last sent (by
+  // its hash) and each box's cells, as drawn or last blitted.
+  hd: { sig: string; picture: number; texts: Uint32Array[] } | undefined
 }
 const STAGE_START: Stage = {
   requestId: undefined,
@@ -113,6 +188,7 @@ const STAGE_START: Stage = {
   isSwatted: false,
   isOnKeys: false,
   kittens: 0,
+  hd: undefined,
 }
 const stage: Stage = { ...STAGE_START }
 // Seconds, as the frame loop last read the clock; a redraw draws that moment.
@@ -622,7 +698,12 @@ export const register: Register = (on, options) => {
   flash = null
   settle = null
   deck = []
-  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper }
+  picturesShow = undefined
+  picturesRefused = false
+  refusals = 0
+  hdWhy = 'not drawn yet'
+  envSeen = ''
+  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper, resolution: options.resolution }
   for (const field of FIELDS) apply(field, fromConfig[field])
 
   on('session.start', async ($, e, next) => {
@@ -697,12 +778,48 @@ export const register: Register = (on, options) => {
     let frames = 0
     $.clock.every(FRAME_MS, () => {
       frames += 1
-      const { requestId, cols, rows, mood } = stage
+      const { requestId, cols, rows, mood, hd } = stage
       if (requestId === undefined || (mood === 'nap' && frames % 3 !== 0)) return
+      if (hd !== undefined && frames % HD_EVERY !== 0 && mood !== 'nap') return
       void (async () => {
         seconds = (await $.clock.now()) / 1000
-        const cells = drawCat(sceneAt(seconds * 1000))
-        await $.ui.blit({ requestId, key: 'manousos', columns: cols, rows, cells })
+        if (hd === undefined) {
+          const cells = drawCat(sceneAt(seconds * 1000))
+          await $.ui.blit({ requestId, key: 'manousos', columns: cols, rows, cells })
+          return
+        }
+        const frame = drawHd(sceneAt(seconds * 1000))
+        // The picture first, always on the first frame after a drawing, so a
+        // terminal that won't show it says so at once.
+        const picture = pictureHash(frame.rgba)
+        if (picture !== hd.picture) {
+          const source = { rgba: base64(frame.rgba), width: frame.width, height: frame.height }
+          const { deny } = await $.ui.blit({ requestId, key: 'manousos', columns: cols, rows, source })
+          if (deny === undefined) {
+            hd.picture = picture
+            refusals = 0
+          } else if (DRAWS_ALT.test(deny) || (!ABOUT_PLACE.test(deny) && ABOUT_PICTURE.test(deny) && ++refusals >= MOST_REFUSALS)) {
+            // This terminal won't show the picture: cells from now on.
+            picturesRefused = true
+            hdWhy = `the terminal refused the picture: ${deny}`
+            stage.hd = undefined
+            $.ui.invalidate('ui.render')
+            return
+          }
+        }
+        // A bubble came, went or changed its size: the band is drawn again, once.
+        if (sigOf(frame.overlays) !== hd.sig) {
+          hd.sig = ''
+          $.ui.invalidate('ui.render')
+          return
+        }
+        await Promise.all(
+          frame.overlays.map((o, i) => {
+            if (sameWords(hd.texts[i], o.words)) return undefined
+            hd.texts[i] = o.words
+            return $.ui.blit({ requestId, key: `text${i}`, columns: o.columns, rows: o.rows, cells: cellsOf(o) })
+          }),
+        )
       })().catch(() => {})
     })
 
@@ -761,7 +878,7 @@ export const register: Register = (on, options) => {
       return { text: refused.length === 0 ? done : `Couldn't change ${refused.join('; ')}` }
     }
     // A whole cat at once: its settings and its coat.
-    const becomes = async (look: Coat, settings: Record<Field, string>, done: string) => {
+    const becomes = async (look: Coat, settings: Partial<Record<Field, string>>, done: string) => {
       const refused = await change(settings)
       await update($, coat, () => look)
       await update($, isHidden, () => false)
@@ -810,6 +927,21 @@ export const register: Register = (on, options) => {
       if (value !== 'on' && value !== 'off') return { text: `Temper is ${isTempered ? 'on' : 'off'}. /cat temper on or off changes it.` }
       return setting('temper', value, value === 'on' ? `${name()} has a temper now: nag and it bites back.` : `${name()} is calm again.`)
     }
+    if (arg === 'resolution') {
+      // Asked for again: a terminal that refused a picture gets another try.
+      if (value === 'high') {
+        picturesRefused = false
+        refusals = 0
+      }
+      if (value !== 'high' && value !== 'low') return { text: `The yard is drawn at ${resolution} resolution. /cat resolution high or low changes it.` }
+      return setting(
+        'resolution',
+        value,
+        value === 'high'
+          ? `The yard is drawn at high resolution now, where the terminal shows pictures (kitty, Ghostty; not under tmux); elsewhere it stays in cells.`
+          : `The yard is drawn in cells again, two pixels a cell.`,
+      )
+    }
     if ((arg === 'config' || arg === 'settings') && value === '') {
       const rows: [string, string][] = [
         ['name', name()],
@@ -818,6 +950,7 @@ export const register: Register = (on, options) => {
         ['songs', songLanguage],
         ['temper', isTempered ? 'on' : 'off'],
         ['sound', isSoundOn ? 'on' : 'off'],
+        ['resolution', resolution === 'high' ? (hdWhy === '' ? 'high (pictures)' : `high, in cells: ${hdWhy}`) : resolution],
       ]
       return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; sound only changes in /config, "Cretan cat".` }
     }
@@ -837,6 +970,7 @@ export const register: Register = (on, options) => {
         ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now)`],
         ['/cat songs <language>', `what ${name()} sings: ${SONG_LANGUAGES.join(', ')} (${songLanguage} now)`],
         ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
+        ['/cat resolution high|low', `the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (${resolution} now)`],
         ['/cat asturias', 'Asturias: ginger, rioplatense, coplas and a temper'],
         ['/cat reset', 'Manousos as he came'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
@@ -1025,6 +1159,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) {
       stage.requestId = undefined
+      stage.hd = undefined
       return next(e)
     }
 
@@ -1070,7 +1205,41 @@ export const register: Register = (on, options) => {
         isOnKeys: c.isOnKeys,
       })
       const scene = sceneAt(now)
-      if (isTerminal && 'Raster' in table) {
+      stage.hd = undefined
+      refusals = 0
+      const isWide = stage.cols > IMAGE_MOST_COLS
+      const isHd = isTerminal && resolution === 'high' && !picturesRefused && !isWide && 'Image' in table && 'Raster' in table && (await showsPictures($))
+      if (resolution === 'high') {
+        if (isHd) hdWhy = ''
+        else if (!isTerminal) hdWhy = Svg ? `the ${e.surface} draws an SVG` : `the ${e.surface} draws the ASCII cat`
+        else if (isWide) hdWhy = `the band is wider than a picture can be (${IMAGE_MOST_COLS} columns)`
+        else if (picturesRefused) hdWhy = hdWhy || 'the terminal refused the picture'
+        else if (!('Image' in table)) hdWhy = 'this terminal surface has no Image element'
+        else hdWhy = `pictures not detected (${envSeen})`
+      }
+      if (isHd && isTerminal) {
+        // The yard as a picture, and its text as cells laid over it: each
+        // box of text a Raster of its own, placed where the cells yard has it.
+        const { Image, Raster } = table
+        const frame = drawHd(scene)
+        stage.hd = { sig: sigOf(frame.overlays), picture: UNSENT, texts: frame.overlays.map(o => o.words) }
+        yard = (
+          <Box key="yard" width={stage.cols} height={stage.rows}>
+            <Image
+              key="manousos"
+              source={{ rgba: base64(frame.rgba), width: frame.width, height: frame.height }}
+              columns={stage.cols}
+              rows={stage.rows}
+              alt={`Clawd and ${name()} in the yard: ${caption}`}
+            />
+            {frame.overlays.map((o, i) => (
+              <Box key={`at${i}`} position="absolute" top={o.row} left={o.col}>
+                <Raster key={`text${i}`} columns={o.columns} rows={o.rows} cells={cellsOf(o)} />
+              </Box>
+            ))}
+          </Box>
+        )
+      } else if (isTerminal && 'Raster' in table) {
         const { Raster } = table
         yard = <Raster key="manousos" columns={stage.cols} rows={stage.rows} cells={drawCat(scene)} />
       } else if (Svg) {
@@ -1107,6 +1276,7 @@ export const register: Register = (on, options) => {
     }
 
     stage.requestId = undefined
+    stage.hd = undefined
     const tint = isCalm(c.mood) ? COAT_TINT[await read($, coat)] : COLOR[c.mood]
     const frames = FRAMES[c.mood]
     const lines = frames[c.frame % frames.length] ?? frames[0] ?? []

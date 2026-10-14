@@ -2,7 +2,7 @@
 terminal cell as the terminal would: half blocks as two colored pixels,
 text in a monospace font. Needs Pillow (pip install pillow).
 
-    python3 scripts/gif.py frames.jsonl docs/demo.gif
+    python3 scripts/gif.py frames.jsonl docs/demo-low.gif
 """
 
 import base64

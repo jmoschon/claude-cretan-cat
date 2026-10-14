@@ -1,9 +1,10 @@
 // Renders a short scripted scene with the plugin's own drawing code and
 // prints it as JSON lines, one frame each: { cols, rows, cells }. Feed it
-// to scripts/gif.py to make docs/demo.gif.
+// to scripts/gif.py to make docs/demo-low.gif,
+// the yard at "resolution: low" (scripts/frames-hd.ts makes docs/demo.gif).
 //
 //   npx tsx scripts/frames.ts > /tmp/frames.jsonl
-//   python3 scripts/gif.py /tmp/frames.jsonl docs/demo.gif
+//   python3 scripts/gif.py /tmp/frames.jsonl docs/demo-low.gif
 
 import { drawCat, type Scene } from '../hooks/manousos'
 

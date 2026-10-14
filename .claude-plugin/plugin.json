@@ -1,6 +1,6 @@
 {
   "name": "cretan-cat",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "A pixel-art Cretan cat above the prompt, Manousos unless you name it. Clawd tells the cat what to do while Claude works, and it answers in song: Cretan mantinades, coplas and tangos, or English couplets.",
   "author": {
     "name": "Yiannis Moschonas"
@@ -56,6 +56,16 @@
       "options": [
         "off",
         "on"
+      ]
+    },
+    "resolution": {
+      "type": "string",
+      "title": "Cretan cat: resolution",
+      "description": "How finely the yard is drawn: low, two pixels a terminal cell, everywhere; high, a fine picture where the terminal shows pictures (kitty, Ghostty; not under tmux), cells elsewhere. /cat resolution sets it too.",
+      "default": "low",
+      "options": [
+        "low",
+        "high"
       ]
     }
   }
