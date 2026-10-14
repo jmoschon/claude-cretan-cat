@@ -14,14 +14,15 @@ export { COATS }
 type Rgb = [number, number, number]
 const same = (a: Rgb, b: Rgb) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2]
 const luma = (c: Rgb) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
-const scale = (c: Rgb, k: number): Rgb => [Math.round(c[0] * k), Math.round(c[1] * k), Math.round(c[2] * k)]
-const hash = (x: number, y: number) => {
+export const scale = (c: Rgb, k: number): Rgb => [Math.round(c[0] * k), Math.round(c[1] * k), Math.round(c[2] * k)]
+export const hash = (x: number, y: number) => {
   const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453
   return v - Math.floor(v)
 }
 
 // The yard: sky (the terminal's own color), Psiloritis, a whitewashed wall
 // with a blue top and a window, and a lawn. Heights in pixels.
+export type { Rgb }
 const LAWN: Rgb = [112, 164, 84]
 const LAWN_DARK: Rgb = [98, 148, 74]
 const LAWN_EDGE: Rgb = [134, 184, 100]
@@ -41,11 +42,13 @@ const LAWN_PX = 4
 const WALL_PX = 4
 // Feet stand on this pixel row, counted up from the bottom.
 const FEET_UP = 1
+// The yard's colors and sizes, for the high-resolution painter (hd.ts).
+export const YARD = { LAWN, LAWN_DARK, LAWN_EDGE, SHADOW, WALL, WALL_SHADE, TRIM, GLASS, LAMP, SNOW, CUSHION, CUSHION_EDGE, KEYBOARD, KEYCAP, KEYBOARD_PX, LAWN_PX, WALL_PX }
 
 // The time of day, from the local hour, and what it does to the colors.
-type Daylight = 'dawn' | 'day' | 'dusk' | 'night'
+export type Daylight = 'dawn' | 'day' | 'dusk' | 'night'
 const daylightAt = (hour: number): Daylight => (hour >= 21 || hour < 6 ? 'night' : hour < 8 ? 'dawn' : hour < 18 ? 'day' : 'dusk')
-const SKY: Record<Daylight, { far: Rgb; near: Rgb; light: Rgb; dim: number }> = {
+export const SKY: Record<Daylight, { far: Rgb; near: Rgb; light: Rgb; dim: number }> = {
   dawn: { far: [176, 150, 184], near: [140, 120, 160], light: [255, 176, 96], dim: 0.9 },
   day: { far: [150, 172, 204], near: [118, 144, 182], light: [255, 220, 96], dim: 1 },
   dusk: { far: [156, 112, 146], near: [120, 86, 124], light: [255, 140, 72], dim: 0.82 },
@@ -103,8 +106,10 @@ const MOST_KITTENS = 4
 export const PETTING_S = 3
 const TOSS_S = 1.2
 // The fishing toy: a feather on a string, swinging over his head.
-const TOY = ['.y.', 'pyp', 'ppp', '.p.']
-const TOY_COLORS: Record<string, Rgb> = { y: [255, 214, 90], p: [236, 104, 160] }
+export const TOY = ['.y.', 'pyp', 'ppp', '.p.']
+export const TOY_COLORS: Record<string, Rgb> = { y: [255, 214, 90], p: [236, 104, 160] }
+// A straight line in yard pixels, from one end to the other, in a color.
+export type ToyLine = [x0: number, y0: number, x1: number, y1: number, color: Rgb]
 const STRING: Rgb = [206, 206, 220]
 const ROD: Rgb = [128, 84, 52]
 const TOY_SWING = 1.6
@@ -323,6 +328,43 @@ export function drawCat(scene: Scene): string {
 // The same frame as cells: per cell its code point, foreground and
 // background (CLEAR: the surface's own), three words a cell, row-major.
 export function drawCells(scene: Scene): Uint32Array {
+  return drawFrame(scene).words
+}
+
+// Where everything in a frame went, in the pixels of the cells (two a
+// cell), in the order it was drawn: what the high-resolution painter (hd.ts)
+// paints again at its own density.
+export type Plan = {
+  w: number
+  h: number
+  t: number
+  light: Daylight
+  trimY: number
+  orb?: { x: number; y: number }
+  peak: number
+  isWinter: boolean
+  windowX: number
+  feet: number
+  shadows: [number, number][]
+  // Clawd, unless the cat is alone in his square.
+  clawd?: { look: ClawdLook; x: number; top: number }
+  cat: { pose: Pose; x: number; top: number; isLeft: boolean; coat: Coat }
+  // The fishing toy: the rod and the string, and the feather's top-left.
+  toy?: { lines: ToyLine[]; x: number; y: number }
+  keyboard?: [number, number]
+  cushion?: [number, number]
+  sardine?: { x: number; y: number }
+  kittens: { frame: 'a' | 'b'; x: number; y: number; coat: Coat; isMirrored: boolean }[]
+  // In cells: the marks by his head (z's, !, ?, *, hearts), each glyph in its
+  // own color, and the dotted line from him to his bubble (its last column
+  // is the bubble's edge).
+  marks: { col: number; row: number; char: string; color: Rgb }[]
+  connector?: { row: number; from: number; to: number; color: Rgb }
+}
+
+// One frame: its cells, which of them are the two bubbles' (Clawd's and his
+// reply's) rather than pixels or marks, and its plan.
+export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Array; plan: Plan } {
   const { mood, t, cols, rows } = scene
   const since = scene.since ?? t
   const light = daylightAt(scene.hour ?? 12)
@@ -372,6 +414,8 @@ export function drawCells(scene: Scene): Uint32Array {
   const orbX = hasReply ? Math.max(CAT_FROM, saidEnd + 1, catTo - 8) : isSolo ? cols - 6 : cols - 10
   const orbY = light === 'day' || light === 'night' ? 1 : Math.max(1, trimY - 6)
   const isOrbShown = orbX + 4 < (hasReply ? bx - 1 : cols)
+  const shadows: [number, number][] = []
+  const plan = { w, h, t, light, trimY, orb: isOrbShown ? { x: orbX, y: orbY } : undefined, shadows, kittens: [], marks: [] } as unknown as Plan
   for (const [dx, dy] of isOrbShown ? ([[1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [1, 3], [2, 3]] as const) : []) {
     // The moon is a crescent: its right side is dark.
     if (light === 'night' && dx >= 2 && dy >= 1 && dy <= 2) continue
@@ -379,6 +423,7 @@ export function drawCells(scene: Scene): Uint32Array {
   }
   const peak = Math.round(cols * 0.58)
   const winter = isWinter(scene.month ?? 6)
+  Object.assign(plan, { peak, isWinter: winter })
   for (let x = 0; x < w; x++) {
     // Never taller than the sky they stand in, less a strip for the stars;
     // the snow is on Psiloritis, its top two pixels however short the strip.
@@ -402,10 +447,13 @@ export function drawCells(scene: Scene): Uint32Array {
   }
   // The window sits at the right of the cat's room, clear of the bubble.
   const windowX = Math.max(catFrom, Math.min(cols - 4, catTo - 5))
+  plan.windowX = windowX
   for (let x = windowX; x < windowX + 3; x++) for (let y = trimY + 2; y < trimY + 4; y++) set(x, y, light === 'night' || light === 'dusk' ? LAMP : GLASS)
 
   const feet = h - 1 - FEET_UP
+  plan.feet = feet
   const shadow = (x0: number, x1: number) => {
+    shadows.push([x0, x1])
     for (let x = x0; x <= x1; x++) for (const y of [feet, feet + 1]) if (y < h && y > h - LAWN_PX) set(x, y, scale(SHADOW, sky.dim))
   }
 
@@ -417,6 +465,7 @@ export function drawCells(scene: Scene): Uint32Array {
   if (!isSolo) {
     shadow(CLAWD_X + 1, CLAWD_X + CLAWD_W - 2)
     for (const p of clawdPixels(clawd.look)) set(clawdX + p.x, clawdTop + p.y, p.c)
+    plan.clawd = { look: clawd.look, x: clawdX, top: clawdTop }
   }
 
   // Manousos, in his room. Petted, he stops to purr (asleep, he purrs on).
@@ -434,12 +483,14 @@ export function drawCells(scene: Scene): Uint32Array {
   const onKeys = scene.isOnKeys === true && !isPetted
   const catTop = feet + 1 - CAT_H - Math.min(cat.lift, feet + 1 - CAT_H) - (isAsleep ? 1 : 0) - (onKeys ? KEYBOARD_PX - 1 : 0)
   if (scene.isOnKeys) {
+    plan.keyboard = [cat.x - 2, cat.x + spriteW]
     // Your keyboard, a row of keycaps peeking out from under her.
     for (let x = cat.x - 2; x <= cat.x + spriteW; x++) {
       for (let k = 0; k < KEYBOARD_PX; k++) set(x, feet + 1 - k, k === 1 && x % 2 === 0 ? KEYCAP : KEYBOARD)
     }
   } else if (mood === 'nap') {
     // His cushion, the pale blue of the bedsheet in the photo.
+    plan.cushion = [cat.x - 1, cat.x + spriteW - 3]
     for (let x = cat.x - 1; x <= cat.x + spriteW - 3; x++) {
       const isEnd = x === cat.x - 1 || x === cat.x + spriteW - 3
       set(x, feet, isEnd ? CUSHION_EDGE : CUSHION)
@@ -456,11 +507,14 @@ export function drawCells(scene: Scene): Uint32Array {
   if (toy) {
     // The tip trails the swing, so the string leans.
     const tipX = toy.x + 1 - Math.round(Math.cos(t * TOY_SWING) * 3)
-    if (!isSolo) line(clawdX + CLAWD_W - 1, clawdTop + 1, tipX, 0, ROD)
-    line(tipX, 0, toy.x + 1, toy.y, STRING)
+    const lines: ToyLine[] = [[tipX, 0, toy.x + 1, toy.y, STRING]]
+    if (!isSolo) lines.unshift([clawdX + CLAWD_W - 1, clawdTop + 1, tipX, 0, ROD])
+    for (const l of lines) line(...l)
+    plan.toy = { lines, x: toy.x, y: toy.y }
   }
   blit(sprite, cat.x, catTop, C, cat.isLeft)
   if (toy) blit(TOY, toy.x, toy.y, TOY_COLORS)
+  plan.cat = { pose: cat.pose, x: cat.x, top: catTop, isLeft: cat.isLeft, coat: scene.coat }
 
   // The sardine a commit earns, tossed from Clawd's claw to his mouth.
   if (mood === 'feast' && since < TOSS_S) {
@@ -470,7 +524,9 @@ export function drawCells(scene: Scene): Uint32Array {
     const fromY = isSolo ? 0 : clawdTop
     const toX = cat.x + 6
     const toY = catTop + 5
-    blit(SARDINE, Math.round(fromX + (toX - fromX) * k), Math.round(fromY + (toY - fromY) * k - Math.sin(k * Math.PI) * 7), SARDINE_COLORS)
+    const sardine = { x: Math.round(fromX + (toX - fromX) * k), y: Math.round(fromY + (toY - fromY) * k - Math.sin(k * Math.PI) * 7) }
+    plan.sardine = sardine
+    blit(SARDINE, sardine.x, sardine.y, SARDINE_COLORS)
   }
 
   // The kittens, running back and forth along the front of the lawn.
@@ -485,7 +541,9 @@ export function drawCells(scene: Scene): Uint32Array {
     const isRight = k < 0.5
     const x = 1 + Math.round((isRight ? 2 * k : 2 - 2 * k) * span)
     // The sprite faces left; running right, it is mirrored.
-    blit(Math.floor(t * 8 + i) % 2 === 0 ? KITTEN.a : KITTEN.b, x, h - KITTEN.a.length, COATS[kittenCoats[i]!], isRight)
+    const frame = Math.floor(t * 8 + i) % 2 === 0 ? 'a' : 'b'
+    plan.kittens.push({ frame, x, y: h - KITTEN.a.length, coat: kittenCoats[i]!, isMirrored: isRight })
+    blit(KITTEN[frame], x, h - KITTEN.a.length, COATS[kittenCoats[i]!], isRight)
   }
 
   // Cells from pixels, two pixels a cell.
@@ -511,16 +569,31 @@ export function drawCells(scene: Scene): Uint32Array {
       else if (down) put(col, row, '▄', down)
     }
   }
-  const text = (col: number, row: number, str: string, color: Rgb, back?: Rgb) => [...str].forEach((ch, i) => put(col + i, row, ch, color, back))
+  // Text: drawn as put does, and marked as text, not pixels.
+  // Drawn as put does; a bubble's cells marked as the bubbles', a mark's
+  // glyph kept in the plan.
+  const isBubble = new Uint8Array(cols * rows)
+  let drawing: 'mark' | 'bubble' | 'line' = 'mark'
+  const inside = (col: number, row: number) => col >= 0 && col < cols && row >= 0 && row < rows
+  const say = (col: number, row: number, char: string, color: Rgb | number, back: Rgb | number = CLEAR) => {
+    put(col, row, char, color, back)
+    if (drawing === 'bubble' && inside(col, row)) isBubble[row * cols + col] = 1
+  }
+  const text = (col: number, row: number, str: string, color: Rgb, back?: Rgb) =>
+    [...str].forEach((ch, i) => {
+      if (drawing === 'mark' && inside(col + i, row)) plan.marks.push({ col: col + i, row, char: ch, color })
+      say(col + i, row, ch, color, back)
+    })
   // A glyph over whatever is drawn there, keeping the color behind it; on a
   // light background it inks dark, so it never vanishes into the wall.
   const over = (col: number, row: number, char: string, color: Rgb) => {
     if (col < 0 || col >= cols || row < 0 || row >= rows) return
+    if (drawing === 'mark') plan.marks.push({ col, row, char, color })
     const at = (row * cols + col) * 3
     const back = words[at + 2] !== CLEAR ? words[at + 2]! : words[at] !== 0x20 ? words[at + 1]! : CLEAR
     const behind: Rgb = [(back >> 16) & 255, (back >> 8) & 255, back & 255]
     const ink = back !== CLEAR && luma(behind) > 150 && luma(color) > 150 ? ([60, 62, 84] as Rgb) : color
-    put(col, row, char, ink, back)
+    say(col, row, char, ink, back)
   }
 
   // Little marks by his head: z's, a startle, a question, sparkles, hearts.
@@ -555,6 +628,7 @@ export function drawCells(scene: Scene): Uint32Array {
     }
   }
 
+  drawing = 'bubble'
   const edge: Rgb = [196, 198, 214]
   const panel: Rgb = [32, 33, 44]
   // Clawd's words: a one-line bubble above him, its tail on him.
@@ -565,7 +639,7 @@ export function drawCells(scene: Scene): Uint32Array {
     text(1, 1, '│ ' + ' '.repeat(width - 1) + '│', edge, panel)
     text(3, 1, line, [238, 238, 246], panel)
     text(1, 2, '╰' + '─'.repeat(width) + '╯', edge, panel)
-    put(Math.min(width, CLAWD_X + CLAWD_W / 2), 2, '┬', edge, panel)
+    say(Math.min(width, CLAWD_X + CLAWD_W / 2), 2, '┬', edge, panel)
   }
 
   // Manousos' reply in a bubble on the right, a dotted line from him to it.
@@ -581,8 +655,12 @@ export function drawCells(scene: Scene): Uint32Array {
     text(bx, by + height - 1, '╰' + '─'.repeat(replyWidth) + '╯', edge, panel)
     // At his mouth's height, from just past his right-most pixel.
     const row = Math.min(by + height - 2, Math.max(by + 1, Math.floor((catTop + 6) / 2)))
-    for (let col = Math.min(cat.x + spriteW + 1, bx - 1); col < bx; col++) over(col, row, '·', edge)
-    put(bx, row, '┤', edge, panel)
+    drawing = 'line'
+    const from = Math.min(cat.x + spriteW + 1, bx - 1)
+    plan.connector = { row, from, to: bx, color: edge }
+    for (let col = from; col < bx; col++) over(col, row, '·', edge)
+    drawing = 'bubble'
+    say(bx, row, '┤', edge, panel)
   }
-  return words
+  return { words, isBubble, plan }
 }

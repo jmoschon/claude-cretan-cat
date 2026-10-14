@@ -1,7 +1,9 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { topicOf } from '../hooks/lines'
-import { drawCat, drawCells, skyAt, type Scene } from '../hooks/manousos'
+import { drawHd } from '../hooks/hd'
+import { HD_SCALE } from '../hooks/hd-sprites'
+import { COATS, drawCat, drawCells, skyAt, type Scene } from '../hooks/manousos'
 import { cellsToSvg, SVG_MOST } from '../hooks/svg'
 
 const BAND = { component: 'AbovePrompt' } as const
@@ -1412,3 +1414,303 @@ function cellsText(b64: string) {
   return out
 }
 
+// resolution: high, and the low path it must leave exactly as it was.
+const KITTY = { TERM: 'xterm-kitty', KITTY_WINDOW_ID: '1' }
+const HIGH = { options: { resolution: 'high' } } as const
+const run = async ($: any, args: string) =>
+  (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text as string
+
+describe('cretan-cat at high resolution', () => {
+  const setUp = (on: any) => {
+    const clock = mock.clock(on, { now: 1_700_000_000_000 })
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    on('turn.start', async (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+    return { clock }
+  }
+  test('/cat resolution high|low writes the /config row; /cat help and /cat config list it', async ($, on) => {
+    const writes: [string, unknown][] = []
+    on('config.list', async () => ({ value: [{ key: 'cretan-cat.resolution', label: 'resolution', kind: 'text', value: 'low', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: false }] }) as never)
+    on('config.set', async (_$, e) => {
+      writes.push([e.key, e.value])
+      return { value: e.value } as never
+    })
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    expect(await run($, 'config')).toMatch(/^ {2}resolution +low$/m)
+    expect(await run($, 'resolution')).toMatch(/drawn at low resolution\. \/cat resolution high or low/)
+    expect(await run($, 'resolution ultra')).toMatch(/\/cat resolution high or low/)
+    expect(await run($, 'resolution high')).toMatch(/high resolution now/)
+    expect(await run($, 'resolution')).toMatch(/drawn at high resolution/)
+    expect(await run($, 'config')).toMatch(/^ {2}resolution +high\b/m)
+    expect(await run($, 'help')).toMatch(/^ {2}\/cat resolution high\|low +.*\(high now\)$/m)
+    expect(await run($, 'resolution low')).toMatch(/in cells again/)
+    expect(writes).toEqual([
+      ['cretan-cat.resolution', 'high'],
+      ['cretan-cat.resolution', 'low'],
+    ])
+  })
+
+  test('/cat asturias and /cat reset leave the resolution alone', HIGH, async ($, on) => {
+    on('config.list', async () => ({ value: [] }) as never)
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    await run($, 'asturias')
+    await run($, 'reset')
+    expect(await run($, 'config')).toMatch(/^ {2}resolution +high\b/m)
+  })
+
+  test('high, in a terminal that shows pictures: the yard is an Image of the band\'s cells, its text Rasters over it', HIGH, async ($, on) => {
+    mock.env(on, KITTY)
+    const { clock } = setUp(on)
+    on('prompt.submit', async (_$, e) => ({ text: e.text }) as never)
+    await $.prompt.submit({ text: 'fix the failing checkout tests' } as never)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    const image = (await ui.find({ type: 'Image' })) as unknown as { props: { columns: number; rows: number; alt: string; source: { rgba: string; width: number; height: number } } }
+    expect(image).toBeDefined()
+    expect(image.props.columns).toBe(120)
+    expect(image.props.rows).toBe(11)
+    expect(image.props.source.width).toBe(120 * HD_SCALE)
+    expect(image.props.source.height).toBe(22 * HD_SCALE)
+    expect(image.props.source.rgba.length).toBe(Math.ceil((120 * HD_SCALE * 22 * HD_SCALE * 4) / 3) * 4)
+    expect(image.props.alt).toMatch(/Clawd and Manousos in the yard/)
+    // No yard of cells under it; Clawd's words are cells over it.
+    expect(await ui.find({ type: 'Raster', key: 'manousos' })).toBeUndefined()
+    const texts = (await ui.findAll({ type: 'Raster' })) as unknown as { props: { cells: string } }[]
+    expect(texts.length).toBeGreaterThan(0)
+    expect(texts.map(r => cellsText(r.props.cells)).join('')).toContain('checkout tests')
+    // The caption is still under the yard.
+    expect(await ui.find({ type: 'Text', text: /Manousos is thinking/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  for (const [why, env] of [
+    ['a terminal that shows no pictures', { TERM: 'xterm-256color', TERM_PROGRAM: 'Apple_Terminal' }],
+    ['tmux, even in kitty', { ...KITTY, TMUX: '/tmp/tmux-501/default,1,0', TERM: 'tmux-256color' }],
+    ['GNU screen, even in Ghostty', { TERM: 'screen-256color', TERM_PROGRAM: 'ghostty', STY: '1.pts' }],
+    ['no environment at all', {}],
+    ["VS Code's terminal, though Ghostty's variable leaked in", { TERM: 'xterm-256color', TERM_PROGRAM: 'vscode', GHOSTTY_RESOURCES_DIR: '/Applications/Ghostty.app/Contents/Resources/ghostty' }],
+    ['Zellij, even in Ghostty', { TERM: 'xterm-ghostty', TERM_PROGRAM: 'ghostty', ZELLIJ: '0' }],
+    ['ssh, even from kitty', { ...KITTY, SSH_CONNECTION: '10.0.0.2 51234 10.0.0.9 22', SSH_TTY: '/dev/ttys004' }],
+    ["Neovim's terminal, even in kitty", { ...KITTY, NVIM: '/tmp/nvim.501/0' }],
+    ["WezTerm, though kitty's variable leaked in", { TERM: 'xterm-256color', TERM_PROGRAM: 'WezTerm', KITTY_WINDOW_ID: '3' }],
+  ] as const) {
+    test(`high, in ${why}: the yard stays in cells`, HIGH, async ($, on) => {
+      mock.env(on, env as Record<string, string>)
+      const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+      expect(await ui.find({ type: 'Image' })).toBeUndefined()
+      expect(await ui.find({ type: 'Raster', key: 'manousos' })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  test('high on the desktop: the SVG yard, as at low', HIGH, async ($, on) => {
+    mock.env(on, KITTY)
+    const desk = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+    expect(await desk.find({ type: 'Svg' })).toBeDefined()
+    await desk.unmount()
+  })
+
+  test('low (the default), in a terminal that shows pictures: cells, as ever', async ($, on) => {
+    mock.env(on, KITTY)
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(await ui.find({ type: 'Image' })).toBeUndefined()
+    expect(await ui.find({ type: 'Raster', key: 'manousos' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('high: the frame loop swaps the picture by blit, only when it changed; a terminal that draws the alt sends it back to cells', HIGH, async ($, on) => {
+    mock.env(on, KITTY)
+    const clock = mock.clock(on, { now: 1_700_000_000_000 })
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    on('command.register', async () => ({ value: undefined }) as never)
+    on('session.start', async (_$, e) => ({ cwd: e.cwd }) as never)
+    on('turn.start', async (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }) as never)
+    on('turn.complete', async (_$: unknown, e: { answer: string }) => ({ text: e.answer }) as never)
+    let deny: string | undefined
+    const blits: { key: string; isPicture: boolean }[] = []
+    on('ui.blit', async (_$, e) => {
+      blits.push({ key: e.key, isPicture: 'source' in e })
+      return (deny === undefined ? { value: {} } : { value: { deny } }) as never
+    })
+    await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true } as never)
+    // Done, he sits and sings: the text stays put and the picture changes.
+    await $.turn.start({ turnId: 't1' } as never)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(await ui.find({ type: 'Image' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /purrs: done/ })).toBeDefined()
+    await clock.advance(1_000)
+    // Five frames a second at most; never a Raster of the whole yard.
+    const pictures = blits.filter(b => b.isPicture)
+    expect(pictures.length).toBeGreaterThan(0)
+    expect(pictures.length).toBeLessThanOrEqual(5)
+    expect(blits.every(b => b.key !== 'manousos' || b.isPicture)).toBe(true)
+    // The terminal draws the alt instead: cells from then on.
+    deny = 'the Image draws its alt here: no placeholder images'
+    await clock.advance(1_000)
+    expect(await ui.find({ type: 'Image' })).toBeUndefined()
+    expect(await ui.find({ type: 'Raster', key: 'manousos' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  for (const [why, env] of [
+    ['cmux (Ghostty inside, its TERM plain xterm)', { TERM: 'xterm-256color', TERM_PROGRAM: 'ghostty', GHOSTTY_RESOURCES_DIR: '/Applications/cmux.app/Contents/Resources/ghostty' }],
+    ['Ghostty', { TERM: 'xterm-ghostty', TERM_PROGRAM: 'ghostty', GHOSTTY_RESOURCES_DIR: '/Applications/Ghostty.app/Contents/Resources/ghostty' }],
+    ['kitty', KITTY],
+  ] as const) {
+    test(`high, in ${why}: the yard is a picture`, HIGH, async ($, on) => {
+      mock.env(on, env as Record<string, string>)
+      const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+      expect(await ui.find({ type: 'Image' })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  // A session at high resolution in kitty, its blits answered by `answer`.
+  const hdSession = async ($: any, on: any, answer: () => string | undefined) => {
+    mock.env(on, KITTY)
+    const clock = mock.clock(on, { now: 1_700_000_000_000 })
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    on('config.list', async () => ({ value: [] }) as never)
+    on('command.register', async () => ({ value: undefined }) as never)
+    on('session.start', async (_$: unknown, e: { cwd: string }) => ({ cwd: e.cwd }) as never)
+    on('turn.start', async (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }) as never)
+    const blits: { key: string; isPicture: boolean }[] = []
+    on('ui.blit', async (_$: unknown, e: { key: string }) => {
+      blits.push({ key: e.key, isPicture: 'source' in e })
+      const deny = answer()
+      return (deny === undefined ? { value: {} } : { value: { deny } }) as never
+    })
+    await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true } as never)
+    await clock.settle()
+    return { clock, blits }
+  }
+
+  for (const mood of ['nap', 'think'] as const) {
+    test(`high, ${mood === 'nap' ? 'napping by day (a still picture)' : 'thinking'}: a terminal that draws the alt sends the yard back to cells within a second`, HIGH, async ($, on) => {
+      const { clock } = await hdSession($, on, () => 'the Image draws its alt here: no placeholder images')
+      if (mood === 'think') {
+        await $.turn.start({ turnId: 't1' } as never)
+        await clock.settle()
+      }
+      const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+      expect(await ui.find({ type: 'Image' })).toBeDefined()
+      await clock.advance(1_000)
+      expect(await ui.find({ type: 'Image' })).toBeUndefined()
+      expect(await ui.find({ type: 'Raster', key: 'manousos' })).toBeDefined()
+      expect(await run($, 'config')).toMatch(/resolution +high, in cells: the terminal refused the picture/)
+      // Asked for again, it tries pictures again.
+      expect(await run($, 'resolution high')).toMatch(/high resolution now/)
+      await ui.redraw()
+      expect(await ui.find({ type: 'Image' })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  test("high: a second of 'not mounted' or 'another size' refusals is no word on pictures; the yard stays a picture", HIGH, async ($, on) => {
+    let deny: string | undefined = 'nothing of this plugin is mounted there'
+    const { clock, blits } = await hdSession($, on, () => deny)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await clock.advance(500)
+    deny = 'the size is not the mounted one'
+    await clock.advance(500)
+    deny = undefined
+    await clock.advance(1_000)
+    expect(await ui.find({ type: 'Image' })).toBeDefined()
+    expect(blits.filter(b => b.isPicture).length).toBeGreaterThan(3)
+    await ui.unmount()
+  })
+
+  test('every mood, coat, light and season draws at high resolution, at 120x11', () => {
+    const moods = ['nap', 'think', 'tool', 'happy', 'oops', 'wait', 'dance', 'hiss', 'feast', 'bored', 'slap', 'snub'] as const
+    const extras = [{}, { petted: 0.5 }, { petted: 0.5, isSwatted: true }, { isOnKeys: true }, { kittens: 4 }]
+    let n = 0
+    for (const mood of moods) {
+      for (const coat of ['manousos', 'ginger', 'tuxedo'] as const) {
+        for (const hour of [7, 12, 19, 23]) {
+          for (const month of [0, 6]) {
+            for (const extra of extras) {
+              const scene = { mood, coat, hour, month, cols: 120, rows: 11, t: 2.7, since: 0.4, said: 'Τι κάνεις;', reply: ['Νιάου, νιάου'], ...extra }
+              const f = drawHd(scene)
+              expect(f.width).toBe(120 * HD_SCALE)
+              expect(f.height).toBe(22 * HD_SCALE)
+              n++
+            }
+          }
+        }
+      }
+    }
+    expect(n).toBe(12 * 3 * 4 * 2 * 5)
+  })
+
+  test('the picture has his coat on, every pose of his drawn, and the sky left clear', () => {
+    const base = { mood: 'think', t: 3, since: 3, cols: 120, rows: 11, hour: 12, month: 6 } as const
+    const pic = (coat: 'manousos' | 'ginger' | 'tuxedo') => drawHd({ ...base, coat }).rgba
+    const ginger = pic('ginger')
+    expect(ginger.join()).not.toBe(pic('manousos').join())
+    expect(ginger.join()).not.toBe(pic('tuxedo').join())
+    // The top-left of the sky shows the terminal's own background.
+    expect(ginger[3]).toBe(0)
+    // Ginger fur, somewhere in the picture.
+    const [r, g, b] = COATS.ginger.f!
+    let found = false
+    for (let i = 0; i < ginger.length; i += 4) if (ginger[i] === r && ginger[i + 1] === g && ginger[i + 2] === b) found = true
+    expect(found).toBe(true)
+  })
+
+  test('low resolution is byte for byte what it was before high resolution came', () => {
+    const scenes = goldenScenes()
+    expect(scenes.map(s => fnv(drawCat(s)))).toEqual(GOLDEN)
+  })
+})
+
+// FNV-1a of drawCat's cells for each of goldenScenes(), as 1.8.0 drew them.
+const GOLDEN = [
+  'e3be262f', '259265d5', 'fde26e8d', '904447d8', 'ad83a9a8', '5d3b36b8', 'ff17970d', '3fb4e9fa', '55f4ed78',
+  'c7ffc273', '84b20ca4', '57c5f5c0', 'eec5ab59', 'b19befe7', 'c0504b3f', '7cad6c37', '8831be72', 'bf7a7c03',
+  '3e64792f', 'f863e783', '1ba7972f', '44bff20b', 'd43727b6', '952cb03e', '386a69bb', '80efd143', 'e154af41',
+  '94045377', 'df89f5b5', 'd165ce84', '3f369367', '9cbf8001', 'e5067a1e', '0edae51e', '0170e936', 'e978e5a8',
+  '07129780', '3c863758', '9d617638', '990e8e57', '8a36dda9', '8cb3cdff', 'f7f01234', 'c96950de', 'd6cb343a',
+  'd8a3b0b2', '27ff2a34', 'f6232817', 'f764629b', '83eee854', '3669cc71', 'a3e1cb2a', '5c3ab5cd', '3f212e5a',
+  '7b9e1eae', '7f4dc557', 'd7462b18', '2b731461', '5d64f3a0', '4fcc0371', '5c2361e1', 'abbcfe67', 'f977fd0d',
+  '6e859cdf', 'f7d71d2d', 'ac8ada65', 'b88b46f6', '18a3cf61', '545dbcca', '52dd65f1', '3fa411cc', '885040bd',
+  '860443fa', '29504167', '26cf61d8', '402dcdbc', '59777edd', 'cce1f791', '5aa5aa10', 'a55b618f', '73835187',
+  'de5a5c1f', 'f3d6002d', '8ae92f7c', '0815d754', '31d6d307', 'e7c5d3b8', '397cbbf2', '17d29608', '59e52cd1',
+  'f596b7cf', '334d2f96', '5219ddaf', 'd7bfc68c', 'c5a04aea', '0055a333', 'eaf9b719', '3627459f', '02a8508c',
+  '5a476c78', 'ce175e83', '03b20d33', 'e61a85fd', 'd46486a0', '2971b933', 'c34da751', '2f282a58', 'c50bf7a9',
+]
+
+function goldenScenes() {
+  const moods = ['nap', 'think', 'tool', 'happy', 'oops', 'wait', 'dance', 'hiss', 'feast', 'bored', 'slap', 'snub'] as const
+  const coats = ['manousos', 'ginger', 'tuxedo'] as const
+  const out: Parameters<typeof drawCat>[0][] = []
+  let i = 0
+  for (const mood of moods) {
+    for (const coat of coats) {
+      for (const [cols, rows] of [[120, 11], [160, 11], [80, 8]] as const) {
+        i++
+        out.push({
+          mood, coat, cols, rows, t: 1.3 + i * 0.37, since: (i % 7) * 0.3,
+          hour: [5, 7, 12, 19, 23][i % 5], month: i % 12, kittens: i % 6,
+          said: i % 3 === 0 ? undefined : 'Πώς πάει το «checkout», Μανούσο;',
+          reply: i % 4 === 0 ? undefined : ['Στο πληκτρολόγιο κάθομαι, τα bugs τα κυνηγάω,', 'κι όποιο ποντίκι βρω μπροστά, με μια πατιά το φάω.'],
+          petted: i % 9 === 0 ? 0.7 : undefined, isSwatted: i % 18 === 0, isOnKeys: i % 11 === 0,
+        })
+      }
+    }
+  }
+  return out
+}
+const fnv = (s: string) => {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0
+  return h.toString(16).padStart(8, '0')
+}
