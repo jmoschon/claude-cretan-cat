@@ -924,42 +924,52 @@ describe('cretan-cat', () => {
     expect(await caption($, /thinking it over|slapped|ignoring/)).toBe(true)
   })
 
-  // Turns until the cat is on your keyboard, or twenty of them.
+  // Turns until the cat is on your keyboard, or twenty of them; the turn it
+  // is on the keys is left running.
   const untilOnKeys = async ($: any, clock: any) => {
     for (let i = 0; i < 20; i++) {
       await $.turn.start({ turnId: `k${i}` } as never)
+      await clock.settle()
+      if (await caption($, /on your keyboard/)) return `k${i}`
       await $.turn.complete({ turnId: `k${i}`, reason: 'answer', answer: '', durationMs: 1, isAborted: false } as never)
       await clock.advance(13_000)
-      if (await caption($, /on your keyboard/)) return true
     }
-    return false
+    return undefined
   }
 
   test('temper off: the cat never lies on your keyboard', async ($, on) => {
     const { clock } = setUp(on)
-    expect(await untilOnKeys($, clock)).toBe(false)
+    expect(await untilOnKeys($, clock)).toBeUndefined()
   })
 
-  test('temper on: some turns it lies on your keyboard until petted', { options: { temper: 'on' } }, async ($, on) => {
+  test('temper on: some turns it lies on your keyboard, until petted or the turn ends', { options: { temper: 'on' } }, async ($, on) => {
     const { clock } = setUp(on)
-    expect(await untilOnKeys($, clock)).toBe(true)
-    // Claude's turns come and go; it stays put, typing nonsense into Clawd's bubble.
-    await $.turn.start({ turnId: 'next' } as never)
-    await clock.settle()
-    expect(await caption($, /on your keyboard/)).toBe(true)
-    expect(await yardText($)).toContain('Και τα χάδια μου;')
+    const turn = await untilOnKeys($, clock)
+    expect(turn).toBeDefined()
+    // Clawd tells it to get off; the cat asks for cuddles, no gibberish.
+    const yard = await yardText($)
+    expect(yard).toContain('Μανούσο, κατέβα από το πληκτρολόγιο!')
+    expect(yard).not.toMatch(/asdfj|ñññ|qwww|gggg/)
+    expect(yard).toContain('Και τα χάδια μου;')
     const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     await ui.press({ key: 'pet' })
     await clock.settle()
     await ui.unmount()
     expect(await caption($, /Manousos purrs <3/)).toBe(true)
     expect(await caption($, /on your keyboard/)).toBe(false)
+    // Unpetted, it gets off by itself when the work is done: idle, it naps.
+    await $.turn.complete({ turnId: turn, reason: 'answer', answer: '', durationMs: 1, isAborted: false } as never)
+    const again = await untilOnKeys($, clock)
+    expect(again).toBeDefined()
+    await $.turn.complete({ turnId: again, reason: 'answer', answer: '', durationMs: 1, isAborted: false } as never)
+    await clock.advance(13_000)
+    expect(await caption($, /on your keyboard/)).toBe(false)
+    expect(await caption($, /Manousos is napping/)).toBe(true)
   })
 
   test('on your keyboard, the cat still gets up when Claude needs you', { options: { temper: 'on' } }, async ($, on) => {
     const { clock, finish } = setUp(on)
-    expect(await untilOnKeys($, clock)).toBe(true)
-    await $.turn.start({ turnId: 'w' } as never)
+    expect(await untilOnKeys($, clock)).toBeDefined()
     const bash = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as never)
     await clock.settle()
     await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } } as never)
@@ -968,7 +978,7 @@ describe('cretan-cat', () => {
     expect(await yardText($)).not.toContain('Και τα χάδια μου;')
     await finish('Bash')
     await bash
-    // The prompt answered, it is back on the keys: nobody petted it.
+    // The prompt answered, the turn still on: it is back on the keys.
     expect(await caption($, /on your keyboard/)).toBe(true)
   })
 

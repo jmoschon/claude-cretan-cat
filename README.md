@@ -143,11 +143,12 @@ With the temper on, the cat has opinions:
   thinks, he may slap Clawd (*Stop nagging!*) or ignore him altogether
   (*Nope.*).
 - **Petting him** sometimes gets you a swat instead of a purr.
-- **Your keyboard.** Some turns he gets there before Claude does, lies down
-  on it and types into Clawd's bubble (*asdfjjjjj;;;;*), asking for
-  cuddles. He stays, through any number of turns, until you pet him.
-  Nothing is held up: it's only his side of the yard, and he gets up
-  whenever Claude needs you, something fails or the tests finish.
+- **Your keyboard.** Some turns he gets there before Claude does and lies
+  down on it and asks for cuddles, while Clawd
+  tells him to get off. Pet him and he gets off; otherwise he stays until
+  the turn ends, so when you're idle he naps as usual. Nothing is held up:
+  it's only his side of the yard, and he gets up whenever Claude needs you,
+  something fails or the tests finish.
 
 ## Room it needs
 

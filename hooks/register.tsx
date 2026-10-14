@@ -18,7 +18,6 @@ let isTempered = false
 // a pet earns a swat; and that a turn starts with the cat on your keyboard.
 const TEMPER = { slap: 0.3, snub: 0.3, keys: 0.2 }
 // What it types, lying on your keyboard, into Clawd's bubble.
-const TYPED = ['asdfjjjjjjjjjj;;;;;;', 'ñññññññññññññññ', 'qwwwwwwwwwwwwwwwwwww', 'gggggggg              h']
 // What Clawd says, and the cat's short replies, in the "language" setting.
 const linesOf = () => LINES[language](catName)
 
@@ -124,6 +123,7 @@ const showsKeys = (isOnKeys: boolean, mood: Mood) => isOnKeys && isTempered && K
 // line in the "language" setting.
 function replyOf(c: Cat): string[] | undefined {
   const lines = linesOf()
+  // On your keyboard: what it wants to get off it.
   if (showsKeys(c.isOnKeys, c.mood)) return [lines.asks]
   if (isSinging(c.mood)) return songs()[c.verse % songs().length]
   if (c.mood === 'slap') return [lines.retort[c.nudge % lines.retort.length]!]
@@ -495,7 +495,7 @@ const COMMITTED = /^\[[^\]\n]+ [0-9a-f]{7,}\]/m
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
   const lines = linesOf()
-  if (showsKeys(c.isOnKeys, c.mood)) return TYPED[c.nudge % TYPED.length]
+  if (showsKeys(c.isOnKeys, c.mood)) return lines.offKeys
   if (c.mood === 'slap') return lines.slapped
   if (c.mood === 'snub') return lines.snubbed
   if (c.mood === 'tool') return lines.tool(c.tool ?? '?')
@@ -746,9 +746,9 @@ export const register: Register = (on, options) => {
     stopFlash()
     await quietly(async () => {
       const verse = await nextVerse($, (await read($, cat)).verse)
-      // Some days she gets to your keyboard before Claude does.
+      // Some turns it gets to your keyboard before Claude does.
       const isOnKeys = isTempered && random() < TEMPER.keys
-      await update($, cat, c => ({ ...c, verse, isOnKeys: c.isOnKeys || isOnKeys }))
+      await update($, cat, c => ({ ...c, verse, isOnKeys }))
       await setMood($, 'think')
     })
     return next(e)
@@ -857,6 +857,9 @@ export const register: Register = (on, options) => {
     calls = []
     stopFlash()
     await quietly(async () => {
+      // The work over, the cat gets off your keyboard by itself.
+      stage.isOnKeys = false
+      await update($, cat, c => (c.isOnKeys ? { ...c, isOnKeys: false } : c))
       // Stopped by you (Esc): no fuss, he just curls up again.
       if (e.reason === 'aborted') return setMood($, 'nap')
       const isDone = e.reason === 'answer'
