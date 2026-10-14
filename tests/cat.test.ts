@@ -68,7 +68,7 @@ describe('cretan-cat', () => {
     const busy: Parameters<typeof drawCells>[0] = {
       mood: 'think', t: 3, since: 3, cols: 160, rows: 11, coat: 'manousos', hour: 12, month: 0, kittens: 4,
       said: 'Πώς πάει το «a & b <c>», Μανούσο;',
-      reply: ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.'],
+      reply: ['Στο πληκτρολόγιο κάθομαι, τα bugs τα κυνηγάω,', 'κι όποιο ποντίκι βρω μπροστά, με μια πατιά το φάω.'],
     }
     const svg = cellsToSvg(drawCells(busy), 160, 11, skyAt(12))
     expect(svg.length).toBeLessThan(SVG_MOST / 4)

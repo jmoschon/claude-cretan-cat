@@ -8,19 +8,19 @@ export const isSongLanguage = (v: unknown): v is SongLanguage => typeof v === 's
 
 // Cretan mantinades: fifteen-syllable rhyming couplets.
 const MANTINADES: [string, string][] = [
-  ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.'],
-  ['Σιγά σιγά ο κώδικας, σιγά και το πιθάρι,', 'ο βιαστικός ο γάτος μου ποτέ δεν πιάνει ψάρι.'],
+  ['Στο πληκτρολόγιο κάθομαι, τα bugs τα κυνηγάω,', 'κι όποιο ποντίκι βρω μπροστά, με μια πατιά το φάω.'],
+  ['Σιγά σιγά ο κώδικας, σιγά και το πιθάρι,', 'κι εγώ που βιάζομαι πολύ ποτέ δεν πιάνω ψάρι.'],
   ['Ψάχνω στα logs σαν το βοσκό που χάθηκε τ\' αρνί του,', 'κι όταν το βρει, πώς χαίρεται σαν να \'βρε την ψυχή του.'],
-  ['Ψηλά στον Ψηλορείτη μας χιονίζει και φυσάει,', 'κι ο γάτος μέσα στο ζεστό τον κώδικα κοιτάει.'],
+  ['Ψηλά στον Ψηλορείτη μας χιονίζει και φυσάει,', 'κι εγώ ’μαι μέσα στο ζεστό, κι ο κώδικας κυλάει.'],
   ['Μην κάνεις merge Παρασκευή, το λέει κι η γιαγιά μου,', 'γιατί το Σάββατο θα κλαις, θα λες «αχ, η καρδιά μου».'],
-  ['Σκέφτεται ο Μανούσος μου, και μην τον ενοχλείτε,', 'θα φέρει μιαν απάντηση ψηλή σαν Ψηλορείτη.'],
-  ['Η λύρα θέλει δοξαριά, κι ο γάτος θέλει χάδι,', 'κι ο κώδικας δουλειά πολλή, τη μέρα και το βράδυ.'],
+  ['Συλλογισμένος κάθομαι, κι εσείς μη μ’ ενοχλείτε,', 'θα φέρω μιαν απάντηση ψηλή σαν Ψηλορείτη.'],
+  ['Η λύρα θέλει δοξαριά, κι εγώ γυρεύω χάδι,', 'κι ο κώδικας δουλειά πολλή, τη μέρα και το βράδυ.'],
   ['Στις τρεις τη νύχτα μ’ έπιασε το on-call με τρομάρα,', 'κι εγώ στον ύπνο μου ζητώ ρακή και μια κιθάρα.'],
   ['Τα tests μου είναι κάπριτσα, σαν κοπελιά που αλλάζει,', 'κι εκεί που λες πως πέρασε, το build σε κατασφάζει.'],
   ['Ένα PR απ’ το πρωί, κι ακόμα περιμένω,', 'τα γένια μου μακρύνανε, στον καφενέ πηγαίνω.'],
   ['Ρακή μου και ρακάκι μου, σε πίνω να ξεχάσω', 'το force push που ’κανα στο main, πριν τη δουλειά τη χάσω.'],
-  ['Μια σύσκεψη, και δεύτερη, και τρίτη μες στη μέρα,', 'κι ο κώδικας μου κάθεται και χάσκει στον αέρα.'],
-  ['Επάτησ’ ο Μανούσος μου στο πληκτρολόγιο πάνω,', 'κι έφτιαξε μόνος του το bug, κι εγώ τη δόξα χάνω.'],
+  ['Μια σύσκεψη, και δεύτερη, και τρίτη μες στη μέρα,', 'κι ο κώδικάς μου κάθεται και χάσκει στον αέρα.'],
+  ['Επάτησα, χωρίς να δω, στο πληκτρολόγιο πάνω,', 'κι έλυσα μόνος μου το bug· τι θέλεις να σου κάνω;'],
   ['Το Datadog μας ακριβό, σαν τ’ ακριβό χρυσάφι,', 'τα logs που δεν διαβάζουμε σαπίζουνε στο ράφι.'],
   ['Σαν μεθυσμένος στο γλεντί, το pod ξαναπεθαίνει,', 'κι ο Kubernetes το κοιτά και λέει πως υγιαίνει.'],
   ['Τα tickets μου στο Jira ’ναι σαν τ’ ουρανού τ’ αστέρια,', 'κι εγώ τα κλείνω σιγανά, με δυο μονάχα χέρια.'],
@@ -35,7 +35,7 @@ const MANTINADES: [string, string][] = [
 // Payador coplas, four eight-syllable lines sung two to a line, the
 // gauchos' answer to the mantinada; and a few tangos, bent to the work.
 const COPLAS: [string, string][] = [
-  ['Aquí me pongo a cantar al compás de la consola,', 'que la gata que desvela un bug no se queda sola.'],
+  ['Aquí me pongo a cantar al compás de la consola,', 'que yo, gata que desvela un bug, no me quedo sola.'],
   ['Yo no soy gata de nadie, ni de patrón ni de amigo;', 'si me buscás, yo te araño; si me ignorás, te persigo.'],
   ['No se deploya los viernes, eso me enseñó mi abuela;', 'porque el sábado hay asado, y el pager no se consuela.'],
   ['Cebame un mate, Clawdito, que este build va para largo;', 'si sale verde, te canto; si sale rojo, te amargo.'],
@@ -56,8 +56,8 @@ const COPLAS: [string, string][] = [
 
 // English rhyming couplets, in the same spirit.
 const COUPLETS: [string, string][] = [
-  ['Upon the keyboard sits the cat and chases every bug in sight,', 'and any mouse that crosses him is gone in just one bite.'],
-  ['Slow and steady, line by line, the way the old folks say;', 'the cat who rushes through the code goes hungry all the day.'],
+  ['Upon the keyboard, there I sit and chase each bug in sight,', 'and any mouse that crosses me is gone in just one bite.'],
+  ['Slow and steady, line by line, the way the old folks say;', "so if I rush right through the code, I'm hungry all the day."],
   ['I search the logs the way a shepherd hunts a stray at night,', 'and when I find the error, oh, my heart is warm and light.'],
   ["Don't merge upon a Friday, as my grandma used to say,", "or you'll spend your Saturday in tears and disarray."],
   ['At three a.m. the pager rang, the on-call shift was mine;', 'I dreamt of raki, sunny Crete, and graphs that all looked fine.'],
