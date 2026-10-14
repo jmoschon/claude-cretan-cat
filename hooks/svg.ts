@@ -29,6 +29,8 @@ const BOX: Record<string, { u?: 1; r?: 1; d?: 1; l?: 1; round?: 1 }> = {
   '╯': { u: 1, l: 1, round: 1 },
   '┤': { u: 1, d: 1, l: 1 },
   '├': { u: 1, d: 1, r: 1 },
+  '┬': { l: 1, r: 1, d: 1 },
+  '┴': { l: 1, r: 1, u: 1 },
 }
 
 function boxPath(ch: string, x: number, y: number): string {
@@ -66,11 +68,12 @@ export function cellsToSvg(words: Uint32Array, cols: number, rows: number, sky?:
       pixels[row * 2]![col] = top
       pixels[row * 2 + 1]![col] = bottom
       if (ch === '▀' || ch === '▄' || ch === ' ') continue
-      if (BOX[ch] && fg !== CLEAR) strokes.set(fg, (strokes.get(fg) ?? '') + boxPath(ch, col * CELL_W, row * CELL_H))
-      else if (fg !== CLEAR) {
-        const behind = bg !== CLEAR ? bg : sky
-        glyphs.push({ row, col, ch, fg: behind !== undefined && luma(behind) > 150 && luma(fg) > 180 ? INK : fg })
-      }
+      if (fg === CLEAR) continue
+      const behind = bg !== CLEAR ? bg : sky
+      const ink = behind !== undefined && luma(behind) > 150 && luma(fg) > 180 ? INK : fg
+      // A bubble's tail out over a pale sky inks dark too.
+      if (BOX[ch]) strokes.set(ink, (strokes.get(ink) ?? '') + boxPath(ch, col * CELL_W, row * CELL_H))
+      else glyphs.push({ row, col, ch, fg: ink })
     }
   }
   // Runs of one color along each pixel row, one path per color.
