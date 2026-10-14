@@ -288,6 +288,11 @@ const COLOR: Record<Mood, string> = {
   snub: 'gray',
 }
 
+// Outside the terminal the ASCII cat wears his coat's color while calm; a
+// reaction (done, startled, waiting, tests, a sardine) shows in its own.
+const COAT_TINT: Record<Coat, string> = { manousos: '#967a6a', ginger: '#e88c3e', tuxedo: '#c4c4ca' }
+const isCalm = (mood: Mood) => mood === 'nap' || mood === 'think' || mood === 'tool' || mood === 'bored'
+
 // The cat paces back and forth while it works: a triangle wave across the pane.
 const offset = (mood: Mood, frame: number, columns: number) => {
   if (mood !== 'think' && mood !== 'tool') return 0
@@ -434,7 +439,8 @@ function eatSardine($: EngineInterface) {
   return eating
 }
 
-async function pet($: EngineInterface) {
+// Pets the cat; whether it earned a swat instead of a purr.
+async function pet($: EngineInterface): Promise<boolean> {
   const ms = await $.clock.now()
   // A cat with a temper may swat the hand that pets her, unless she was on
   // your keyboard asking for exactly that: then she purrs and gets off it.
@@ -446,6 +452,7 @@ async function pet($: EngineInterface) {
   $.clock.after(PETTING_S * 1000 + 50, () => void update($, cat, c => ({ ...c, frame: c.frame + 1 })).catch(() => {}))
   const pets = await $.store.get('pets')
   await $.store.set('pets', (typeof pets === 'number' ? pets : 0) + 1)
+  return isSwatted
 }
 
 // What a finished Bash call's output says: you rejected it at the prompt;
@@ -489,13 +496,15 @@ export const register: Register = (on, options) => {
   who = CATS.manousos
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'cat', description: 'Show or hide the cat (/cat hide, /cat show); /cat manousos, tuxedo, or ginger (Asturias) changes the cat' })
+    await $.command.register({ name: 'cat', description: 'Show or hide the cat (/cat hide, /cat show), /cat pet; /cat manousos, tuxedo, or ginger (Asturias) changes the cat' })
     await quietly(async () => {
       const saved = await $.store.get('coat')
       if (isCoat(saved)) {
         await update($, coat, () => saved)
         wear(saved)
       }
+      // Hidden stays hidden across sessions, as the coat does.
+      if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
       const { today: sardines } = await tally($)
       // A new session, or this module reloaded: no turn is known to be under
       // way, so he starts asleep rather than stuck in a mood from before.
@@ -554,14 +563,21 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // /cat hides or shows the cat (or /cat hide, /cat show); /cat <coat> changes
-  // the cat, kept across sessions (/cat asturias is the ginger coat).
+  // /cat hides or shows the cat (or /cat hide, /cat show), kept across
+  // sessions; /cat pet pets it; /cat <coat> changes the cat, kept across
+  // sessions (/cat asturias is the ginger coat).
   on('command.run', { command: 'cat' }, async ($, e) => {
     const typed = e.args.trim().toLowerCase()
     const arg = typed === 'asturias' ? 'ginger' : typed
     if (arg === '' || arg === 'hide' || arg === 'show') {
       const hidden = await update($, isHidden, h => (arg === '' ? !h : arg === 'hide'))
-      return { text: hidden ? `${name()} went to hide under the sofa.` : `${name()} is back.` }
+      await $.store.set('isHidden', hidden)
+      return { text: hidden ? `${name()} went to hide under the sofa, until /cat show.` : `${name()} is back.` }
+    }
+    if (arg === 'pet') {
+      if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings ${who.him} back to be petted.` }
+      const isSwatted = await pet($)
+      return { text: isSwatted ? `${name()} swats your hand: ${who.says?.swat ?? ''}` : `${name()} closes ${who.his} eyes and purrs.` }
     }
     if (arg === 'stats') {
       const { today: sardines, total } = await tally($)
@@ -574,15 +590,16 @@ export const register: Register = (on, options) => {
     if (isCoat(arg)) {
       await update($, coat, () => arg)
       await update($, isHidden, () => false)
+      await $.store.set('isHidden', false)
       await $.store.set('coat', arg)
       wear(arg)
       // She's no coat of his: she lets you know she's here.
       const says = who.says
       return { text: says ? `${name()} is here now. ${says.wait}` : `${name()} is wearing his ${arg} coat now.` }
     }
-    return {
-      text: `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>; ginger is Asturias). /cat stats: sardines and pets. /cat hide and /cat show (or /cat alone, to toggle) put ${name()} away and back. Language and sound: /config, "Cretan cat".`,
-    }
+    const help = `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>; ginger is Asturias). /cat pet pets ${who.him} (or press pet under the yard). /cat stats: sardines and pets. /cat hide and /cat show (or /cat alone, to toggle) put ${name()} away and back. Language and sound: /config, "Cretan cat".`
+    // /cat help asks for this; anything else is a slip, and says so.
+    return { text: arg === 'help' ? help : `${name()} doesn't know "/cat ${typed}". ${help}` }
   })
 
   // Clawd picks up the prompt's topic; slash commands stay between you and him.
@@ -821,6 +838,7 @@ export const register: Register = (on, options) => {
     }
 
     stage.requestId = undefined
+    const tint = isCalm(c.mood) ? COAT_TINT[await read($, coat)] : COLOR[c.mood]
     const frames = FRAMES[c.mood]
     const lines = frames[c.frame % frames.length] ?? frames[0] ?? []
     const pad = ' '.repeat(offset(c.mood, c.frame, e.props.bodyColumns))
@@ -829,7 +847,7 @@ export const register: Register = (on, options) => {
       <Box flexDirection="row">
         <Box flexDirection="column">
           {lines.map((line, i) => (
-            <Text key={`l${i}`} color={COLOR[c.mood]}>
+            <Text key={`l${i}`} color={tint}>
               {pad + line}
             </Text>
           ))}

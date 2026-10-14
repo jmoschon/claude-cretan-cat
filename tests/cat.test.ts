@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
+import { topicOf } from '../hooks/lines'
 import { drawCat } from '../hooks/manousos'
 
 const BAND = { component: 'AbovePrompt' } as const
@@ -45,6 +46,92 @@ describe('cretan-cat', () => {
     expect((await run('stats')).text).toMatch(/She has been petted/)
   })
 
+  test('/cat help lists what he does; anything else says it is unknown, then helps', async ($, on) => {
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    const help = await run('help')
+    expect(help).toMatch(/manousos, ginger, tuxedo/)
+    expect(help).toMatch(/\/cat pet/)
+    expect(help).not.toMatch(/doesn't know/)
+    const slip = await run('patt')
+    expect(slip).toMatch(/doesn't know "\/cat patt"/)
+    expect(slip).toMatch(/\/cat pet/)
+  })
+
+  test('/cat pet pets him from the prompt; hidden, he waits to come back first', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    const clock = mock.clock(on, { now: 1_700_000_000_000 })
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('pet')).toMatch(/purrs/)
+    await clock.settle()
+    expect(saved.pets).toBe(1)
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+    expect(await ui.find({ type: 'Text', text: /purrs <3/ })).toBeDefined()
+    await ui.unmount()
+    await run('hide')
+    expect(await run('pet')).toMatch(/\/cat show/)
+    expect(saved.pets).toBe(1)
+    expect(await run('stats')).toMatch(/petted 1 time\./)
+  })
+
+  test('hidden stays hidden in the next session; /cat show or a coat brings him back', async ($, on) => {
+    mock.clock(on, { now: 1_700_000_000_000 })
+    on('command.register', async () => ({ value: undefined }) as never)
+    on('session.start', async (_$, e) => ({ cwd: e.cwd }) as never)
+    // Hidden, the band hands the drawing to the engine: here, nothing.
+    on('ui.render', () => ({ type: 'Text', children: ['engine'] }) as never)
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    const run = (args: string) =>
+      $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
+    await run('hide')
+    expect(saved.isHidden).toBe(true)
+    await run('show')
+    expect(saved.isHidden).toBe(false)
+    await run('')
+    expect(saved.isHidden).toBe(true)
+    await run('ginger')
+    expect(saved.isHidden).toBe(false)
+    // A new session finds him where you left him.
+    saved.isHidden = true
+    await run('show')
+    saved.isHidden = true
+    await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true } as never)
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(await ui.find({ type: 'Raster' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /napping/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('outside the terminal the ASCII cat wears his coat; a reaction keeps its color', async ($, on) => {
+    const { clock } = setUp(on)
+    const tintOf = async () => {
+      const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+      const line = (await ui.find({ type: 'Text', text: /\/\\_\/\\/ })) as { props: { color?: string } } | undefined
+      await ui.unmount()
+      return line?.props.color
+    }
+    expect(await tintOf()).toBe('#967a6a')
+    await $.command.run({ command: 'cat', args: 'ginger', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
+    expect(await tintOf()).toBe('#e88c3e')
+    await $.turn.start({ turnId: 't1' } as never)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await clock.settle()
+    expect(await tintOf()).toBe('green')
+  })
+
   test('/cat hide and /cat show are explicit; bare /cat toggles', async ($, on) => {
     on('store.get', async () => ({ value: undefined }))
     on('store.set', async () => ({ value: undefined }))
@@ -67,7 +154,7 @@ describe('cretan-cat', () => {
     const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     const raster = (await ui.find({ type: 'Raster' })) as { props: { cells: string } } | undefined
     const text = cellsText(raster?.props.cells ?? '')
-    expect(text).toContain('«checkout tests»')
+    expect(text).toContain('«failing checkout tests»')
     expect(text).not.toContain('fix the failing')
     await ui.unmount()
   })
@@ -106,8 +193,8 @@ describe('cretan-cat', () => {
   })
 
   for (const [language, nudge] of [
-    ['english', '"checkout tests"'],
-    ['spanish', '«checkout tests»'],
+    ['english', '"failing checkout tests"'],
+    ['spanish', '«failing checkout tests»'],
   ] as const) {
     test(`with language ${language}, Clawd speaks it; the mantinada stays Greek`, { options: { language } }, async ($, on) => {
       mock.clock(on, { now: 1_700_000_000_000 })
@@ -699,6 +786,18 @@ describe('cretan-cat', () => {
     expect(drawCat({ ...base, mood: 'snub', since: 0.5 })).not.toBe(think)
     // A swat looks nothing like a purr.
     expect(drawCat({ ...base, mood: 'nap', since: 9, petted: 0.5, isSwatted: true })).not.toBe(drawCat({ ...base, mood: 'nap', since: 9, petted: 0.5 }))
+  })
+
+  test('the topic is what the work is about, as written: not when it is due, nor the verb', () => {
+    expect(topicOf('refactor the BigQuery cost report for October')).toBe('BigQuery cost report')
+    expect(topicOf('investigate the Datastream error alert today')).toBe('Datastream error alert')
+    expect(topicOf('arregla el informe de costes para octubre')).toBe('informe costes')
+    expect(topicOf('διόρθωσε το checkout service')).toBe('checkout service')
+    // Nothing to speak of: Clawd falls back to a general nudge.
+    expect(topicOf('can u turn it on?')).toBe('')
+    // Three words when they fit, else fewer; a very long word is cut.
+    expect(topicOf('fix the payments reconciliation job')).toBe('reconciliation job')
+    expect([...topicOf('supercalifragilisticexpialidociousness')].length).toBe(26)
   })
 
   test('the yard follows the clock and the helpers', () => {
