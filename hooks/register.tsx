@@ -17,7 +17,7 @@ let isTempered = false
 // a pet earns a swat; and that a turn starts with the cat on your keyboard.
 const TEMPER = { slap: 0.3, snub: 0.3, keys: 0.2 }
 // What it types, lying on your keyboard, into Clawd's bubble.
-const TYPED = ['asdfjjjjjjjjjj;;;;;;', 'qwwwwwwwwwwwwwwwwwww', 'gggggggg              h', 'kkkkkkkkkkk;;;;;;;;;']
+const TYPED = ['asdfjjjjjjjjjj;;;;;;', 'ñññññññññññññññ', 'qwwwwwwwwwwwwwwwwwww', 'gggggggg              h']
 // What Clawd says, and the cat's short replies, in the "language" setting.
 const linesOf = () => LINES[language](catName)
 
@@ -616,22 +616,57 @@ export const register: Register = (on, options) => {
     const typed = raw.toLowerCase()
     const [arg = '', ...rest] = typed.split(/\s+/)
     const value = rest.join(' ')
-    // Writes the /config row where there is one (the plugin then reloads
-    // with it); else keeps the value in the store. Either way it shows now.
-    const setting = async (field: Field, to: string, done: string) => {
+    // Changes settings: kept in the store first, so they show now and hold
+    // even if writing /config reloads the plugin midway; then written to
+    // their /config rows where the plugin can see them. A row locked, or a
+    // write refused, keeps its /config value. Says what couldn't change.
+    const change = async (changes: Partial<Record<Field, string>>) => {
       const rows = await $.config.list().catch(() => [])
-      const row = rows.find(r => r.key === `cretan-cat.${field}` || (r.provider.plugin === 'cretan-cat' && r.key.endsWith(`.${field}`)))
-      if (row) {
-        const { deny } = (await $.config.set({ key: row.key, value: to })) as { deny?: string }
-        if (deny !== undefined) return { text: `Couldn't change the ${field}: ${deny}` }
-      } else {
-        const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
-        await $.store.set('settings', { ...overrides, [field]: { value: to, over: fromConfig[field] } })
+      const rowOf = (field: Field) => rows.find(r => r.key === `cretan-cat.${field}` || (r.provider.plugin === 'cretan-cat' && r.key.endsWith(`.${field}`)))
+      const refused: string[] = []
+      const fields = (Object.keys(changes) as Field[]).filter(field => {
+        const locked = rowOf(field)?.isLocked === true
+        if (locked) refused.push(`the ${field} is locked in /config`)
+        return !locked
+      })
+      const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
+      for (const field of fields) {
+        overrides[field] = { value: changes[field]!, over: fromConfig[field] }
+        apply(field, changes[field])
       }
-      apply(field, to)
+      await $.store.set('settings', overrides)
+      for (const field of fields) {
+        const row = rowOf(field)
+        if (!row) continue
+        const { deny } = (await $.config.set({ key: row.key, value: changes[field]! })) as { deny?: string }
+        if (deny === undefined) continue
+        refused.push(`the ${field}: ${deny}`)
+        delete overrides[field]
+        apply(field, fromConfig[field])
+        await $.store.set('settings', overrides)
+      }
       const c = await update($, cat, cur => ({ ...cur, frame: cur.frame + 1 }))
       Object.assign(stage, { said: saidOf(c), reply: replyOf(c) })
-      return { text: done }
+      return refused
+    }
+    const setting = async (field: Field, to: string, done: string) => {
+      const refused = await change({ [field]: to })
+      return { text: refused.length === 0 ? done : `Couldn't change ${refused.join('; ')}` }
+    }
+    // A whole cat at once: its settings and its coat.
+    const becomes = async (look: Coat, settings: Record<Field, string>, done: string) => {
+      const refused = await change(settings)
+      await update($, coat, () => look)
+      await update($, isHidden, () => false)
+      await $.store.set('isHidden', false)
+      await $.store.set('coat', look)
+      return { text: refused.length === 0 ? done : `${done} Couldn't change ${refused.join('; ')}` }
+    }
+    if (arg === 'asturias' && value === '') {
+      return becomes('ginger', { name: 'Asturias', language: 'rioplatense', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat reset brings Manousos back)')
+    }
+    if (arg === 'reset' && value === '') {
+      return becomes('manousos', { name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
     }
     if (arg === '' || arg === 'hide' || arg === 'show') {
       if (value !== '') return { text: `/cat ${arg} takes nothing after it.` }
@@ -642,7 +677,7 @@ export const register: Register = (on, options) => {
     if (arg === 'pet') {
       if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back to be petted.` }
       const isSwatted = await pet($)
-      return { text: isSwatted ? `${name()} swats your hand: ${linesOf().swat}` : `${name()} closes their eyes and purrs.` }
+      return { text: isSwatted ? `${name()} swats your hand: ${linesOf().swat}` : `${name()} purrs, eyes closed.` }
     }
     if (arg === 'stats') {
       const { today: sardines, total } = await tally($)
@@ -684,6 +719,7 @@ export const register: Register = (on, options) => {
       `/cat language ${LANGUAGES.join('|')}: what Clawd speaks.`,
       `/cat songs ${SONG_LANGUAGES.join('|')}: what ${name()} sings.`,
       `/cat temper on|off: whether ${name()} slaps Clawd, swats your hand and sits on your keyboard.`,
+      `/cat asturias: Asturias, ginger and rioplatense, with coplas and a temper; /cat reset: Manousos as he came.`,
       `/cat pet (or press pet under the yard), /cat stats, /cat hide, /cat show (/cat alone toggles).`,
       `The same settings, and sound, are under /config, "Cretan cat".`,
     ].join(' ')

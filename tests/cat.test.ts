@@ -40,7 +40,6 @@ describe('cretan-cat', () => {
     expect(saved.coat).toBe('tuxedo')
     expect((await run('ginger')).text).toMatch(/Manousos is wearing the ginger coat/)
     expect(saved.coat).toBe('ginger')
-    expect((await run('asturias')).text).toMatch(/doesn't know/)
     expect((await run('zebra')).text).toMatch(/manousos, ginger, tuxedo/)
   })
 
@@ -761,6 +760,75 @@ describe('cretan-cat', () => {
       expect(text).toMatch(sung)
     })
   }
+
+  test('/cat asturias brings her back whole; /cat reset brings Manousos back as he came', async ($, on) => {
+    const { clock, saved, finish } = setUp(on)
+    on('config.list', async () => ({ value: [] }) as never)
+    expect(await cmd($, 'asturias')).toMatch(/^Asturias is here now\. ¿Qué querés\? \(\/cat reset brings Manousos back\)$/)
+    expect(saved.coat).toBe('ginger')
+    expect(saved.settings).toEqual({
+      name: { value: 'Asturias', over: 'Manousos' },
+      language: { value: 'rioplatense', over: 'greek' },
+      songs: { value: 'spanish', over: 'greek' },
+      temper: { value: 'on', over: 'off' },
+    })
+    expect(await caption($, /Asturias is napping/)).toBe(true)
+    expect(await cmd($, 'temper')).toMatch(/Temper is on/)
+    // Her own answers: waiting on you, and her coplas when the work is done.
+    await $.turn.start({ turnId: 't1' } as never)
+    const bash = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } } as never)
+    await clock.advance(400)
+    expect(await caption($, /Asturias is waiting for you/)).toBe(true)
+    expect(await yardText($)).toContain('¿Qué querés?')
+    await finish('Bash')
+    await bash
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await clock.advance(3_600)
+    const sung = await yardText($)
+    expect(sung).toMatch(/Bien ahí, Asturias/)
+    expect(sung).toMatch(/\b(que|el|la|me|y)\b.*\b(que|el|la|me|y)\b/)
+    // And back.
+    expect(await cmd($, 'reset')).toMatch(/Manousos is back/)
+    expect(saved.coat).toBe('manousos')
+    expect(await cmd($, 'temper')).toMatch(/Temper is off/)
+    expect(await cmd($, 'songs')).toMatch(/sings in greek/)
+    await clock.advance(13_000)
+    expect(await caption($, /Manousos is napping/)).toBe(true)
+  })
+
+  test('/cat asturias writes the /config rows, and leaves a locked one alone', async ($, on) => {
+    const writes: [string, unknown][] = []
+    const row = (field: string) => ({ key: `cretan-cat.${field}`, label: field, kind: 'text', value: '', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: field === 'temper' })
+    on('config.list', async () => ({ value: ['name', 'language', 'songs', 'temper'].map(row) }) as never)
+    on('config.set', async (_$, e) => {
+      writes.push([e.key, e.value])
+      return { value: e.value } as never
+    })
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    expect(await cmd($, 'asturias')).toMatch(/Couldn't change the temper is locked in \/config/)
+    expect(writes).toEqual([
+      ['cretan-cat.name', 'Asturias'],
+      ['cretan-cat.language', 'rioplatense'],
+      ['cretan-cat.songs', 'spanish'],
+    ])
+    expect(await cmd($, 'temper')).toMatch(/Temper is off/)
+    expect((saved.settings as Record<string, unknown>).temper).toBeUndefined()
+  })
+
+  test('in Greek, Clawd calls Asturias Αστούριας', { options: { name: 'asturias' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    expect(await yardText($)).toContain('Αστούριας')
+    expect(await caption($, /Asturias is thinking/)).toBe(true)
+  })
 
   test('language rioplatense: Clawd says it the Buenos Aires way', { options: { language: 'rioplatense' } }, async ($, on) => {
     const { clock } = setUp(on)

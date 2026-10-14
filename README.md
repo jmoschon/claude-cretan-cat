@@ -117,6 +117,8 @@ To update, run `git pull` in the folder.
 | `/cat language <language>` | What Clawd speaks: `greek`, `english`, `spanish` or `rioplatense`. `/cat lang` works too. |
 | `/cat songs <language>` | What the cat sings: `greek`, `spanish` or `english`. |
 | `/cat temper on`, `/cat temper off` | Give the cat a temper, or take it away. See below. |
+| `/cat asturias` | Asturias, all at once: named Asturias, in the ginger coat, Clawd in rioplatense, coplas and tangos, temper on. She answers in her own words (*¿Qué querés?*, *Yo no fui, che*, *¿Sardina? ¿Y el asado?*). |
+| `/cat reset` | Manousos as he came: his name and coat, Greek, mantinades, no temper. |
 | `/cat stats` | How many sardines he has had today and in all (one per commit, or per finished task that used tools), and how often he has been petted. |
 | `/cat help` | Lists all of this. Anything `/cat` doesn't know says so, then shows the same. |
 
@@ -128,7 +130,7 @@ change the same rows you find under `/config`, so the two never disagree.
 | Setting (`/config`) | Values | Default | What it does |
 |---|---|---|---|
 | Cretan cat: name | any name, up to 20 characters | `Manousos` | What the cat is called, in the caption and by Clawd. In Greek, Clawd calls Manousos *Μανούσο*, and any other name as you wrote it. |
-| Cretan cat: Clawd's language | `greek`, `english`, `spanish`, `rioplatense` | `greek` | What Clawd says, and the cat's short replies. Rioplatense is the Spanish of Buenos Aires: *¡Dale Manousos, arrancamos!* |
+| Cretan cat: Clawd's language | `greek`, `english`, `spanish`, `rioplatense` | `greek` | What Clawd says, and the cat's short replies. Rioplatense is the Spanish of Buenos Aires (*¡Dale Manousos, arrancamos!*), and the cat answers in it the way Asturias does. |
 | Cretan cat: songs | `greek`, `spanish`, `english` | `greek` | What the cat sings while Claude works: Cretan mantinades, payador coplas and the odd tango, or English rhyming couplets, all bent to the work. Each set stays in its own language, whatever Clawd speaks. |
 | Cretan cat: temper | `off`, `on` | `off` | See below. |
 | Cretan cat: sound | `off`, `on` | `off` | A soft meow when the work is done or Claude is waiting for you. It plays through `afplay`, so on macOS only. |

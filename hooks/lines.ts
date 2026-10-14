@@ -68,6 +68,7 @@ export const NAME_MOST = 20
 export function catNameOf(raw: unknown): Name {
   const name = typeof raw === 'string' ? [...raw.replace(/[\u0000-\u001f\u007f]/g, '').trim()].slice(0, NAME_MOST).join('') : ''
   if (name === '' || name.toLowerCase() === DEFAULT_NAME.toLowerCase()) return { latin: DEFAULT_NAME, greek: 'Μανούσο' }
+  if (name.toLowerCase() === 'asturias') return { latin: 'Asturias', greek: 'Αστούριας' }
   return { latin: name, greek: name }
 }
 
@@ -183,7 +184,8 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
   rioplatense: n => RIOPLATENSE(n),
 }
 
-// Spanish as they speak it in Buenos Aires: voseo, and "dale".
+// Spanish as they speak it in Buenos Aires: voseo, and "dale". The cat's own
+// answers here are Asturias', who grew up there.
 const RIOPLATENSE = (n: Name): Lines => ({
   nudges: [
     t => `${n.latin}, ¡mirá «${t}»!`,
@@ -207,12 +209,12 @@ const RIOPLATENSE = (n: Name): Lines => ({
     })[kind(tool)],
   done: `¡Bien ahí, ${n.latin}! Tomá una golosina.`,
   oops: `Uh, ${n.latin}... ¿qué pasó?`,
-  hiss: '¡Fffs! Algo salió mal.',
-  wait: ['¡Ey! ¡Te estamos esperando!', '¡Miau! Te estoy esperando.'],
-  green: [`¡Tests en verde, ${n.latin}!`, '¡Bravo! ¡A bailar!'],
-  red: [`Tests en rojo, ${n.latin}...`, '¡Fffs! ¡Rojo!'],
-  commit: [`¡Tomá una sardina, ${n.latin}!`, '¡Ñam! ¡Gracias!'],
-  bored: [`${n.latin}, no te duermas, ¡todavía sigue!`, 'Aaah... zzz'],
+  hiss: '¡Fffs! ¿Quién fue?',
+  wait: ['¡Ey! ¡Te estamos esperando!', '¿Qué querés?'],
+  green: [`¡Tests en verde, ${n.latin}!`, 'Obvio. ¿Qué esperabas?'],
+  red: [`Tests en rojo, ${n.latin}...`, '¡Fffs! Yo no fui, che.'],
+  commit: [`¡Tomá una sardina, ${n.latin}!`, '¿Sardina? ¿Y el asado?'],
+  bored: [`${n.latin}, no te duermas, ¡todavía sigue!`, 'Qué embole... zzz'],
   slapped: '¡Ay! ¿Y eso por qué?',
   snubbed: `¿${n.latin}? ¿Hola?`,
   retort: ['¿Qué querés?', '¡Qué pesado!', '¡Tomá!', '¡Qué plomo!', 'Ni a palos.', '¡Salí de acá!', '¿Me estás cargando?'],
