@@ -619,6 +619,11 @@ export const register: Register = (on, options) => {
     const typed = raw.toLowerCase()
     const [arg = '', ...rest] = typed.split(/\s+/)
     const value = rest.join(' ')
+    // One row a line, its columns lined up, so it reads as a list.
+    const table = (rows: [string, string][]) => {
+      const width = Math.max(...rows.map(([left]) => left.length))
+      return rows.map(([left, right]) => `  ${left.padEnd(width)}  ${right}`).join('\n')
+    }
     // Changes settings: kept in the store first, so they show now and hold
     // even if writing /config reloads the plugin midway; then written to
     // their /config rows where the plugin can see them. A row locked, or a
@@ -709,6 +714,17 @@ export const register: Register = (on, options) => {
       if (value !== 'on' && value !== 'off') return { text: `Temper is ${isTempered ? 'on' : 'off'}. /cat temper on or off changes it.` }
       return setting('temper', value, value === 'on' ? `${name()} has a temper now: nag and it bites back.` : `${name()} is calm again.`)
     }
+    if ((arg === 'config' || arg === 'settings') && value === '') {
+      const rows: [string, string][] = [
+        ['name', name()],
+        ['coat', await read($, coat)],
+        ['language', language],
+        ['songs', songLanguage],
+        ['temper', isTempered ? 'on' : 'off'],
+        ['sound', isSoundOn ? 'on' : 'off'],
+      ]
+      return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; sound only changes in /config, "Cretan cat".` }
+    }
     if (isCoat(arg) && value === '') {
       await update($, coat, () => arg)
       await update($, isHidden, () => false)
@@ -717,17 +733,25 @@ export const register: Register = (on, options) => {
       return { text: `${name()} is wearing the ${arg} coat now.` }
     }
     const help = [
-      `/cat name <name>: what the cat is called (${name()} now).`,
-      `/cat ${Object.keys(COATS).join(', ')}: the coat.`,
-      `/cat language ${LANGUAGES.join('|')}: what Clawd speaks.`,
-      `/cat songs ${SONG_LANGUAGES.join('|')}: what ${name()} sings.`,
-      `/cat temper on|off: whether ${name()} slaps Clawd, swats your hand and sits on your keyboard.`,
-      `/cat asturias: Asturias, ginger and rioplatense, with coplas and a temper; /cat reset: Manousos as he came.`,
-      `/cat pet (or press pet under the yard), /cat stats, /cat hide, /cat show (/cat alone toggles).`,
-      `The same settings, and sound, are under /config, "Cretan cat".`,
-    ].join(' ')
-    // /cat help asks for this; anything else is a slip, and says so.
-    return { text: arg === 'help' && value === '' ? help : `${name()} doesn't know "/cat ${raw}". ${help}` }
+      `${name()}, the cat above the prompt`,
+      '',
+      table([
+        ['/cat name <name>', `what the cat is called (${name()} now)`],
+        ['/cat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${await read($, coat)} now)`],
+        ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now)`],
+        ['/cat songs <language>', `what ${name()} sings: ${SONG_LANGUAGES.join(', ')} (${songLanguage} now)`],
+        ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
+        ['/cat asturias', 'Asturias: ginger, rioplatense, coplas and a temper'],
+        ['/cat reset', 'Manousos as he came'],
+        ['/cat pet', 'pet the cat (or press pet under the yard)'],
+        ['/cat stats', 'sardines and pets'],
+        ['/cat config', 'every setting and what it is now'],
+        ['/cat hide|show', 'hide the cat, or bring it back (/cat alone toggles)'],
+      ]),
+      '',
+      'The same settings, and sound, are under /config, "Cretan cat".',
+    ].join('\n')
+    return { text: arg === 'help' && value === '' ? help : `${name()} doesn't know "/cat ${raw}".\n\n${help}` }
   })
 
   // Clawd picks up the prompt's topic; slash commands stay between you and him.
