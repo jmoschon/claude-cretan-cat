@@ -138,4 +138,66 @@ export const SPRITES = {
     '....ofo.ofo....ofo.ofo....',
     '....www.www....www.www....',
   ],
+  // Being petted: eyes shut, purring.
+  purr: [
+    '...o.........o......',
+    '..opo.......opo.....',
+    '..opfooooooofpo.....',
+    '.offfffffffffffo....',
+    '.offkkfffffkkffo....',
+    '.offFfffnfffFffo....',
+    '.ofwwwwwowwwwwfo....',
+    '..offwwwwwwwffo.....',
+    '..offfwwwwwfffo.....',
+    '.offFfwwwwwfFffo....',
+    '.offffwwwwwffffo..oo',
+    '.offffowwwoffffo.odo',
+    '.offfowwwwwofffoodo.',
+    '..oowwwoowwwoooddo..',
+  ],
+  // Bored by a long tool: a big yawn before he dozes off.
+  yawn: [
+    '...o.........o......',
+    '..opo.......opo.....',
+    '..opfooooooofpo.....',
+    '.offfffffffffffo....',
+    '.offkkfffffkkffo....',
+    '.offFfffnfffFffo....',
+    '.ofwwwwokowwwwfo....',
+    '..offwwokkowffo.....',
+    '..offfwwoowwffo.....',
+    '.offFfwwwwwfFffo....',
+    '.offffwwwwwffffo..oo',
+    '.offffowwwoffffo.odo',
+    '.offfowwwwwofffoodo.',
+    '..oowwwoowwwoooddo..',
+  ],
 } satisfies Record<string, string[]>
+
+// A kitten, one per subagent Claude has running, in two running frames,
+// facing left; and the sardine Clawd tosses for a commit (s outline, S
+// silver, k eye).
+export const KITTEN = {
+  a: [
+    '..o..o....',
+    '.opooopo..',
+    '.offfffo.o',
+    '.ofefefoof',
+    '.ofwnwfof.',
+    'offffffo..',
+    '.ow.ow....',
+  ],
+  b: [
+    '..o..o....',
+    '.opooopo..',
+    '.offfffo..',
+    '.ofefefo.o',
+    '.ofwnwfoof',
+    'offffffof.',
+    '..ow.ow...',
+  ],
+} satisfies Record<string, string[]>
+
+export const SARDINE = ['..sss..s', '.sSSSs.s', 'sSkSSSss', '.sSSSs.s', '..sss..s']
+
+export const SARDINE_COLORS: Record<string, Rgb> = { s: [80, 96, 118], S: [186, 202, 220], k: [18, 14, 12] }

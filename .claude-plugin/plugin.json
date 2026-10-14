@@ -1,8 +1,10 @@
 {
   "name": "cretan-cat",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Manousos, a pixel-art Cretan cat above the prompt. Clawd tells him what to do while Claude works, and he answers in mantinades.",
-  "author": { "name": "Yiannis Moschonas" },
+  "author": {
+    "name": "Yiannis Moschonas"
+  },
   "license": "MIT",
   "repository": "https://github.com/jmoschon/claude-cretan-cat",
   "types": "./types/index.d.ts",
@@ -12,7 +14,21 @@
       "title": "Cretan cat: language",
       "description": "What Clawd says to Manousos, and Manousos' short replies. The mantinades he sings are always in Greek.",
       "default": "greek",
-      "options": ["greek", "english", "spanish"]
+      "options": [
+        "greek",
+        "english",
+        "spanish"
+      ]
+    },
+    "sound": {
+      "type": "string",
+      "title": "Cretan cat: sound",
+      "description": "A soft meow when the work is done or Claude is waiting for you. Plays on macOS only.",
+      "default": "off",
+      "options": [
+        "off",
+        "on"
+      ]
     }
   }
 }

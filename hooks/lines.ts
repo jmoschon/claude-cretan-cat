@@ -18,6 +18,16 @@ export type Lines = {
   oops: string
   // Manousos, startled by a failure.
   hiss: string
+  // Each of these is a pair: what Clawd says, and what Manousos answers.
+  // Claude is waiting on you at a permission prompt.
+  wait: [string, string]
+  // Tests passed, tests failed.
+  green: [string, string]
+  red: [string, string]
+  // A commit went in: Clawd tosses a sardine.
+  commit: [string, string]
+  // A tool has run long enough to bore him to sleep.
+  bored: [string, string]
 }
 
 const kind = (tool: string) =>
@@ -68,6 +78,11 @@ export const LINES: Record<Language, Lines> = {
     done: `Μπράβο ${N_GR}! Πάρε μια λιχουδιά.`,
     oops: `Ωχ, ${N_GR}... τι έγινε;`,
     hiss: 'Φφφ! Κάτι στράβωσε.',
+    wait: ['Ψιτ! Περιμένουμε εσένα!', 'Μιάου! Περιμένω εσένα.'],
+    green: [`Πράσινα τα tests, ${N_GR}!`, 'Ζήτω! Χορεύω!'],
+    red: [`Κόκκινα τα tests, ${N_GR}...`, 'Φφφ! Κόκκινα!'],
+    commit: [`Ορίστε μια σαρδέλα, ${N_GR}!`, 'Ννιάμ! Ευχαριστώ!'],
+    bored: [`${N_GR}, μην κοιμάσαι, ακόμα τρέχει!`, 'Χααα... ζζζ'],
   },
   english: {
     nudges: [
@@ -93,6 +108,11 @@ export const LINES: Record<Language, Lines> = {
     done: `Well done, ${N}! Have a treat.`,
     oops: `Uh-oh, ${N}... what happened?`,
     hiss: 'Hsss! Something went wrong.',
+    wait: ['Psst! We are waiting for you!', 'Meow! Waiting for you.'],
+    green: [`Tests are green, ${N}!`, 'Hooray! Dance time!'],
+    red: [`Tests are red, ${N}...`, 'Hsss! Red!'],
+    commit: [`Here's a sardine, ${N}!`, 'Nom! Thank you!'],
+    bored: [`${N}, don't fall asleep, it's still running!`, 'Yaaawn... zzz'],
   },
   spanish: {
     nudges: [
@@ -118,6 +138,11 @@ export const LINES: Record<Language, Lines> = {
     done: `¡Bien hecho, ${N}! Toma una golosina.`,
     oops: `Ay, ${N}... ¿qué ha pasado?`,
     hiss: '¡Fffs! Algo salió mal.',
+    wait: ['¡Psst! ¡Te estamos esperando!', '¡Miau! Te estoy esperando.'],
+    green: [`¡Tests en verde, ${N}!`, '¡Bravo! ¡A bailar!'],
+    red: [`Tests en rojo, ${N}...`, '¡Fffs! ¡Rojo!'],
+    commit: [`¡Toma una sardina, ${N}!`, '¡Ñam! ¡Gracias!'],
+    bored: [`${N}, no te duermas, ¡aún sigue!`, 'Aaah... zzz'],
   },
 }
 
@@ -149,3 +174,97 @@ export function topicOf(text: string): string {
   const topic = [...two].length > 26 ? (words[words.length - 1] ?? '') : two
   return [...topic].slice(0, 26).join('')
 }
+
+// What a Bash command was, as the cat cares: a test run, a commit, or
+// anything else. Quoted text is set aside first (`echo "git commit"` is no
+// commit), then each command of the line is read on its own: a runner only
+// counts where a command starts (`pip install pytest` runs pip, not tests).
+const RUNNERS = new Set(['pytest', 'jest', 'vitest', 'mocha', 'ava', 'tap', 'rspec', 'phpunit', 'pest', 'tox', 'nox', 'ctest', 'karma', 'playwright', 'cypress'])
+const WITH_TEST = new Set(['go', 'cargo', 'mix', 'dotnet', 'swift', 'deno', 'bun', 'zig', 'flutter', 'dart', 'gradle', 'gradlew', 'mvn', 'mvnw', 'sbt', 'lein', 'stack', 'cabal'])
+const PACKAGE = new Set(['npm', 'pnpm', 'yarn', 'bun'])
+const SETUP = new Set(['install', 'install-deps', 'codegen', 'open', 'show-report', 'init', 'verify'])
+// Ahead of the real command: a variable, a wrapper, a runner of runners.
+const PREFIX = /^(?:\w+=\S*\s+|(?:sudo|time|nice|env|command|exec|if|then|else|do|while|until)\s+|!\s*|timeout\s+(?:-\S+\s+)*\S+\s+|(?:npx|bunx|pnpx)\s+(?:-y\s+|--yes\s+)?|(?:pnpm|yarn|npm)\s+(?:exec|dlx)\s+|bundle\s+exec\s+|(?:uv|poetry|pipenv|hatch|pdm|rye)\s+run\s+|python3?\s+-m\s+)/
+
+export type BashKind = 'tests' | 'commit'
+
+// The commands of a line, each with whether its exit code is the line's:
+// only `&&` may follow it (a failure stops the line there), never a pipe,
+// `||`, `;` or `&`, which hand the line's exit code to someone else.
+function commandsOf(line: string): { words: string[]; isExitTold: boolean }[] {
+  // A heredoc's body is text, not commands: `cat > run.sh <<'EOF'` ... `EOF`.
+  const noHeredocs = line.replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, '<<HEREDOC')
+  // Quoted text set aside, and redirections (`2>&1`, `&>log`), whose `&` is
+  // no background.
+  const bare = noHeredocs.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""').replace(/\d*[<>]&[\d-]*|&>>?/g, ' ')
+  const parts = bare.split(/(\|\||&&|[;|&\n])/)
+  const out: { words: string[]; isExitTold: boolean }[] = []
+  for (let i = 0; i < parts.length; i += 2) {
+    let text = (parts[i] ?? '')
+      .trim()
+      .replace(/^[({]\s*/, '')
+      .replace(/\s*[)}]\s*$/, '')
+    for (let prefix = PREFIX.exec(text); prefix; prefix = PREFIX.exec(text)) text = text.slice(prefix[0].length)
+    // A trailing `&` sends it to the background: its exit code is the shell's.
+    // (A lone `)` or `}` closing a group is no command of its own.)
+    const after = parts.filter((p, j) => j > i && j % 2 === 1 && (p === '&' || !/^[\s)}]*$/.test(parts[j + 1] ?? '')))
+    out.push({ words: text.split(/\s+/).filter(Boolean), isExitTold: after.every(sep => sep === '&&') })
+  }
+  return out
+}
+
+// The command's own name, without its path (`./gradlew` -> `gradlew`).
+const nameOf = (word: string | undefined) => (word ?? '').split('/').pop() ?? ''
+
+function isTests(words: string[]): boolean {
+  const name = nameOf(words[0])
+  const rest = words.slice(1).filter(w => !w.startsWith('-'))
+  // A runner, unless it's only being set up (`npx playwright install`).
+  if (RUNNERS.has(name)) return !SETUP.has(rest[0] ?? '')
+  if (name === 'node' && words.includes('--test')) return true
+  if (PACKAGE.has(name)) {
+    // Past a workspace and the values of --filter, --prefix and the like.
+    const words2: string[] = []
+    for (let i = 1; i < words.length; i++) {
+      const w = words[i]!
+      // (npm's -w names a workspace; pnpm's -w is the workspace root, alone.)
+      if (/^--?(filter|prefix|dir|cwd|workspace|C|F)$/.test(w) || (w === '-w' && name === 'npm')) i++
+      else if (!w.startsWith('-')) words2.push(w)
+    }
+    const at = words2[0] === 'workspace' ? 2 : 0
+    const scriptAt = words2[at] === 'run' ? at + 1 : at
+    const script = words2[scriptAt]
+    const after = words2[scriptAt + 1] ?? ''
+    if (script !== undefined && (['test', 't', 'tests'].includes(script) || script.startsWith('test:') || (RUNNERS.has(script) && !SETUP.has(after)))) return true
+  }
+  if (name === 'cargo' && rest[0] === 'nextest') return true
+  if (name === 'make') return rest.some(w => ['test', 'tests', 'check'].includes(w))
+  if (WITH_TEST.has(name)) return rest.some(w => w === 'test' || w === 'verify')
+  return false
+}
+
+function isCommit(words: string[]): boolean {
+  // (A commit's exit code, like a test run's, is its own only if nothing but
+  // `&&` follows it: `git commit || true` always succeeds.)
+  if (nameOf(words[0]) !== 'git') return false
+  // Past git's own options (-C dir, -c key=value, --git-dir=...) to its command.
+  let i = 1
+  while (i < words.length && words[i]!.startsWith('-')) i += words[i] === '-C' || words[i] === '-c' ? 2 : 1
+  return words[i] === 'commit' && !words.includes('--dry-run')
+}
+
+// What the command is, and whether its exit code is the test run's own: a
+// run piped on (`| tail`) or followed by more (`|| true`, `; echo`) reports
+// someone else's, so its output has to be read instead.
+export function bashKind(command: string): { kind: BashKind; isExitTold: boolean } | undefined {
+  const commands = commandsOf(command)
+  const commit = commands.find(c => isCommit(c.words))
+  if (commit) return { kind: 'commit', isExitTold: commit.isExitTold }
+  const tests = commands.find(c => isTests(c.words))
+  if (tests) return { kind: 'tests', isExitTold: tests.isExitTold }
+  return undefined
+}
+
+// Whether a test run's output says something failed: "3 failed", "FAIL",
+// "FAILED", "2 errors"; never "0 failed".
+export const saysFailed = (text: string) => /\b[1-9]\d* (?:failed|failing|failures?|errors?)\b|\bFAIL(?:ED|URES?)?\b|\bnot ok \d/.test(text)

@@ -1,20 +1,27 @@
 // The yard above the prompt, in pixel art: Clawd, the Claude Code mascot,
 // tells Manousos, a hand-drawn cat, what to do, and Manousos answers in a
-// speech bubble. Pixels are two to a terminal cell (half blocks), so every
-// edge is crisp in any font. drawCat returns a Raster's `cells`.
+// speech bubble. Behind them Psiloritis, under the sun or the moon as the
+// clock says; in front, a kitten for each helper Claude has running. Pixels
+// are two to a terminal cell (half blocks), so every edge is crisp in any
+// font. drawCat returns a Raster's `cells`.
 
 import type { Coat, Mood } from '../types'
 import { CLAWD_H, CLAWD_ORANGE, CLAWD_W, clawdPixels, LOOK, type ClawdLook } from './clawd'
-import { CAT_H, COATS, SPRITES, type Pose } from './sprites'
+import { CAT_H, COATS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES, type Pose } from './sprites'
 
 export { COATS }
 
 type Rgb = [number, number, number]
 const same = (a: Rgb, b: Rgb) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2]
 const luma = (c: Rgb) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+const scale = (c: Rgb, k: number): Rgb => [Math.round(c[0] * k), Math.round(c[1] * k), Math.round(c[2] * k)]
+const hash = (x: number, y: number) => {
+  const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453
+  return v - Math.floor(v)
+}
 
-// The yard: sky (the terminal's own color), a whitewashed wall with a blue
-// top, and a lawn. Heights in pixels, counted up from the bottom.
+// The yard: sky (the terminal's own color), Psiloritis, a whitewashed wall
+// with a blue top and a window, and a lawn. Heights in pixels.
 const LAWN: Rgb = [112, 164, 84]
 const LAWN_DARK: Rgb = [98, 148, 74]
 const LAWN_EDGE: Rgb = [134, 184, 100]
@@ -22,6 +29,9 @@ const SHADOW: Rgb = [80, 124, 64]
 const WALL: Rgb = [236, 230, 218]
 const WALL_SHADE: Rgb = [214, 206, 192]
 const TRIM: Rgb = [60, 112, 180]
+const GLASS: Rgb = [92, 122, 160]
+const LAMP: Rgb = [255, 210, 120]
+const SNOW: Rgb = [238, 242, 250]
 const CUSHION: Rgb = [172, 188, 208]
 const CUSHION_EDGE: Rgb = [120, 138, 166]
 const LAWN_PX = 4
@@ -29,18 +39,38 @@ const WALL_PX = 4
 // Feet stand on this pixel row, counted up from the bottom.
 const FEET_UP = 1
 
+// The time of day, from the local hour, and what it does to the colors.
+type Daylight = 'dawn' | 'day' | 'dusk' | 'night'
+const daylightAt = (hour: number): Daylight => (hour >= 21 || hour < 6 ? 'night' : hour < 8 ? 'dawn' : hour < 18 ? 'day' : 'dusk')
+const SKY: Record<Daylight, { far: Rgb; near: Rgb; light: Rgb; dim: number }> = {
+  dawn: { far: [176, 150, 184], near: [140, 120, 160], light: [255, 176, 96], dim: 0.9 },
+  day: { far: [150, 172, 204], near: [118, 144, 182], light: [255, 220, 96], dim: 1 },
+  dusk: { far: [156, 112, 146], near: [120, 86, 124], light: [255, 140, 72], dim: 0.82 },
+  night: { far: [56, 62, 92], near: [42, 48, 74], light: [236, 232, 200], dim: 0.55 },
+}
+// Snow on the peaks from December to March (months 0-based).
+const isWinter = (month: number) => month === 11 || month <= 2
+
 // ---------------------------------------------------------------- layout
 
 export type Scene = {
   mood: Mood
   coat: Coat
-  // Seconds.
+  // Seconds, and seconds since the mood began.
   t: number
+  since?: number
   cols: number
   rows: number
   // What Clawd tells Manousos, and what Manousos says or sings back.
   said?: string
   reply?: string[]
+  // The local hour (0-23) and month (0-11): the light and the season.
+  hour?: number
+  month?: number
+  // Helpers Claude has running: a kitten each, up to four.
+  kittens?: number
+  // Seconds since he was petted, while it still shows.
+  petted?: number
 }
 
 // Rows Clawd's bubble takes above the yard, when it fits.
@@ -52,6 +82,10 @@ const CAT_FROM = 21
 const REPLY_MOST = 58
 const REPLY_LEAST = 22
 const CAT_ROOM = 34
+const MOST_KITTENS = 4
+// How long petting shows, and how long the sardine is in the air.
+export const PETTING_S = 3
+const TOSS_S = 1.2
 
 // Whether a reply bubble fits beside the cat at this width.
 export const replyFits = (cols: number) => Math.min(REPLY_MOST, cols - CAT_FROM - CAT_ROOM - 6) >= REPLY_LEAST
@@ -92,10 +126,12 @@ export function clean(text: string): string {
 
 type Cat = { pose: Pose; x: number; lift: number; isLeft: boolean }
 
-// Where he is and how he stands, for a mood at time t, in a room of pixels.
-function catAt(mood: Mood, t: number, from: number, to: number): Cat {
+// Where he is and how he stands, for a mood at time t (`since` into it), in
+// a room of pixels.
+function catAt(mood: Mood, t: number, since: number, from: number, to: number): Cat {
   const width = SPRITES.walkA[0]!.length
   const middle = Math.round((from + to - width) / 2)
+  const seated = middle + 3
   switch (mood) {
     case 'nap':
       return { pose: 'sleep', x: middle, lift: 0, isLeft: false }
@@ -116,26 +152,55 @@ function catAt(mood: Mood, t: number, from: number, to: number): Cat {
       return { pose: 'crouch', x: middle + (Math.floor(t * 10) % 2), lift: 0, isLeft: false }
     }
     case 'happy':
-      return { pose: Math.floor(t * 2.5) % 2 === 0 ? 'sitA' : 'sitB', x: middle + 3, lift: 0, isLeft: false }
+      return { pose: Math.floor(t * 2.5) % 2 === 0 ? 'sitA' : 'sitB', x: seated, lift: 0, isLeft: false }
     case 'oops':
+    case 'hiss':
       return { pose: 'startled', x: middle + (Math.floor(t * 16) % 2), lift: 0, isLeft: false }
+    case 'wait':
+      // Sitting up, looking at you.
+      return { pose: 'sitA', x: seated, lift: 0, isLeft: false }
+    case 'dance': {
+      // Hop, turn, hop.
+      const beat = Math.floor(t * 4)
+      return { pose: beat % 2 === 0 ? 'sitA' : 'sitB', x: seated, lift: beat % 2 === 0 ? 2 : 0, isLeft: Math.floor(t * 2) % 2 === 1 }
+    }
+    case 'feast':
+      // Waiting for the sardine, then eating it, eyes shut.
+      return { pose: since < TOSS_S ? 'sitA' : 'purr', x: seated, lift: 0, isLeft: false }
+    case 'bored':
+      // A big yawn, then asleep where he stands.
+      return { pose: since < 2.5 ? 'yawn' : 'sleep', x: since < 2.5 ? seated : middle, lift: 0, isLeft: false }
   }
 }
 
 // ---------------------------------------------------------------- Clawd
 
 // How Clawd stands for a mood: talking (an arm waving at the cat) while
-// Claude works, cheering when it is done, dozing while Manousos naps.
-function clawdLook(mood: Mood, t: number, isTalking: boolean): { look: ClawdLook; lift: number } {
+// Claude works, waving at you while you're needed, cheering when it is done,
+// dozing while Manousos naps.
+function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { look: ClawdLook; lift: number } {
   const base: ClawdLook = { ...LOOK, color: CLAWD_ORANGE, facing: 1, isBlinking: Math.sin(t * 1.1) > 0.96 }
-  if (mood === 'nap') return { look: { ...base, pose: 'sit', eyes: 'closed', facing: 0, arms: { left: 'down', right: 'down' } }, lift: 0 }
-  if (mood === 'happy') {
-    const lift = Math.round(Math.max(0, Math.sin(t * 7)) * 2)
-    return { look: { ...base, pose: lift > 0 ? 'jump' : 'stand', arms: { left: 'up', right: 'up' } }, lift }
+  const wave = Math.floor(t * 2.5) % 2 === 0
+  switch (mood) {
+    case 'nap':
+      return { look: { ...base, pose: 'sit', eyes: 'closed', facing: 0, arms: { left: 'down', right: 'down' } }, lift: 0 }
+    case 'happy':
+    case 'dance': {
+      const lift = Math.round(Math.max(0, Math.sin(t * 7)) * 2)
+      return { look: { ...base, pose: lift > 0 ? 'jump' : 'stand', arms: { left: 'up', right: 'up' } }, lift }
+    }
+    case 'oops':
+    case 'hiss':
+      return { look: { ...base, eyes: 'wide', arms: { left: 'up', right: 'up' } }, lift: 0 }
+    case 'wait':
+      // Facing you, both arms waving.
+      return { look: { ...base, facing: 0, arms: { left: wave ? 'up' : 'out', right: wave ? 'out' : 'up' } }, lift: 0 }
+    case 'feast':
+      // The toss: arm up, then out as the sardine leaves.
+      return { look: { ...base, arms: { left: 'down', right: since < 0.25 ? 'up' : 'out' } }, lift: 0 }
+    default:
+      return { look: { ...base, arms: { left: 'down', right: isTalking && wave ? 'up' : 'out' } }, lift: 0 }
   }
-  if (mood === 'oops') return { look: { ...base, eyes: 'wide', arms: { left: 'up', right: 'up' } }, lift: 0 }
-  const wave = isTalking && Math.floor(t * 2.5) % 2 === 0
-  return { look: { ...base, arms: { left: 'down', right: wave ? 'up' : 'out' } }, lift: 0 }
 }
 
 // ---------------------------------------------------------------- bubbles
@@ -181,9 +246,12 @@ function encode(words: Uint32Array) {
   return out
 }
 
-// One frame of the yard, Clawd, Manousos and their bubbles.
+// One frame of the yard, Clawd, Manousos, the kittens and the bubbles.
 export function drawCat(scene: Scene): string {
   const { mood, t, cols, rows } = scene
+  const since = scene.since ?? t
+  const light = daylightAt(scene.hour ?? 12)
+  const sky = SKY[light]
   const top = rows >= YARD_ROWS + TOP_ROWS ? TOP_ROWS : 0
   const w = cols
   // The pixels cover the whole strip, so a pounce can rise above the yard.
@@ -192,20 +260,14 @@ export function drawCat(scene: Scene): string {
   const set = (x: number, y: number, c: Rgb) => {
     if (x >= 0 && y >= 0 && x < w && y < h) px[y * w + x] = c
   }
-
-  // The yard.
-  for (let x = 0; x < w; x++) {
-    set(x, h - LAWN_PX - WALL_PX - 1, TRIM)
-    for (let y = h - LAWN_PX - WALL_PX; y < h - LAWN_PX; y++) set(x, y, y === h - LAWN_PX - 1 ? WALL_SHADE : WALL)
-    for (let y = h - LAWN_PX; y < h; y++) {
-      // A light top edge, then lawn with a scatter of darker tufts.
-      const tuft = ((x * 73 + y * 151) % 29) % 9 === 0 && y > h - LAWN_PX
-      set(x, y, y === h - LAWN_PX ? LAWN_EDGE : tuft ? LAWN_DARK : LAWN)
-    }
-  }
-  const feet = h - 1 - FEET_UP
-  const shadow = (x0: number, x1: number) => {
-    for (let x = x0; x <= x1; x++) for (const y of [feet, feet + 1]) if (y < h && y > h - LAWN_PX) set(x, y, SHADOW)
+  const blit = (rowsOf: readonly string[], x0: number, y0: number, colors: Record<string, Rgb>, isMirrored = false) => {
+    const width = rowsOf[0]!.length
+    rowsOf.forEach((line, sy) => {
+      ;[...line].forEach((ch, sx) => {
+        const c = colors[ch]
+        if (c) set(isMirrored ? x0 + width - 1 - sx : x0 + sx, y0 + sy, c)
+      })
+    })
   }
 
   // The reply bubble's place decides the cat's room.
@@ -216,21 +278,78 @@ export function drawCat(scene: Scene): string {
   const bx = cols - replyWidth - 3
   const catTo = hasReply ? bx - 3 : Math.min(cols - 1, CAT_FROM + CAT_ROOM + 10)
 
+  // The sky: stars at night, then the sun or the moon, then the mountains
+  // in front of them, Psiloritis the tallest, snow-capped in winter.
+  const trimY = h - LAWN_PX - WALL_PX - 1
+  if (light === 'night') {
+    for (let y = 0; y < trimY - 3; y++) {
+      for (let x = 0; x < w; x++) {
+        if (hash(x, y) < 0.012 && Math.floor(t * 1.5 + hash(y, x) * 9) % 9 !== 0) set(x, y, [214, 214, 236])
+      }
+    }
+  }
+  // High by day and night, low behind the mountains at dawn and dusk; past
+  // the end of Clawd's bubble, and with no reply bubble, far right, clear
+  // of a sleeper's z's.
+  const saidEnd = top > 0 && scene.said ? Math.min([...clean(scene.said)].length, catTo - 6) + 5 : 0
+  const orbX = hasReply ? Math.max(CAT_FROM, saidEnd + 1, catTo - 8) : cols - 10
+  const orbY = light === 'day' || light === 'night' ? 1 : Math.max(1, trimY - 6)
+  const isOrbShown = orbX + 4 < (hasReply ? bx - 1 : cols)
+  for (const [dx, dy] of isOrbShown ? ([[1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [1, 3], [2, 3]] as const) : []) {
+    // The moon is a crescent: its right side is dark.
+    if (light === 'night' && dx >= 2 && dy >= 1 && dy <= 2) continue
+    set(orbX + dx, orbY + dy, sky.light)
+  }
+  const peak = Math.round(cols * 0.58)
+  const winter = isWinter(scene.month ?? 6)
+  for (let x = 0; x < w; x++) {
+    // Never taller than the sky they stand in, less a strip for the stars;
+    // the snow is on Psiloritis, its top two pixels however short the strip.
+    const height = 2.5 + 1.6 * Math.sin(x * 0.07 + 1) + 1.1 * Math.sin(x * 0.17) + Math.max(0, 7 - Math.abs(x - peak) * 0.42)
+    const far = Math.round(Math.min(9, trimY - 3, height))
+    const near = Math.round(1.5 + 1.1 * Math.sin(x * 0.11 + 2) + 0.7 * Math.sin(x * 0.29))
+    const isSnowy = winter && height >= 6
+    for (let k = 1; k <= far; k++) set(x, trimY - k, isSnowy && k > far - 2 ? scale(SNOW, sky.dim) : sky.far)
+    for (let k = 1; k <= near; k++) set(x, trimY - k, sky.near)
+  }
+
+  // The wall, its window (lit at night) and the lawn, in the hour's light.
+  for (let x = 0; x < w; x++) {
+    set(x, trimY, scale(TRIM, sky.dim))
+    for (let y = trimY + 1; y < h - LAWN_PX; y++) set(x, y, scale(y === h - LAWN_PX - 1 ? WALL_SHADE : WALL, sky.dim))
+    for (let y = h - LAWN_PX; y < h; y++) {
+      // A light top edge, then lawn with a scatter of darker tufts.
+      const tuft = ((x * 73 + y * 151) % 29) % 9 === 0 && y > h - LAWN_PX
+      set(x, y, scale(y === h - LAWN_PX ? LAWN_EDGE : tuft ? LAWN_DARK : LAWN, sky.dim))
+    }
+  }
+  // The window sits at the right of the cat's room, clear of the bubble.
+  const windowX = Math.max(CAT_FROM, Math.min(cols - 4, catTo - 5))
+  for (let x = windowX; x < windowX + 3; x++) for (let y = trimY + 2; y < trimY + 4; y++) set(x, y, light === 'night' || light === 'dusk' ? LAMP : GLASS)
+
+  const feet = h - 1 - FEET_UP
+  const shadow = (x0: number, x1: number) => {
+    for (let x = x0; x <= x1; x++) for (const y of [feet, feet + 1]) if (y < h && y > h - LAWN_PX) set(x, y, scale(SHADOW, sky.dim))
+  }
+
   // Clawd, on the left.
   const said = clean(scene.said ?? '')
-  const clawd = clawdLook(mood, t, said !== '')
+  const clawd = clawdLook(mood, t, since, said !== '')
   const clawdTop = feet + 1 - CLAWD_H - clawd.lift
   shadow(CLAWD_X + 1, CLAWD_X + CLAWD_W - 2)
   for (const p of clawdPixels(clawd.look)) set(CLAWD_X + p.x, clawdTop + p.y, p.c)
 
-  // Manousos, in his room.
+  // Manousos, in his room. Petted, he stops to purr (asleep, he purrs on).
   const C = COATS[scene.coat]
-  const cat = catAt(mood, t, CAT_FROM, catTo)
+  const isPetted = scene.petted !== undefined && scene.petted < PETTING_S
+  const cat = catAt(mood, t, since, CAT_FROM, catTo)
+  if (isPetted && cat.pose !== 'sleep') Object.assign(cat, { pose: 'purr', lift: 0, isLeft: false, x: cat.x + (cat.pose.startsWith('sit') ? 0 : 3) })
   const sprite = SPRITES[cat.pose]
   const spriteW = sprite[0]!.length
   // Never over Clawd, never off the right edge; never above the strip.
   cat.x = Math.max(CAT_FROM, Math.min(cols - spriteW, cat.x))
-  const catTop = feet + 1 - CAT_H - Math.min(cat.lift, feet + 1 - CAT_H)
+  const isAsleep = cat.pose === 'sleep'
+  const catTop = feet + 1 - CAT_H - Math.min(cat.lift, feet + 1 - CAT_H) - (isAsleep ? 1 : 0)
   if (mood === 'nap') {
     // His cushion, the pale blue of the bedsheet in the photo.
     for (let x = cat.x - 1; x <= cat.x + spriteW - 3; x++) {
@@ -239,12 +358,32 @@ export function drawCat(scene: Scene): string {
       set(x, feet + 1, CUSHION_EDGE)
     }
   } else shadow(cat.x + 3, cat.x + spriteW - 4)
-  sprite.forEach((line, sy) => {
-    ;[...line].forEach((ch, sx) => {
-      const c = C[ch]
-      if (c) set(cat.isLeft ? cat.x + spriteW - 1 - sx : cat.x + sx, catTop + sy - (mood === 'nap' ? 1 : 0), c)
-    })
-  })
+  blit(sprite, cat.x, catTop, C, cat.isLeft)
+
+  // The sardine a commit earns, tossed from Clawd's claw to his mouth.
+  if (mood === 'feast' && since < TOSS_S) {
+    const k = since / TOSS_S
+    const fromX = CLAWD_X + CLAWD_W + 1
+    const fromY = clawdTop
+    const toX = cat.x + 6
+    const toY = catTop + 5
+    blit(SARDINE, Math.round(fromX + (toX - fromX) * k), Math.round(fromY + (toY - fromY) * k - Math.sin(k * Math.PI) * 7), SARDINE_COLORS)
+  }
+
+  // The kittens, running back and forth along the front of the lawn.
+  const kittens = Math.min(MOST_KITTENS, Math.max(0, Math.floor(scene.kittens ?? 0)))
+  const kittenCoats: Coat[] = ['ginger', 'tuxedo', 'manousos', 'ginger']
+  for (let i = 0; i < kittens; i++) {
+    const kw = KITTEN.a[0]!.length
+    const span = Math.max(1, w - kw - 2)
+    const speed = 9 + i * 3
+    const lap = (2 * span) / speed
+    const k = ((t + i * 1.7) % lap) / lap
+    const isRight = k < 0.5
+    const x = 1 + Math.round((isRight ? 2 * k : 2 - 2 * k) * span)
+    // The sprite faces left; running right, it is mirrored.
+    blit(Math.floor(t * 8 + i) % 2 === 0 ? KITTEN.a : KITTEN.b, x, h - KITTEN.a.length, COATS[kittenCoats[i]!], isRight)
+  }
 
   // Cells from pixels, two pixels a cell.
   const words = new Uint32Array(cols * rows * 3)
@@ -281,21 +420,31 @@ export function drawCat(scene: Scene): string {
     put(col, row, char, ink, back)
   }
 
-  // Little marks by his head: z's, a startle, a heart. (He faces right in
-  // every mood that has them.)
+  // Little marks by his head: z's, a startle, a question, sparkles, hearts.
   const headCol = cat.x + spriteW - 4
   const headRow = Math.floor(catTop / 2)
-  if (mood === 'nap') {
+  const pink: Rgb = [255, 110, 150]
+  if (isAsleep) {
     for (let i = 0; i < 3; i++) {
       const q = (t * 0.5 + i / 3) % 1
       over(cat.x + spriteW + Math.round(q * 6), Math.max(0, headRow + 3 - Math.round(q * 4)), q > 0.6 ? 'Z' : 'z', [Math.round(150 + 80 * (1 - q)), Math.round(160 + 70 * (1 - q)), 240])
     }
   } else if (mood === 'tool') {
     if (Math.floor(t * 2) % 2 === 0) over(headCol + 2, Math.max(0, headRow), '!', [255, 210, 80])
-  } else if (mood === 'oops') {
+  } else if (mood === 'oops' || mood === 'hiss') {
     over(headCol + 2, Math.max(0, headRow - 1), '!', [255, 90, 90])
-  } else if (mood === 'happy') {
-    text(cat.x + spriteW - 2, Math.max(0, headRow - 1), '<3', [255, 110, 150])
+  } else if (mood === 'wait') {
+    if (Math.floor(t * 2) % 2 === 0) over(headCol + 1, Math.max(0, headRow - 1), '?', [255, 220, 120])
+  } else if (mood === 'dance') {
+    for (let i = 0; i < 3; i++) if (hash(i, Math.floor(t * 6)) > 0.4) over(cat.x - 2 + Math.round(hash(Math.floor(t * 6), i) * (spriteW + 4)), Math.max(0, headRow - 1 + i), '*', [255, 230, 120])
+  } else if (mood === 'happy' && !isPetted) {
+    text(cat.x + spriteW - 2, Math.max(0, headRow - 1), '<3', pink)
+  }
+  if (isPetted) {
+    for (let i = 0; i < 2; i++) {
+      const q = ((scene.petted ?? 0) / PETTING_S + i * 0.45) % 1
+      text(cat.x + 4 + i * 9, Math.max(0, headRow + 1 - Math.round(q * 3)), '<3', pink)
+    }
   }
 
   const edge: Rgb = [196, 198, 214]
