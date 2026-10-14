@@ -46,8 +46,8 @@ A few more things:
   December to March there is snow on the peak.
 - **Petting.** Type `/cat pet`, or click `pet` under the yard, or press `p`
   while the band has the focus (ctrl+x then Tab moves the focus to it), and
-  he closes his eyes and purrs. Outside the terminal the caption purrs
-  instead.
+  he closes his eyes and purrs. Where only the ASCII cat fits, the caption
+  purrs instead.
 - **What counts as tests and commits.** A command in a Bash call that runs a
   test runner (`npm test`, `pytest`, `go test`, `cargo test`, `make test`,
   `npx vitest` and the like), and a `git commit` that went in. Quoted text and
@@ -158,8 +158,13 @@ The full scene is 11 rows plus a caption line, in a terminal at least about
   8 rows.
 - With less width, the mantinada moves out of its bubble and shows as text
   under the yard.
-- Outside the terminal (the desktop app), he is drawn as an ASCII cat with
-  his caption beside him, in his coat's color while he naps or works; a
+- In the desktop app the yard is the same, cell for cell, drawn as an SVG
+  image instead of terminal cells. Two differences: the sky is painted for
+  the time of day (the terminal shows its own background there), and it
+  moves a few frames a second where the terminal's moves about ten, as the
+  desktop has no way to repaint the image in place.
+- Where the yard doesn't fit at all, he is drawn as an ASCII cat with his
+  caption beside him, in his coat's color while he naps or works; a
   reaction (done, startled, waiting, tests, a sardine) shows in its own.
 
 ## Troubleshooting
@@ -186,6 +191,7 @@ Files:
 - `hooks/register.tsx`: the hooks. Watches prompts, turns and tool calls,
   keeps the cat's mood, and draws the band above the prompt.
 - `hooks/manousos.ts`: draws the scene as pixels, two to a terminal cell.
+- `hooks/svg.ts`: the same cells as an SVG, for the desktop app.
 - `hooks/sprites.ts`: Manousos, pose by pose, as letter grids, and his coats.
 - `hooks/lines.ts`: what Clawd and the cat say, per language; the cat's
   name; how the topic is picked from a prompt; which Bash commands are tests

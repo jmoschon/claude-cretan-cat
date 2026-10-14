@@ -1,7 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { topicOf } from '../hooks/lines'
-import { drawCat } from '../hooks/manousos'
+import { drawCat, drawCells, skyAt } from '../hooks/manousos'
+import { cellsToSvg, SVG_MOST } from '../hooks/svg'
 
 const BAND = { component: 'AbovePrompt' } as const
 const PROPS = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120 } as never
@@ -18,13 +19,68 @@ describe('cretan-cat', () => {
     }
   })
 
-  test('draws the pixel-art yard in the terminal, the ASCII cat elsewhere', async $ => {
+  test('draws the pixel-art yard: a Raster in the terminal, the same yard as SVG on the desktop', async $ => {
     const term = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     expect(await term.find({ type: 'Raster' })).toBeDefined()
     await term.unmount()
     const desk = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
     expect(await desk.find({ type: 'Raster' })).toBeUndefined()
+    const svg = (await desk.find({ type: 'Svg' })) as { props: { source: string; alt: string } } | undefined
+    expect(svg?.props.source).toMatch(/^<svg [^>]*viewBox="0 0 960 \d+">/)
+    expect(svg?.props.alt).toMatch(/Clawd and Manousos in the yard: Manousos is napping/)
+    // Under the yard, as in the terminal: the pet button and the caption.
+    expect(await desk.find({ type: 'Text', text: /napping/ })).toBeDefined()
     await desk.unmount()
+  })
+
+  test('the desktop yard carries what the terminal yard says, and the coat', async ($, on) => {
+    const { clock } = setUp(on)
+    on('prompt.submit', async (_$, e) => ({ text: e.text }) as never)
+    await $.prompt.submit({ text: 'fix the failing checkout tests' } as never)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    const source = async () => {
+      const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+      const svg = (await ui.find({ type: 'Svg' })) as unknown as { props: { source: string } }
+      await ui.unmount()
+      return svg.props.source
+    }
+    const manousos = await source()
+    // Clawd's nudge in his bubble, glyph by glyph, as the terminal draws it.
+    const term = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    const raster = (await term.find({ type: 'Raster' })) as unknown as { props: { cells: string } }
+    await term.unmount()
+    expect(cellsText(raster.props.cells)).toContain('checkout tests')
+    expect(manousos.replace(/<[^>]+>/g, '')).toContain('checkout')
+    await cmd($, 'ginger')
+    expect(await source()).not.toBe(manousos)
+  })
+
+  test('too narrow for the yard: the ASCII cat, on the desktop too', async $ => {
+    const narrow = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 40 } as never
+    const desk = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: narrow })
+    expect(await desk.find({ type: 'Svg' })).toBeUndefined()
+    expect(await desk.find({ type: 'Text', text: /\/\\_\/\\/ })).toBeDefined()
+    await desk.unmount()
+  })
+
+  test('the SVG yard: the busiest scene fits an Svg, text is escaped, the sky follows the hour', () => {
+    const busy: Parameters<typeof drawCells>[0] = {
+      mood: 'think', t: 3, since: 3, cols: 160, rows: 11, coat: 'manousos', hour: 12, month: 0, kittens: 4,
+      said: 'Πώς πάει το «a & b <c>», Μανούσο;',
+      reply: ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.'],
+    }
+    const svg = cellsToSvg(drawCells(busy), 160, 11, skyAt(12))
+    expect(svg.length).toBeLessThan(SVG_MOST / 4)
+    expect(svg).toContain('&amp;')
+    expect(svg).toContain('&lt;c&gt;')
+    expect(svg).not.toMatch(/>[^<]*<c>/)
+    expect(svg).toContain('πληκτρολόγιο')
+    const night = cellsToSvg(drawCells({ ...busy, hour: 23 }), 160, 11, skyAt(23))
+    expect(night).toContain('fill="#161a2c"')
+    expect(svg).toContain('fill="#cee2f4"')
+    // Every cell of a half block is two pixels: nothing drawn outside the box.
+    expect(svg).not.toMatch(/M1280 /)
   })
 
   test('/cat <coat> changes his coat and keeps it; anything else lists the coats', async ($, on) => {
@@ -112,10 +168,11 @@ describe('cretan-cat', () => {
     await ui.unmount()
   })
 
-  test('outside the terminal the ASCII cat wears his coat; a reaction keeps its color', async ($, on) => {
+  test('the ASCII cat wears his coat; a reaction keeps its color', async ($, on) => {
     const { clock } = setUp(on)
+    const narrow = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 40 } as never
     const tintOf = async () => {
-      const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+      const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: narrow })
       const line = (await ui.find({ type: 'Text', text: /\/\\_\/\\/ })) as { props: { color?: string } } | undefined
       await ui.unmount()
       return line?.props.color

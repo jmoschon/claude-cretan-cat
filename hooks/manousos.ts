@@ -51,6 +51,13 @@ const SKY: Record<Daylight, { far: Rgb; near: Rgb; light: Rgb; dim: number }> = 
   dusk: { far: [156, 112, 146], near: [120, 86, 124], light: [255, 140, 72], dim: 0.82 },
   night: { far: [56, 62, 92], near: [42, 48, 74], light: [236, 232, 200], dim: 0.55 },
 }
+// The sky itself, where a surface has no background of its own to show
+// (the desktop's SVG yard): the terminal leaves it to the terminal's.
+const SKY_FILL: Record<Daylight, Rgb> = { dawn: [244, 212, 196], day: [206, 226, 244], dusk: [236, 168, 132], night: [22, 26, 44] }
+export const skyAt = (hour: number): number => {
+  const [r, g, b] = SKY_FILL[daylightAt(hour)]
+  return (r << 16) | (g << 8) | b
+}
 // Snow on the peaks from December to March (months 0-based).
 const isWinter = (month: number) => month === 11 || month <= 2
 
@@ -249,7 +256,7 @@ function wrap(lines: string[], width: number, most: number): string[] {
 
 // ---------------------------------------------------------------- drawing
 
-const CLEAR = 0x01000000
+export const CLEAR = 0x01000000
 const pack = (c: Rgb) => (Math.round(c[0]) << 16) | (Math.round(c[1]) << 8) | Math.round(c[2])
 
 function encode(words: Uint32Array) {
@@ -265,8 +272,15 @@ function encode(words: Uint32Array) {
   return out
 }
 
-// One frame of the yard, Clawd, Manousos, the kittens and the bubbles.
+// One frame of the yard, Clawd, Manousos, the kittens and the bubbles, as a
+// Raster's cells (the terminal's).
 export function drawCat(scene: Scene): string {
+  return encode(drawCells(scene))
+}
+
+// The same frame as cells: per cell its code point, foreground and
+// background (CLEAR: the surface's own), three words a cell, row-major.
+export function drawCells(scene: Scene): Uint32Array {
   const { mood, t, cols, rows } = scene
   const since = scene.since ?? t
   const light = daylightAt(scene.hour ?? 12)
@@ -509,5 +523,5 @@ export function drawCat(scene: Scene): string {
     for (let col = Math.min(cat.x + spriteW + 1, bx - 1); col < bx; col++) over(col, row, '·', edge)
     put(bx, row, '┤', edge, panel)
   }
-  return encode(words)
+  return words
 }

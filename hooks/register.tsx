@@ -1,9 +1,10 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderNode } from 'claude-code'
 
 import type { Cat, Coat, Mood } from '../types'
 import { bashKind, isLanguage, LANGUAGES, LINES, NAME_MOST, catNameOf, saysFailed, shortTool, topicOf, type Language, type Name } from './lines'
-import { COATS, drawCat, fit, PETTING_S, replyFits } from './manousos'
+import { COATS, drawCat, drawCells, fit, PETTING_S, replyFits, skyAt } from './manousos'
+import { cellsToSvg, SVG_MOST } from './svg'
 import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
 
 // The cat's name ("name" setting, Manousos unless you pick one), what it
@@ -917,14 +918,19 @@ export const register: Register = (on, options) => {
       </Button>
     )
 
-    // The yard, where it fits; on a small terminal, the ASCII cat below.
+    // The yard, where it fits: a Raster in the terminal, repainted by blit;
+    // elsewhere the same cells as an SVG, redrawn as the cat's state changes.
+    // Where it doesn't fit (or a surface draws neither), the ASCII cat below.
+    const table = $.ui.resolve(e)
+    const isTerminal = e.surface === 'terminal'
+    const Svg = 'Svg' in table ? table.Svg : undefined
     const cols = stageCols(e.props.bodyColumns)
-    const layout = e.surface === 'terminal' ? fit(cols, e.props.maxRows) : undefined
-    if (layout && e.surface === 'terminal') {
-      const { Raster } = $.ui.resolve(e)
+    const layout = isTerminal || Svg ? fit(cols, e.props.maxRows) : undefined
+    let yard: RenderNode | undefined
+    if (layout) {
       const said = saidOf(c)
       Object.assign(stage, {
-        requestId: e.requestId,
+        requestId: isTerminal ? e.requestId : undefined,
         mood: c.mood,
         coat: await read($, coat),
         said,
@@ -936,9 +942,20 @@ export const register: Register = (on, options) => {
         isSwatted: c.isSwatted,
         isOnKeys: c.isOnKeys,
       })
+      const scene = sceneAt(now)
+      if (isTerminal && 'Raster' in table) {
+        const { Raster } = table
+        yard = <Raster key="manousos" columns={stage.cols} rows={stage.rows} cells={drawCat(scene)} />
+      } else if (Svg) {
+        const source = cellsToSvg(drawCells(scene), stage.cols, stage.rows, skyAt(scene.hour))
+        if (source.length <= SVG_MOST) yard = <Svg key="manousos" source={source} alt={`Clawd and ${name()} in the yard: ${caption}`} />
+      }
+    }
+    if (layout && yard !== undefined) {
+      const said = stage.said
       return (
         <Box flexDirection="column">
-          <Raster key="manousos" columns={stage.cols} rows={stage.rows} cells={drawCat(sceneAt(now))} />
+          {yard}
           {/* No room for Clawd's bubble: his words go under the yard. */}
           {layout.isSaidText && said !== undefined && (
             <Text key="said" wrap="truncate">
