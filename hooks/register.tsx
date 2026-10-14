@@ -7,6 +7,7 @@ import { COATS, drawCat, drawCells, fit, PETTING_S, replyFits, skyAt, soloFit, t
 import { base64, cellsOf, drawHd, sameWords, type Overlay } from './hd'
 import { cellsToSvg, SVG_MOST } from './svg'
 import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
+import { AI_VERSE, aiNudge, aiPrompt, aiRetort, aiShrug, aiSong, aiStatsLine, aiTurnEnd, aiTurnStart, DAILY_CAP, factsOf, forgetAi, noteCommit, notePet, noteTest, noteTool, resetAi, stopAi, takeAiSong, type AiSetup } from './ai'
 
 // The cat's name ("name" setting, Manousos unless you pick one), what it
 // sings ("songs"), and whether it has a temper ("temper").
@@ -26,7 +27,7 @@ const linesOf = () => LINES[language](catName)
 // it can; where it can't, it keeps the value in the store, with the /config
 // value it was set over. Whichever changed last wins: a /config value that
 // has changed since replaces the command's.
-const FIELDS = ['name', 'language', 'songs', 'temper', 'sound', 'resolution'] as const
+const FIELDS = ['name', 'language', 'songs', 'temper', 'sound', 'resolution', 'ai'] as const
 type Field = (typeof FIELDS)[number]
 type Override = { value: string; over: unknown }
 let fromConfig: Partial<Record<Field, unknown>> = {}
@@ -41,7 +42,13 @@ function apply(field: Field, value: unknown) {
   if (field === 'temper') isTempered = value === 'on'
   if (field === 'sound') isSoundOn = value === 'on'
   if (field === 'resolution') resolution = value === 'high' ? 'high' : 'low'
+  // Songs and lines written for each prompt (ai.ts); they were written for
+  // the old settings, so any change forgets them.
+  if (field === 'ai') isAiOn = value === 'on'
+  if (field !== 'resolution' && field !== 'sound') forgetAi()
 }
+let isAiOn = false
+const aiSetup = (): AiSetup => ({ name: catName, language, songs: songLanguage, isTempered })
 // How finely the yard is drawn ("resolution" setting): low, two pixels a
 // cell; high, a picture (hd.ts) where the terminal shows pictures.
 type Resolution = 'low' | 'high'
@@ -221,9 +228,9 @@ function replyOf(c: Cat): string[] | undefined {
   const lines = linesOf()
   // On your keyboard: what it wants to get off it.
   if (showsKeys(c.isOnKeys, c.mood)) return [lines.asks]
-  if (isSinging(c.mood)) return songs()[c.verse % songs().length]
-  if (c.mood === 'slap') return [lines.retort[c.nudge % lines.retort.length]!]
-  if (c.mood === 'snub' || c.mood === 'sulk' || c.mood === 'butt') return [lines.shrug[c.nudge % lines.shrug.length]!]
+  if (isSinging(c.mood)) return aiSong(c.verse) ?? songs()[Math.max(0, c.verse) % songs().length]
+  if (c.mood === 'slap') return [aiRetort(c.nudge) ?? lines.retort[c.nudge % lines.retort.length]!]
+  if (c.mood === 'snub' || c.mood === 'sulk' || c.mood === 'butt') return [aiShrug(c.nudge) ?? lines.shrug[c.nudge % lines.shrug.length]!]
   const short = {
     oops: lines.hiss,
     wait: lines.wait[1],
@@ -396,6 +403,8 @@ const random = () => {
 }
 
 async function nextVerse($: EngineInterface, current: number) {
+  // A song written for this turn's prompt goes first, once.
+  if (takeAiSong()) return AI_VERSE
   if (deck.length === 0) {
     seed ^= (await $.clock.now()) | 0
     deck = songs().map((_, i) => i)
@@ -677,6 +686,7 @@ async function pet($: EngineInterface): Promise<boolean> {
   $.clock.after(PETTING_S * 1000 + 50, () => void update($, cat, c => ({ ...c, frame: c.frame + 1 })).catch(() => {}))
   const pets = await $.store.get('pets')
   await $.store.set('pets', (typeof pets === 'number' ? pets : 0) + 1)
+  await notePet($)
   if (isSwatted) {
     const swats = await $.store.get('swats')
     await $.store.set('swats', (typeof swats === 'number' ? swats : 0) + 1)
@@ -744,7 +754,7 @@ function saidOf(c: Cat): string | undefined {
   if (c.mood === 'bored') return lines.bored[0]
   if (c.mood !== 'think') return undefined
   if (!c.asked) return lines.vague[c.nudge % lines.vague.length]
-  return lines.nudges[c.nudge % lines.nudges.length]!(c.asked)
+  return aiNudge(c.nudge) ?? lines.nudges[c.nudge % lines.nudges.length]!(c.asked)
 }
 
 // Opens the cat's pane: docked beside the transcript in the fullscreen
@@ -860,7 +870,8 @@ export const register: Register = (on, options) => {
   refusals = 0
   hdWhy = 'not drawn yet'
   envSeen = ''
-  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper, sound: options.sound, resolution: options.resolution }
+  resetAi()
+  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper, sound: options.sound, resolution: options.resolution, ai: options.ai }
   for (const field of FIELDS) apply(field, fromConfig[field])
 
   on('session.start', async ($, e, next) => {
@@ -1099,7 +1110,9 @@ export const register: Register = (on, options) => {
     }
     if (arg === 'stats') {
       const count = (v: unknown) => (typeof v === 'number' ? v : 0)
-      return { text: statsText(name(), await tally($), count(await $.store.get('pets')), count(await $.store.get('swats'))) }
+      const text = statsText(name(), await tally($), count(await $.store.get('pets')), count(await $.store.get('swats')))
+      const aiLine = await aiStatsLine($, isAiOn)
+      return { text: aiLine === undefined ? text : `${text}\n${aiLine}` }
     }
     if (arg === 'name') {
       // As you typed it, capitals and all; empty, the name it has now.
@@ -1130,6 +1143,16 @@ export const register: Register = (on, options) => {
       if (value === 'on') sound($, 'happy')
       return said
     }
+    if (arg === 'ai') {
+      if (value !== 'on' && value !== 'off') return { text: `AI songs and lines are ${isAiOn ? 'on' : 'off'}. /cat ai on or off changes it: one small Haiku call a turn, sending only the topic words.` }
+      return setting(
+        'ai',
+        value,
+        value === 'on'
+          ? `AI songs and lines are on: one small Haiku call a turn (at most ${DAILY_CAP} a day) writes ${name()}'s song and Clawd's nudges. Only the prompt's topic words, cleaned of anything secret, and these settings are sent.`
+          : `AI songs and lines are off: the built-in ones, and no model calls.`,
+      )
+    }
     if (arg === 'resolution') {
       // Asked for again: a terminal that refused a picture gets another try.
       if (value === 'high') {
@@ -1153,6 +1176,8 @@ export const register: Register = (on, options) => {
         ['songs', songLanguage],
         ['temper', isTempered ? 'on' : 'off'],
         ['sound', isSoundOn ? 'on' : 'off'],
+        // (ai before resolution, whose row is last: it can run long.)
+        ['ai', isAiOn ? 'on' : 'off'],
         ['resolution', resolution === 'high' ? (hdWhy === '' ? 'high (pictures)' : `high, in cells: ${hdWhy}`) : resolution],
       ]
       return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; they are under /config, "Cretan cat", too.` }
@@ -1177,6 +1202,7 @@ export const register: Register = (on, options) => {
         ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
         ['/cat sound on|off', `whether ${name()} mrrps, mews, purrs and hisses, on macOS (${isSoundOn ? 'on' : 'off'} now)`],
         ['/cat resolution high|low', `the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (${resolution} now)`],
+        ['/cat ai on|off', `songs and nudges written for each prompt: one small Haiku call a turn, only the topic words sent (${isAiOn ? 'on' : 'off'} now)`],
         ['/cat asturias', 'Asturias: ginger, rioplatense Spanish, coplas and a temper'],
         ['/cat manousos', 'Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
@@ -1201,11 +1227,32 @@ export const register: Register = (on, options) => {
     if (!e.text.trimStart().startsWith('/')) {
       const asked = topicOf(e.text) || null
       await update($, cat, c => ({ ...c, asked, nudge: c.nudge + 1 })).catch(() => {})
+      // A real prompt: its turn may have its words written (ai.ts).
+      if (e.command === undefined && e.isMeta !== true) aiPrompt(e.text)
     }
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
+    // One model call for the turn, when the "ai" setting is on (ai.ts).
+    if (e.agentId === undefined) {
+      // A reply that lands once the turn is over is the closing song, if
+      // the cat is still at it (the sardine, then the song).
+      const onLate = async () => {
+        const c = await read($, cat)
+        if (inTurn || (c.mood !== 'happy' && c.mood !== 'feast') || !takeAiSong()) return
+        const sung = await update($, cat, cur => ({ ...cur, verse: AI_VERSE, frame: cur.frame + 1 }))
+        Object.assign(stage, { said: saidOf(sung), reply: replyOf(sung) })
+      }
+      // What happened so far, as counts (ai.ts says which): petted or
+      // swatted in the last ten minutes, today's sardines.
+      const facts = async () => {
+        const c = await read($, cat)
+        const isRecent = c.pettedAt > 0 && (await $.clock.now()) - c.pettedAt < 600_000
+        return factsOf($, { sardinesToday: c.sardines, petted: !isRecent ? 'no' : c.isSwatted ? 'swatted' : 'petted' })
+      }
+      aiTurnStart($, e.turnId, isAiOn, aiSetup(), async () => (await read($, cat)).nudge, onLate, facts, line => $.ui.log(line, { to: 'debug' }))
+    }
     turn += 1
     inTurn = true
     calls = []
@@ -1231,6 +1278,7 @@ export const register: Register = (on, options) => {
     if (e.agentId !== undefined || !inTurn) return next(e)
     const call: Call = { tool: e.tool, input: e as unknown as Record<string, unknown>, turn, isWaiting: ASKS_YOU.has(e.tool), isBored: false }
     calls.push(call)
+    noteTool(e.tool)
     didWork = true
     void resume($).catch(() => {})
     if (call.isWaiting) sound($, 'mew')
@@ -1269,6 +1317,7 @@ export const register: Register = (on, options) => {
               // or followed by more (`| tail`, `|| true`), the output has to.
               const hasFailed = result.isError === true || (!kind.isExitTold && saysFailed(text))
               if (hasFailed) sound($, 'hiss')
+              await noteTest($, hasFailed).catch(() => {})
               return react($, hasFailed ? 'hiss' : 'dance')
             }
             // A commit went in if git says so ("[main abc1234] ..."), or if
@@ -1276,6 +1325,7 @@ export const register: Register = (on, options) => {
             if (COMMITTED.test(text) || (kind.isExitTold && result.isError !== true)) {
               isFed = true
               fedFor = 'commit'
+              noteCommit()
               sound($, 'happy')
               await eatSardine($)
               return react($, 'feast')
@@ -1321,8 +1371,15 @@ export const register: Register = (on, options) => {
     return answer
   })
 
+  // The session ends: a song still being written is cut (ai.ts).
+  on('session.end', ($, e, next) => {
+    stopAi()
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     if (e.agentId !== undefined) return next(e)
+    aiTurnEnd(e.reason, e.durationMs)
     inTurn = false
     calls = []
     stopFlash()

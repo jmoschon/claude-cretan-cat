@@ -5,9 +5,9 @@
 The coat you pick, whether he is hidden, his sardines and his pets are
 remembered across sessions, and so are where he lives (`/cat small`,
 `/cat dock`, `/cat band`) and the caption's tips (`/cat hints`). The name,
-the two languages, the temper, the sound and the resolution are settings:
-`/cat name`, `/cat language`, `/cat songs`, `/cat temper`, `/cat sound` and
-`/cat resolution` change the same rows you find under
+the two languages, the temper, the sound, the resolution and AI songs are
+settings: `/cat name`, `/cat language`, `/cat songs`, `/cat temper`,
+`/cat sound`, `/cat resolution` and `/cat ai` change the same rows you find under
 `/config`, "Cretan cat", so the two never disagree.
 
 | Setting (`/config`)          | Values                                       | Default    |
@@ -18,6 +18,7 @@ the two languages, the temper, the sound and the resolution are settings:
 | Cretan cat: temper           | `off`, `on`                                  | `off`      |
 | Cretan cat: sound            | `off`, `on`                                  | `off`      |
 | Cretan cat: resolution       | `low`, `high`                                | `low`      |
+| Cretan cat: AI songs and lines | `off`, `on`                                | `off`      |
 
 `/cat config` lists them all with what they are now
 ([example](commands.md#cat-config)).
@@ -128,3 +129,73 @@ cells for the rest of the session.
 | `high, in cells: the terminal refused the picture: …`      | The terminal said no; its reason follows. Cells for the rest of the session. |
 | `high, in cells: this terminal surface has no Image element` | This Claude Code can't place pictures above the prompt.                  |
 | `high, in cells: the desktop draws cells`                  | The desktop app (or any other surface but the terminal) draws its own way. |
+
+## AI songs and lines
+
+Off unless you turn it on (`/cat ai on`, or `/config`). On, each prompt you
+send gets its own words: one small model call (Haiku, through Claude Code's
+own client) writes the cat's song and Clawd's nudges about what you asked
+for, and with the temper on, the cat's comebacks too. The song is the next
+one the cat sings that turn; Clawd's next three nudges are the written ones.
+The timing, the moods and everything else stay as they are, and the
+built-in lines and songs take over whenever there is nothing written.
+
+**What is sent.** Only:
+
+- the topic: the few words the cat already picks from your prompt for
+  Clawd's nudges (*checkout tests*), at most 60 characters, with every word
+  that looks like a key or token (an OpenAI-style, GitHub or AWS key, a JWT, a long
+  hex or base64 run), an email address, a URL or host name, an IP address,
+  a file path or file name, or a long number taken out first;
+- the settings: the cat's name (and what Clawd calls it in Greek), Clawd's
+  language, which songs, whether the temper is on, and whether it is
+  Asturias;
+- a few session facts, as counts, outcomes and coarse time only: the last
+  test result this session (green, red or none) and how many red runs
+  today; commits this session; how many tool calls the previous turn made,
+  whether it finished, failed or was stopped, and how long it took (under
+  1 minute, 1 to 5, over 5); the time of day (morning, afternoon, evening,
+  late night) and the weekday; today's sardines and pets; whether the cat
+  was petted or swatted in the last ten minutes; and whether helpers ran.
+  The model may mention one of them, playfully, and is told never to
+  invent any.
+
+Never a file name, a command, a test name, tool output, a branch or repo
+name, your prompt as you typed it, your files, Claude's answers or the
+transcript. A prompt whose topic is empty once cleaned (*hi*) makes no call.
+
+**What it costs.** At most one call per prompt, never from the animation or
+a timer, never for a slash command: about 1,000 to 4,500 tokens of Haiku
+(Greek songs cost the most), capped at 1,000 output tokens and 15 seconds. At
+most 100 calls a day (by your local date), then the built-in lines until
+tomorrow. `/cat stats` shows the day's count, for example
+`AI: 12 calls, 4.1k tokens today`.
+
+**Greek songs.** Haiku doesn't compose a mantinada from nothing: it gets
+four of the built-in ones with their syllables marked (they turn from call
+to call) and an example rewrite, and writes two candidates. Each keeps a
+built-in song's rhythm and its two rhyme words (or another easy rhyme pair)
+and rewrites the rest about your topic. The first candidate that scans is
+sung: 14 to 16 syllables a line counted as the song is sung (αι, ου and the
+like as one, -ιά and μια as one, κι before a vowel sung with it), a word
+ending near the 8th syllable, the two lines rhyming from the stressed
+vowel, and more than three words changed from any built-in song, so a
+near copy is not sung.
+
+**What can show.** The reply must be JSON of the right shape. Anything
+unsafe anywhere (control characters or terminal escapes, invisible or
+right-to-left marks, line breaks, links or email addresses, emoji, or one of
+a short list of rude words in Greek, English and Spanish) and that turn
+uses the built-in lines and songs. Otherwise each part stands alone: a song
+that doesn't scan or is over 70 characters a line gives way to a built-in
+song, and a nudge or comeback over 45 characters (what fits Clawd's bubble)
+is left out, while the rest is used. A timeout or an error, and the turn
+is all built-in.
+
+**After the turn.** The call isn't cut when the turn ends: a reply that
+lands while the cat is still singing at the end is sung then, and its
+nudges and comebacks carry over to a turn that no prompt started. A new
+prompt cuts a call still running and drops what the last one wrote; so do
+a settings change and the session ending. Only one call is ever in flight.
+
+`/cat reset`, `/cat manousos` and `/cat asturias` leave this setting as it is.

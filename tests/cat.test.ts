@@ -1,6 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { topicOf } from '../hooks/lines'
+import { DAILY_CAP, FACT_WORDS, factsOf, greekSongProblem, isNearCopy, MARKED_MANTINADES, MARKED_REWRITE, parseReply, rhymeOf, sanitiseTopic, syllableMarks, syllables, systemPrompt, unmarked, type AiSetup } from '../hooks/ai'
+import { SONGS } from '../hooks/songs'
 import { drawHd } from '../hooks/hd'
 import { HD_SCALE } from '../hooks/hd-sprites'
 import { COATS, drawCat, drawCells, skyAt, type Scene } from '../hooks/manousos'
@@ -1726,3 +1728,514 @@ const fnv = (s: string) => {
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0
   return h.toString(16).padStart(8, '0')
 }
+
+// The "ai" setting: one small model call a turn writes the song and nudges.
+describe('cretan-cat AI songs and lines', () => {
+  const AI = { options: { ai: 'on' } } as const
+  const ZERO = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+  const USAGE = { input_tokens: 700, output_tokens: 180, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+  // Built-in #1, its first line bent to the topic: 15 syllables a line, -άω/-άω.
+  const SONG = ['Στο checkout κάθομαι κι εγώ, τα tests τα κυνηγάω,', 'κι όποιο ποντίκι βρω μπροστά, με μια πατιά το φάω.']
+  const SUNG = 'Στο checkout κάθομαι'
+  const NUDGES = ['Μανούσο, τα checkout tests περιμένουν!', 'Πώς πάνε τα checkout tests, Μανούσο;', 'Μανούσο, κι άλλο λίγο στα checkout tests!']
+  const reply = (body: object | string, usage = USAGE) => ({ isAnswered: true, text: typeof body === 'string' ? body : JSON.stringify(body), usage })
+  const GOOD = { songs: [SONG], nudges: NUDGES }
+  const today = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  // A session with its loops running, a store, and a model whose answer the
+  // test picks; every request is kept.
+  const setUp = (on: any, answer: (e: any) => unknown = () => reply(GOOD)) => {
+    const clock = mock.clock(on, { now: 1_700_000_000_000 })
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$: unknown, e: { key: string }) => ({ value: saved[e.key] }))
+    on('store.set', async (_$: unknown, e: { key: string; value: unknown }) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    on('config.list', async () => ({ value: [] }))
+    on('session.start', async (_$: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
+    on('command.register', async () => ({ value: undefined }))
+    on('agent.list', async () => ({ value: [] }))
+    on('prompt.submit', async (_$: unknown, e: { text: string }) => ({ text: e.text }))
+    on('turn.start', async (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+    on('turn.complete', async (_$: unknown, e: { answer: string }) => ({ text: e.answer }))
+    const requests: { model: string; prompt: string; system?: string; maxTokens?: number; effort?: string; timeoutMs?: number }[] = []
+    on('model.complete', async (_$: unknown, e: any) => {
+      requests.push(e)
+      const answered = (await answer(e)) as { deny?: string }
+      return answered.deny !== undefined ? answered : { value: answered }
+    })
+    on('ui.log', async () => ({ value: undefined }))
+    return { clock, saved, requests }
+  }
+  const start = async ($: any, clock: any) => {
+    await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true } as never)
+    await clock.settle()
+  }
+  const prompt = async ($: any, clock: any, text: string, turnId: string) => {
+    await $.prompt.submit({ text } as never)
+    await $.turn.start({ turnId } as never)
+    await clock.settle()
+  }
+  const finish = async ($: any, clock: any, turnId: string) => {
+    await $.turn.complete({ turnId, reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await clock.advance(400)
+  }
+  const yard = async ($: any) => {
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    const raster = (await ui.find({ type: 'Raster' })) as { props: { cells: string } } | undefined
+    const isSlap = (await ui.find({ type: 'Text', text: /slapped Clawd/ })) !== undefined
+    await ui.unmount()
+    return { text: cellsText(raster?.props.cells ?? ''), isSlap }
+  }
+  const cat = async ($: any, args: string) =>
+    (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text as string
+
+  test('ai off (the default): no model call, ever', async ($, on) => {
+    const { clock, requests } = setUp(on)
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    await clock.advance(60_000)
+    await finish($, clock, 't1')
+    expect(requests.length).toBe(0)
+    expect(await cat($, 'stats')).not.toMatch(/AI:/)
+  })
+
+  test('ai on: one call a turn with a real prompt; none for a slash command, a turn that already called, or the frame loop', AI, async ($, on) => {
+    const { clock, requests } = setUp(on)
+    await start($, clock)
+    // A minute of frames and ticks, nothing asked: no call.
+    await clock.advance(60_000)
+    expect(requests.length).toBe(0)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    expect(requests.length).toBe(1)
+    const [r] = requests
+    expect(r!.model).toBe('haiku')
+    expect(r!.effort).toBe('low')
+    expect(r!.maxTokens).toBe(1000)
+    expect(r!.timeoutMs).toBe(15000)
+    expect(r!.prompt).toContain('«failing checkout tests»')
+    // The same turn again, and another minute of the frame loop: no more.
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.advance(60_000)
+    expect(requests.length).toBe(1)
+    await finish($, clock, 't1')
+    // A slash command, and a turn no prompt started: no call.
+    await $.prompt.submit({ text: '/cat stats' } as never)
+    await $.turn.start({ turnId: 't2' } as never)
+    await clock.settle()
+    await finish($, clock, 't2')
+    await $.turn.start({ turnId: 't3' } as never)
+    await clock.advance(60_000)
+    expect(requests.length).toBe(1)
+    // The next real prompt: its own call.
+    await prompt($, clock, 'tidy the billing exporter', 't4')
+    expect(requests.length).toBe(2)
+  })
+
+  test('only the sanitised topic is sent: no keys, emails, URLs, paths or IPs', AI, async ($, on) => {
+    const { clock, requests } = setUp(on)
+    await start($, clock)
+    // Key-shaped strings are put together here, so none sits whole in the repo.
+    const secrets = ['sk-' + 'live-' + '4f9a'.repeat(6), 'ops' + '@example.com', 'https://evil.example.com/a', '/Users/me/secret.txt', '10.0.0.12', 'gh' + 'p_' + 'abcd'.repeat(9), 'AK' + 'IA' + 'Q'.repeat(16), 'ey' + 'J' + 'hbGciOiJIUzI1NiJ9']
+    const prompts = [
+      `use ${secrets[0]} with ${secrets[1]} see ${secrets[2]} in ${secrets[3]} for the checkout tests`,
+      `email ${secrets[1]} api tests`,
+      `rotate ${secrets[5]} payments job`,
+      `ping ${secrets[4]} gateway`,
+      `aws ${secrets[6]} billing`,
+      `token ${secrets[7]}.${'ey' + 'JzdWIiOiIxIn0'}.abcdefghijk billing`,
+    ]
+    for (const [i, text] of prompts.entries()) {
+      await prompt($, clock, text, `t${i}`)
+      await finish($, clock, `t${i}`)
+    }
+    expect(requests.length).toBeGreaterThanOrEqual(4)
+    for (const r of requests) {
+      const sent = `${r.system ?? ''}\n${r.prompt}`
+      for (const secret of [...secrets, 'sk-' + 'live', '@', 'https', '/Users', 'eyJ']) expect(sent).not.toContain(secret)
+    }
+    // What the topic picker took, cleaned: the prompt as typed never goes.
+    for (const r of requests) expect(prompts.some(p => r.prompt.includes(p))).toBe(false)
+    // Each secret is dropped whole, leaving no fragment ("com", "txt") behind.
+    expect(requests.map(r => /«(.*)»/.exec(r.prompt)?.[1])).toEqual(['checkout tests', 'email api tests', 'rotate payments job', 'ping gateway', 'aws billing', 'token billing'])
+  })
+
+  test('the topic sanitiser drops keys, tokens, emails, URLs, IPs, paths and long numbers, and caps the length', () => {
+    const dirty = [
+      'gh' + 'p_' + 'abcd'.repeat(9), 'AK' + 'IA' + 'Q'.repeat(16), 'sk-' + 'live-abc', 'xo' + 'xb-123-abc', 'ops' + '@example.com', 'https://x.io', 'www.x.io', '10.0.0.1',
+      '/etc/passwd', '~/x', 'C:\\x', 'file.ts', '4f9a'.repeat(5), 'dGhp'.repeat(8) + '==', '555123456', 'api_key=x', 'ey' + 'JhbGciOiJIUzI1NiJ9', 'checkout tests',
+    ].join(' ')
+    expect(sanitiseTopic(dirty)).toBe('checkout tests')
+    const esc = String.fromCharCode(27)
+    expect(sanitiseTopic(`checkout${esc}[31m tests`)).not.toContain(esc)
+    const long = sanitiseTopic('alpha beta gamma delta epsilon zeta eta theta iota kappa lambda omicron')
+    expect([...long].length).toBeLessThanOrEqual(60)
+    expect(long).toMatch(/^alpha beta/)
+  })
+
+  test('a good reply: the cat sings the song, Clawd says the nudges', AI, async ($, on) => {
+    const { clock } = setUp(on)
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    // Clawd's next nudges are the written ones, on his usual beat.
+    const said = new Set<string>()
+    for (let i = 0; i < 30; i++) {
+      await clock.advance(1_000)
+      const { text } = await yard($)
+      for (const n of NUDGES) if (text.includes(n)) said.add(n)
+    }
+    expect(said.size).toBeGreaterThanOrEqual(2)
+    await finish($, clock, 't1')
+    const sung = (await yard($)).text
+    expect(sung).toContain('Μπράβο Μανούσο')
+    // The song was sung this turn: while he worked, or now it is done.
+    expect(sung.includes(SUNG) || said.size > 0).toBe(true)
+  })
+
+  test('the written song is the next one he sings', AI, async ($, on) => {
+    const { clock } = setUp(on)
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    await finish($, clock, 't1')
+    expect((await yard($)).text).toContain(SUNG)
+  })
+
+  test('an unsafe reply or the wrong shape: built-in lines and songs, all of them', AI, async ($, on) => {
+    const esc = String.fromCharCode(27)
+    const bad: object[] = [
+      { songs: [[`${esc}[31m${SONG[0]}`, SONG[1]]], nudges: NUDGES },
+      { songs: [SONG], nudges: ['Μανούσο, δες το https://evil.example.com', NUDGES[1], NUDGES[2]] },
+      { songs: [SONG[0]], nudges: NUDGES },
+      { songs: [SONG], nudges: 'Μανούσο!' },
+    ]
+    let i = 0
+    const { clock } = setUp(on, () => reply(bad[i++] ?? GOOD))
+    await start($, clock)
+    for (let t = 0; t < bad.length; t++) {
+      await prompt($, clock, 'fix the failing checkout tests', `t${t}`)
+      for (let k = 0; k < 10; k++) {
+        await clock.advance(1_000)
+        const { text } = await yard($)
+        for (const n of NUDGES) expect(text).not.toContain(n)
+      }
+      await finish($, clock, `t${t}`)
+      const { text } = await yard($)
+      expect(text).toContain('Μπράβο Μανούσο')
+      expect(text).not.toContain(SUNG)
+      expect(text).toMatch(/[α-ω]{3,}.*[α-ω]{3,}/)
+      await clock.advance(13_000)
+    }
+    expect(i).toBe(bad.length)
+  })
+
+  test('a song that fails the metre or the rhyme: a built-in song, and the written nudges still', AI, async ($, on) => {
+    const thirty = 'Καλημέρα καλημέρα καλημέρα καλημέρα καλημέρα καλημέρα καλημέρα καλή'
+    const long = 'Μανούσο, '.repeat(9)
+    const { clock } = setUp(on, () => reply({ songs: [[thirty, SONG[1]], [SONG[0], 'κι όποιο ποντίκι βρω μπροστά, το τρώω με χαρά μου.']], nudges: [NUDGES[0], long, NUDGES[2]] }))
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    const said = new Set<string>()
+    for (let k = 0; k < 30; k++) {
+      await clock.advance(1_000)
+      const { text } = await yard($)
+      for (const n of [NUDGES[0]!, NUDGES[2]!]) if (text.includes(n)) said.add(n)
+      expect(text).not.toContain('Μανούσο, Μανούσο, Μανούσο')
+    }
+    expect(said.size).toBeGreaterThanOrEqual(1)
+    await finish($, clock, 't1')
+    const { text } = await yard($)
+    expect(text).not.toContain(SUNG)
+    expect(text).not.toContain('Καλημέρα')
+    expect(text).toMatch(/[α-ω]{3,}.*[α-ω]{3,}/)
+  })
+
+  test('the checks: shape, escapes, links, length, words; the first song that scans and is no copy', () => {
+    const greek: AiSetup = { name: { latin: 'Manousos', greek: 'Μανούσο' }, language: 'greek', songs: 'greek', isTempered: false }
+    const parse = (body: object | string, setup = greek) => parseReply(typeof body === 'string' ? body : JSON.stringify(body), setup)
+    const ok = (body: object | string) => 'lines' in parse(body)
+    expect(ok(GOOD)).toBe(true)
+    expect(ok({ song: SONG, nudges: NUDGES })).toBe(true)
+    expect(ok('```json\n' + JSON.stringify(GOOD) + '\n```')).toBe(true)
+    expect(ok('Here you go: ' + JSON.stringify(GOOD))).toBe(false)
+    expect(ok({ songs: [SONG, SONG, SONG, SONG], nudges: NUDGES })).toBe(false)
+    expect(ok({ songs: [[SONG[0], 7]], nudges: NUDGES })).toBe(false)
+    expect(ok({ songs: [SONG], nudges: [NUDGES[0], NUDGES[1], `${NUDGES[2]}\nrm -rf /`] })).toBe(false)
+    expect(ok({ songs: [SONG], nudges: [NUDGES[0], NUDGES[1], `a${String.fromCharCode(0x202e)}b`] })).toBe(false)
+    expect(ok({ songs: [SONG], nudges: [NUDGES[0], NUDGES[1], 'Γράψε στο ops' + '@example.com'] })).toBe(false)
+    expect(ok({ songs: [SONG], nudges: [NUDGES[0], NUDGES[1], 'Μανούσο, γαμώτο, τα tests!'] })).toBe(false)
+    expect(ok({ songs: [SONG], nudges: [NUDGES[0], NUDGES[1], 'What the fuck, Manousos?'] })).toBe(false)
+    expect(ok({ songs: [SONG], nudges: [NUDGES[0], NUDGES[1], 'Qué mierda, Manousos'] })).toBe(false)
+    // An unsafe song candidate rejects everything, even when another scans.
+    expect(ok({ songs: [['Δες το https://x.io', SONG[1]], SONG], nudges: NUDGES })).toBe(false)
+    // The first candidate that scans and rhymes is sung; the others are dropped.
+    const thirty = 'Καλημέρα καλημέρα καλημέρα καλημέρα καλημέρα καλημέρα καλημέρα καλή'
+    expect([...thirty].length).toBeLessThanOrEqual(70)
+    expect(syllables(thirty)).toBe(30)
+    const unrhymed = [SONG[0], 'κι όποιο ποντίκι βρω μπροστά, το τρώω με χαρά μου.']
+    const second = MARKED_MANTINADES.map(([a, b]) => [unmarked(a), unmarked(b)])[1]!
+    const picked = parse({ songs: [[thirty, SONG[1]], unrhymed, SONG], nudges: NUDGES })
+    expect('lines' in picked && picked.lines.song).toEqual(SONG)
+    expect('lines' in picked && picked.dropped.length).toBe(2)
+    // A built-in song, or one with three words changed, is a copy: not sung.
+    const copy = parse({ songs: [second, ['Σιγά σιγά τα tests μου, σιγά και το πιθάρι,', 'κι εγώ που βιάζομαι πολύ πότε δεν πιάνω ψάρι.']], nudges: NUDGES })
+    expect('lines' in copy && copy.lines.song).toBe(undefined)
+    expect('lines' in copy && copy.dropped.every(d => /near copy/.test(d))).toBe(true)
+    // Marks copied from the examples are taken out.
+    const marked = parse({ songs: [['Στο checkout κά-θο-μαι κι‿ε-γώ, | τα tests τα κυ-νη-γά-ω,', SONG[1]]], nudges: NUDGES })
+    expect('lines' in marked && marked.lines.song).toEqual(SONG)
+    // None scans: no song, the nudges kept; an over-long nudge is dropped alone.
+    const none = parse({ songs: [[thirty, SONG[1]]], nudges: [NUDGES[0], 'Μανούσο, '.repeat(6), NUDGES[2]] })
+    expect('lines' in none && none.lines.song).toBe(undefined)
+    expect('lines' in none && none.lines.nudges).toEqual([NUDGES[0], NUDGES[2]])
+    // English songs have no syllable check; a temper needs its retorts.
+    expect('lines' in parse({ song: [thirty, 'x'], nudges: NUDGES }, { ...greek, songs: 'english' })).toBe(true)
+    expect(ok(GOOD) && 'lines' in parse(GOOD, { ...greek, isTempered: true })).toBe(false)
+  })
+
+  test('every built-in mantinada scans: 14 to 16 syllables, a word ending near the middle, and the two lines rhyme', () => {
+    expect(SONGS.greek.length).toBeGreaterThanOrEqual(22)
+    for (const song of SONGS.greek) expect([song.join(' / '), greekSongProblem(song)]).toEqual([song.join(' / '), undefined])
+    expect(syllables('Σιγά σιγά ο κώδικας, σιγά και το πιθάρι,')).toBe(15)
+    expect(syllables('κι όποιο ποντίκι βρω μπροστά, με μια πατιά το φάω.')).toBe(15)
+    expect(syllables('Ένα PR απ’ το πρωί, κι ακόμα περιμένω,')).toBe(15)
+    expect(rhymeOf('σιγά και το πιθάρι,')).toBe(rhymeOf('ποτέ δεν πιάνω ψάρι.'))
+    expect(rhymeOf('τα bugs τα κυνηγάω,')).not.toBe(rhymeOf('με μια πατιά το τρώω'))
+  })
+
+  test('the marked mantinades in the prompt are the built-in ones, 8 | 7 as marked, four a call, turning', () => {
+    for (const [a, b] of MARKED_MANTINADES) {
+      expect(SONGS.greek.some(([x, y]) => x === unmarked(a) && y === unmarked(b))).toBe(true)
+      for (const line of [a, b]) {
+        const [first, second] = line.split(' | ')
+        const marks = (half: string) => half.split(/[\s\-‿]+/).filter(w => /\p{L}/u.test(w)).length - (half.match(/‿/g) ?? []).length
+        expect([line, marks(first!), marks(second!)]).toEqual([line, 8, 7])
+        expect(syllableMarks(unmarked(line)).count).toBe(15)
+      }
+    }
+    const greek: AiSetup = { name: { latin: 'Manousos', greek: 'Μανούσο' }, language: 'greek', songs: 'greek', isTempered: true }
+    const shown = (turn: number) => systemPrompt(greek, turn).split('\n').filter(l => /^\d\. /.test(l) && MARKED_MANTINADES.some(([a]) => l.includes(a))).length
+    expect([0, 1, 2, 3, 4].map(shown)).toEqual([4, 4, 4, 4, 4])
+    expect(systemPrompt(greek, 0)).not.toBe(systemPrompt(greek, 1))
+    expect(systemPrompt(greek, 0)).toContain('"songs":[["…","…"],["…","…"]]')
+    expect(systemPrompt(greek, 0)).toMatch(/Keep the accents of any word you keep/)
+    expect(systemPrompt(greek, 0)).toMatch(/at most 40 characters/)
+    // The example rewrite scans and rhymes, keeps the rhyme words, and is no copy.
+    const rewrite = MARKED_REWRITE.map(unmarked)
+    expect(rewrite.map(l => syllableMarks(l).count)).toEqual([15, 15])
+    expect(greekSongProblem(rewrite)).toBe(undefined)
+    expect(isNearCopy(SONGS.greek[1]!)).toBe(true)
+    expect(isNearCopy(SONG)).toBe(false)
+    expect(systemPrompt(greek, 0)).toContain('-άρι/-άρι')
+  })
+
+  for (const [kind, answer] of [
+    ['timed out', () => ({ isAnswered: false, reason: 'aborted', usage: ZERO })],
+    ['refused', () => ({ isAnswered: false, reason: 'api-error', status: 403, error: 'authentication_failed', usage: ZERO })],
+    ['blocked', () => ({ deny: 'model not allowed' })],
+  ] as const) {
+    test(`a call that ${kind}: the built-in lines and songs`, AI, async ($, on) => {
+      const { clock, requests } = setUp(on, answer as never)
+      await start($, clock)
+      await prompt($, clock, 'fix the failing checkout tests', 't1')
+      expect(requests.length).toBe(1)
+      await clock.advance(10_000)
+      expect((await yard($)).text).toContain('checkout tests')
+      await finish($, clock, 't1')
+      const { text } = await yard($)
+      expect(text).toContain('Μπράβο Μανούσο')
+      expect(text).toMatch(/[α-ω]{3,}.*[α-ω]{3,}/)
+    })
+  }
+
+  test('a reply that lands after the turn ended is the closing song; its nudges carry over to a turn no prompt started', AI, async ($, on) => {
+    let release: (v: unknown) => void = () => {}
+    const { clock, requests } = setUp(on, () => new Promise(resolve => (release = resolve)))
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    expect(requests.length).toBe(1)
+    await finish($, clock, 't1')
+    expect((await yard($)).text).not.toContain(SUNG)
+    // The work is done, the cat is singing: the reply lands, and he sings it.
+    release(reply(GOOD))
+    await clock.settle()
+    expect((await yard($)).text).toContain(SUNG)
+    // A turn no prompt started: Clawd's written nudges, no new call.
+    await clock.advance(13_000)
+    await $.turn.start({ turnId: 't2' } as never)
+    const said = new Set<string>()
+    for (let k = 0; k < 30; k++) {
+      await clock.advance(1_000)
+      const { text } = await yard($)
+      for (const n of NUDGES) if (text.includes(n)) said.add(n)
+    }
+    expect(said.size).toBeGreaterThanOrEqual(1)
+    expect(requests.length).toBe(1)
+  })
+
+  test('a reply that lands after a new prompt started its own call is dropped', AI, async ($, on) => {
+    const releases: ((v: unknown) => void)[] = []
+    const { clock, requests } = setUp(on, () => new Promise(resolve => releases.push(resolve)))
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    await finish($, clock, 't1')
+    await clock.advance(13_000)
+    await prompt($, clock, 'tidy the billing exporter', 't2')
+    expect(requests.length).toBe(2)
+    // The first prompt's reply, late: never sung, never said.
+    releases[0]!(reply(GOOD))
+    await clock.settle()
+    for (let k = 0; k < 20; k++) {
+      await clock.advance(1_000)
+      const { text } = await yard($)
+      expect(text).not.toContain(SUNG)
+      for (const n of NUDGES) expect(text).not.toContain(n)
+    }
+    await finish($, clock, 't2')
+    expect((await yard($)).text).not.toContain(SUNG)
+  })
+
+  test('session facts: exactly these keys, each a number or one of the fixed words', async () => {
+    // A stand-in for the engine: a clock and an empty store are all it reads.
+    const engine = { clock: { now: async () => 1_700_000_000_000 }, store: { get: async () => undefined, set: async () => undefined } }
+    const facts = await factsOf(engine as never, { sardinesToday: 2, petted: 'swatted' })
+    const KEYS = ['commits', 'helpers', 'lastTurn', 'lastTurnTook', 'lastTurnTools', 'petsToday', 'petted', 'redRunsToday', 'sardinesToday', 'tests', 'timeOfDay', 'weekday']
+    expect(Object.keys(facts).sort()).toEqual(KEYS)
+    for (const [key, value] of Object.entries(facts)) {
+      if (typeof value === 'number') expect([key, Number.isInteger(value) && value >= 0]).toEqual([key, true])
+      else expect([key, ((FACT_WORDS as Record<string, readonly string[]>)[key] ?? []).includes(value)]).toEqual([key, true])
+    }
+    expect(Object.keys(FACT_WORDS).every(k => KEYS.includes(k))).toBe(true)
+  })
+
+  test('session facts reach the request as counts; no file, command, test or repo name ever does', AI, async ($, on) => {
+    const { clock, requests } = setUp(on)
+    const REPO = 'acme' + '-payments'
+    const FILE = 'billing_service.py'
+    const TEST = 'test_charges_vat_twice'
+    const COMMAND = 'pytest -k ' + TEST
+    on('tool.call', async (_$: unknown, e: { tool: string; command?: string }) =>
+      e.command?.startsWith('pytest')
+        ? { result: `FAILED tests/${FILE}::${TEST} in ${REPO}`, isError: true }
+        : e.command?.startsWith('git commit')
+          ? { result: `[feature/${REPO} abc1234] fix ${FILE}` }
+          : { result: `contents of ${FILE} in ${REPO}` })
+    await start($, clock)
+    // A first turn full of names: a prompt, a read, a red test run, a commit, a helper.
+    await prompt($, clock, `in ${REPO} run ${COMMAND} on ${FILE} and fix ${TEST}`, 't1')
+    await $.tool.call({ tool: 'Read', file_path: `/src/${REPO}/${FILE}` } as never)
+    await $.tool.call({ tool: 'Bash', command: COMMAND } as never)
+    await $.tool.call({ tool: 'Bash', command: `git commit -m "fix ${TEST} in ${FILE}"` } as never)
+    await $.tool.call({ tool: 'Agent', prompt: `look at ${REPO}` } as never)
+    await clock.settle()
+    await finish($, clock, 't1')
+    await clock.advance(13_000)
+    await prompt($, clock, 'fix the failing checkout tests', 't2')
+    expect(requests.length).toBe(2)
+    const r = requests[1]!
+    const sent = `${r.system ?? ''}\n${r.prompt}`
+    for (const name of [REPO, 'acme', FILE, 'billing', TEST, 'charges', 'pytest', COMMAND, 'feature/', 'abc1234']) expect([name, sent.includes(name)]).toEqual([name, false])
+    expect(r.prompt).toMatch(/Tests: red \(1 red run today\)\. Commits: 1\. Last turn: done, 4 tool calls, under 1 min\./)
+    expect(r.prompt).toMatch(/Time: (morning|afternoon|evening|late night), (Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day\./)
+    expect(r.prompt).toMatch(/Helpers ran: yes\./)
+    expect(r.system).toMatch(/refer to at most one of them, playfully/)
+    expect(r.system).toMatch(/Never invent a fact/)
+  })
+
+  test('temper off: the warm tone, no retorts asked for', AI, async ($, on) => {
+    const { clock, requests } = setUp(on)
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    const system = requests[0]!.system!
+    expect(system).toMatch(/warm, playful and cosy/)
+    expect(system).not.toMatch(/sassy|grumpy/)
+    expect(system).not.toContain('"retorts"')
+    expect(system).toMatch(/mantinad/)
+    expect(system).toContain('"Μανούσο"')
+  })
+
+  test('temper on: the sassy tone, and its retorts slap Clawd first', { options: { ai: 'on', temper: 'on' } }, async ($, on) => {
+    const RETORTS = ['Πάλι εσύ; Άσε με!', 'Φτάνει πια, Clawd!']
+    const { clock, requests } = setUp(on, () => reply({ ...GOOD, retorts: RETORTS, shrug: 'Βαριέμαι.' }))
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    const system = requests[0]!.system!
+    expect(system).toMatch(/sassy and grumpy/)
+    expect(system).not.toMatch(/warm, playful/)
+    expect(system).toContain('"retorts"')
+    expect(system).toContain('"shrug"')
+    const said = new Set<string>()
+    for (let i = 0; i < 240 && said.size < 2; i++) {
+      await clock.advance(500)
+      const { text, isSlap } = await yard($)
+      if (isSlap) for (const r of [...RETORTS, 'Τι θες;', 'Φτάνει πια!', "Πάρ' τα!", 'Μη με πρήζεις!', 'Φύγε από δω!']) if (text.includes(r)) said.add(r)
+    }
+    // The first slap is the written retort, not a built-in one.
+    expect([...said][0]).toBe(RETORTS[0])
+  })
+
+  test('Asturias: her voice in the request, rioplatense', { options: { ai: 'on', name: 'Asturias', language: 'spanish', songs: 'spanish', temper: 'on' } }, async ($, on) => {
+    const { clock, requests } = setUp(on, () => reply({ song: ['a', 'b'], nudges: ['a', 'b', 'c'], retorts: ['a', 'b'], shrug: 'c' }))
+    await start($, clock)
+    await prompt($, clock, 'arreglá los tests del checkout', 't1')
+    const system = requests[0]!.system!
+    expect(system).toMatch(/Asturias/)
+    expect(system).toMatch(/Rioplatense/)
+    expect(system).toMatch(/copla/)
+    expect(system).not.toMatch(/pelotas|pedo/)
+  })
+
+  test(`the day's cap: call ${DAILY_CAP + 1} is never made; /cat stats counts calls and tokens`, AI, async ($, on) => {
+    const { clock, requests, saved } = setUp(on)
+    saved.ai = { day: today(), calls: DAILY_CAP - 1, tokens: 4_000 }
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    await finish($, clock, 't1')
+    expect(requests.length).toBe(1)
+    expect(saved.ai).toEqual({ day: today(), calls: DAILY_CAP, tokens: 4_880 })
+    await prompt($, clock, 'tidy the billing exporter', 't2')
+    await finish($, clock, 't2')
+    expect(requests.length).toBe(1)
+    expect(await cat($, 'stats')).toMatch(new RegExp(`^AI: ${DAILY_CAP} calls, 4\\.9k tokens today`, 'm'))
+  })
+
+  test("a new day starts the count again; yesterday's calls are not today's", AI, async ($, on) => {
+    const { clock, requests, saved } = setUp(on)
+    saved.ai = { day: '2000-01-01', calls: DAILY_CAP, tokens: 99_000 }
+    await start($, clock)
+    expect(await cat($, 'stats')).toMatch(/^AI: 0 calls, 0 tokens today$/m)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    expect(requests.length).toBe(1)
+    expect(await cat($, 'stats')).toMatch(/^AI: 1 call, 880 tokens today$/m)
+  })
+
+  test('/cat ai on|off writes the /config row; /cat config and /cat help list it; reset and Asturias leave it alone', async ($, on) => {
+    const writes: [string, unknown][] = []
+    on('config.list', async () => ({ value: [{ key: 'cretan-cat.ai', label: 'ai', kind: 'text', value: 'off', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: false }] }) as never)
+    on('config.set', async (_$, e) => {
+      writes.push([e.key, e.value])
+      return { value: e.value } as never
+    })
+    mock.store(on)
+    expect(await cat($, 'config')).toMatch(/^ {2}ai +off$/m)
+    expect(await cat($, 'help')).toMatch(/^ {2}\/cat ai on\|off +.*Haiku.*\(off now\)$/m)
+    expect(await cat($, 'ai')).toMatch(/AI songs and lines are off\. \/cat ai on or off/)
+    expect(await cat($, 'ai maybe')).toMatch(/\/cat ai on or off/)
+    expect(await cat($, 'ai on')).toMatch(/AI songs and lines are on: one small Haiku call a turn \(at most 100 a day\).*Only the prompt's topic words/)
+    expect(await cat($, 'config')).toMatch(/^ {2}ai +on$/m)
+    expect(await cat($, 'help')).toMatch(/\(on now\)$/m)
+    await cat($, 'asturias')
+    await cat($, 'manousos')
+    await cat($, 'reset')
+    expect(await cat($, 'config')).toMatch(/^ {2}ai +on$/m)
+    expect(await cat($, 'stats')).toMatch(/^AI: 0 calls, 0 tokens today$/m)
+    expect(await cat($, 'ai off')).toMatch(/AI songs and lines are off/)
+    expect(writes.filter(([k]) => k === 'cretan-cat.ai')).toEqual([
+      ['cretan-cat.ai', 'on'],
+      ['cretan-cat.ai', 'off'],
+    ])
+    expect(await cat($, 'stats')).not.toMatch(/AI:/)
+  })
+})

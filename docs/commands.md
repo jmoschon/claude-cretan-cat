@@ -22,6 +22,7 @@
 | `/cat sound on\|off`       | His voice, on macOS (see [Sound](settings.md#sound))                   |
 | `/cat resolution high\|low` | The yard as a fine picture in kitty and Ghostty, or in cells (see [Resolution](settings.md#resolution)) |
 | `/cat hints on\|off`       | The /cat tips under the napping cat                                   |
+| `/cat ai on\|off`          | Songs and nudges written for each prompt by one small Haiku call a turn; only the topic words are sent (see [AI songs and lines](settings.md#ai-songs-and-lines)) |
 | `/cat asturias`            | Asturias, all at once (see [Meet Asturias](../README.md#meet-asturias)) |
 | `/cat manousos`            | Manousos as he came, coat and settings (`/cat reset` too)              |
 | `/cat stats`               | Sardines, pets and his rank, drawn                                    |
@@ -65,6 +66,7 @@ Manousos, the cat above the prompt
   /cat temper on|off        whether Manousos slaps Clawd, swats you, sits on your keyboard (off now)
   /cat sound on|off         whether Manousos mrrps, mews, purrs and hisses, on macOS (off now)
   /cat resolution high|low  the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (low now)
+  /cat ai on|off            songs and nudges written for each prompt: one small Haiku call a turn, only the topic words sent (off now)
   /cat asturias             Asturias: ginger, rioplatense Spanish, coplas and a temper
   /cat manousos             Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)
   /cat pet                  pet the cat (or press pet under the yard)
@@ -92,6 +94,7 @@ Manousos's settings
   songs       greek
   temper      off
   sound       off
+  ai          off
   resolution  low
 
 /cat help says how to change them; they are under /config, "Cretan cat", too.

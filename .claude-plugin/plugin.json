@@ -66,6 +66,16 @@
         "low",
         "high"
       ]
+    },
+    "ai": {
+      "type": "string",
+      "title": "Cretan cat: AI songs and lines",
+      "description": "On, one small model call (Haiku) per turn writes the cat's song and Clawd's nudges for your prompt; it uses tokens, at most 100 calls a day. Only the prompt's topic words (anything like a key, email, URL, path or number taken out) and these settings are sent, never the prompt, files or transcript. /cat ai sets it too.",
+      "default": "off",
+      "options": [
+        "off",
+        "on"
+      ]
     }
   }
 }
