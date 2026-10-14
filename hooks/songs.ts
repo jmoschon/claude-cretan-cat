@@ -33,9 +33,9 @@ const MANTINADES: [string, string][] = [
   // Beef with the Argentine across the sea, never by name.
   ['Η Αργεντινή μου φωνάζει πως τ’ ασάδο της νικάει,', 'μα έναν ντάκο κρητικό ποτέ της δεν ξεχνάει.'],
   ['Μου λέει «che» και «boludo», κι εγώ δεν καταλαβαίνω,', 'της λέω «άντε στο καλό», και στη ρακή μου πηαίνω.'],
-  ['Χορεύει τάνγκο η Αργεντινή στο πληκτρολόγιο πάνω,', 'κι εγώ χορεύω πεντοζάλη, και τα bugs της πιάνω.'],
-  ['Το μάτε της το ρουφά, λες κι είναι γιατρικό της,', 'μα μια ρακή απ’ τον Ψηλορείτη θα ’κοβε το λαλητό της.'],
-  ['Μου λέει πως έχει Άνδεις, κι ο Ψηλορείτης μας μικρός,', 'μα εκεί που ’χει τ’ Ακονκάγκουα, δεν έχει τόσο φως.'],
+  ['Ταγκό χορεύει η Αργεντινή, τα πόδια της τα σέρνει,', 'μα στο δικό μου πεντοζάλι ανάσα δεν την παίρνει.'],
+  ['Όλη τη μέρα πίνει μάτε, με το καλαμάκι,', 'κι εγώ γλεντώ στον καφενέ με κρητικό ρακάκι.'],
+  ['Μου λέει τ’ Ακονκάγκουα της ως τα ουράνια πάει,', 'μα στην κορφή του Ψηλορείτη ο Δίας μας κερνάει.'],
 ]
 
 // Payador coplas, four eight-syllable lines sung two to a line, the
@@ -61,12 +61,12 @@ const COPLAS: [string, string][] = [
   // Beef with the Greek across the sea, never by name.
   ['Dice el griego que es filósofo porque duerme todo el día;', 'yo también duermo la siesta, y no la llamo sabiduría.'],
   ['El gato de Creta canta con la lira desafinada;', 'le saco el bandoneón, y se le apaga la mantinada.'],
-  ['El griego se cree Zeus porque nació en una montaña;', 'yo nací en un conventillo, y le gano con la maña.'],
+  ['El griego me habla de Homero, de Ulises y de su viaje;', 'yo me tomo un colectivo, y llego antes, sin equipaje.'],
   ['Me jura que su aceite es el mejor de todo el mundo;', 'le serví un chimichurri, y quedó meditabundo.'],
   ['El griego come sardinas y dice que es un manjar;', 'que pruebe una milanesa, y después vuelva a hablar.'],
-  ['Me dijo «καλημέρα», y yo le dije «¿qué decís?»;', 'si querés hablar conmigo, hablame en criollo, aprendiz.'],
+  ['Me dijo «καλημέρα», y yo le dije «¿qué decís?»;', 'si querés hablar conmigo, hablame en castellano, aprendiz.'],
   ['Dice que inventó la lógica, la democracia y el teatro;', 'pero el dulce de leche es nuestro, y eso no lo empata ningún gato.'],
-  ['Él rompe platos en las fiestas, y se cree muy bailarín;', 'yo le bailo una milonga, y se queda sin violín.'],
+  ['Él dice que el sirtaki es el baile más bonito;', 'que venga a una milonga, y se lo bailo despacito.'],
 ]
 
 // English rhyming couplets, in the same spirit.
