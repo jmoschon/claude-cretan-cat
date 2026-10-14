@@ -38,6 +38,8 @@ export type Lines = {
   shrug: string[]
   swat: string
   asks: string
+  // Clawd, finding the cat on your keyboard.
+  offKeys: string
 }
 
 const kind = (tool: string) =>
@@ -108,6 +110,7 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     shrug: ['...', 'Όχι τώρα.', 'Μμμ. Όχι.', 'Αργότερα.', 'Δουλεύω.'],
     swat: 'Εεε! Χωρίς χέρια.',
     asks: 'Και τα χάδια μου;',
+    offKeys: `${n.greek}, κατέβα από το πληκτρολόγιο!`,
   }),
   english: n => ({
     nudges: [
@@ -144,6 +147,7 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     shrug: ['...', 'Nope.', 'Mmm. No.', 'Busy.', 'Later.'],
     swat: 'Hey! No touching.',
     asks: 'Where are my cuddles?',
+    offKeys: `${n.latin}, get off the keyboard!`,
   }),
   spanish: n => ({
     nudges: [
@@ -180,6 +184,7 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     shrug: ['...', 'Ni hablar.', 'Mmm. No.', 'Ahora no.', 'Luego vemos.'],
     swat: '¡Eh! Sin tocar.',
     asks: '¿Y mis mimos?',
+    offKeys: `¡${n.latin}, bájate del teclado!`,
   }),
   rioplatense: n => RIOPLATENSE(n),
 }
@@ -221,6 +226,7 @@ const RIOPLATENSE = (n: Name): Lines => ({
   shrug: ['...', 'Ni ahí.', 'Qué pesado...', 'Mmm. No.', 'Estoy ocupada.', 'Después vemos.'],
   swat: '¡Ey! Sin tocar.',
   asks: '¿Y mis mimos?',
+  offKeys: `¡${n.latin}, bajate del teclado!`,
 })
 
 // Words that say nothing about what a prompt is about, in the languages
