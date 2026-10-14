@@ -2,13 +2,16 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Cat, Coat, Mood } from '../types'
+import { CATS, type Persona } from './cats'
 import { bashKind, isLanguage, LINES, saysFailed, shortTool, topicOf, type Language } from './lines'
 import { COATS, drawCat, fit, PETTING_S, replyFits } from './manousos'
 
-const NAME = 'Manousos'
+// Who is in the yard, by the coat picked: Manousos, or Asturias.
+let who: Persona = CATS.manousos
+const name = () => who.name.latin
 const TICK_MS = 400
 const CAPTION_WIDTH = 60
-// A fresh mantinada every VERSE_TICKS ticks (~12s) while the cat works.
+// A fresh song every VERSE_TICKS ticks (~12s) while the cat works.
 const VERSE_TICKS = 30
 
 const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
@@ -21,10 +24,17 @@ const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
   nudge: 0,
   sardines: 0,
   pettedAt: 0,
+  isSwatted: false,
+  isOnKeys: false,
 } as Cat)
 const isHidden = atom({ plugin: 'cretan-cat', key: 'isHidden' } as const, false)
 const coat = atom({ plugin: 'cretan-cat', key: 'coat' } as const, 'manousos' as Coat)
 const isCoat = (v: unknown): v is Coat => typeof v === 'string' && v in COATS
+// A new cat brings a new songbook: the deck starts over.
+const wear = (c: Coat) => {
+  if (CATS[c] !== who) deck = []
+  who = CATS[c]
+}
 
 // While Claude thinks, Clawd nudges Manousos about the topic, a new line
 // every NUDGE_TICKS ticks (~8s). What he says is in the "language" setting.
@@ -54,6 +64,8 @@ type Stage = {
   // (0: never), and the helpers running.
   moodAt: number
   pettedAt: number
+  isSwatted: boolean
+  isOnKeys: boolean
   kittens: number
 }
 const STAGE_START: Stage = {
@@ -66,6 +78,8 @@ const STAGE_START: Stage = {
   reply: undefined,
   moodAt: 0,
   pettedAt: 0,
+  isSwatted: false,
+  isOnKeys: false,
   kittens: 0,
 }
 const stage: Stage = { ...STAGE_START }
@@ -74,11 +88,22 @@ let seconds = 0
 const stageCols = (bodyColumns: number) => Math.min(STAGE_MOST_COLS, bodyColumns)
 // He sings while Claude works and again, a fresh couplet, when it is done.
 const isSinging = (mood: Mood) => mood === 'think' || mood === 'tool' || mood === 'happy'
-// What he answers, by mood: a couplet while he sings, otherwise a short line.
+// What the cat answers, by mood: a song while singing, otherwise a short
+// line, in the cat's own words if it has them.
 function replyOf(c: Cat): string[] | undefined {
-  if (isSinging(c.mood)) return MANTINADES[c.verse % MANTINADES.length]
-  const lines = LINES[language]
-  const short = { oops: lines.hiss, wait: lines.wait[1], dance: lines.green[1], hiss: lines.red[1], feast: lines.commit[1], bored: lines.bored[1] }
+  if (c.isOnKeys && who.says) return [who.says.asks]
+  if (isSinging(c.mood)) return who.songs[c.verse % who.songs.length]
+  const lines = LINES[language](who.name)
+  const own = who.says
+  if (own && (c.mood === 'slap' || c.mood === 'snub')) return [own[c.mood][c.nudge % own[c.mood].length]!]
+  const short = {
+    oops: own?.hiss ?? lines.hiss,
+    wait: own?.wait ?? lines.wait[1],
+    dance: own?.green ?? lines.green[1],
+    hiss: own?.red ?? lines.red[1],
+    feast: own?.commit ?? lines.commit[1],
+    bored: own?.bored ?? lines.bored[1],
+  }
   return c.mood in short ? [short[c.mood as keyof typeof short]] : undefined
 }
 
@@ -166,6 +191,25 @@ const BASE_POSES = {
   ~/  /""\  \/___/
    (_/    \_)`),
   ],
+  slap: [
+    pose(String.raw`
+    /\_/\   !
+ o=( >.< )
+   ==_Y_==
+    (")(")~`),
+    pose(String.raw`
+ o  /\_/\   !
+  \( >.< )
+   ==_Y_==
+    (")(")~`),
+  ],
+  snub: [
+    pose(String.raw`
+    /\_/\
+   ( -.- )  hmpf
+   ==_Y_==
+    (")(")~`),
+  ],
 }
 // The newer moods borrow the closest pose.
 const POSES: Record<Mood, string[][]> = {
@@ -184,46 +228,22 @@ const FRAMES = Object.fromEntries(
 ) as Record<Mood, string[][]>
 
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${NAME} is napping · /cat hide hides him · /cat ginger, tuxedo or manousos changes his coat`,
-  think: () => `${NAME} is thinking it over`,
-  tool: c => `${NAME} is on it: ${shortTool(c.tool ?? 'a tool')}`,
-  happy: () => `${NAME} purrs: done!`,
-  oops: () => `${NAME} got startled: something went wrong`,
+  nap: () => `${name()} is napping · /cat hide hides ${who.him} · /cat ginger, tuxedo or manousos changes the cat`,
+  think: () => `${name()} is thinking it over`,
+  tool: c => `${name()} is on it: ${shortTool(c.tool ?? 'a tool')}`,
+  happy: () => `${name()} purrs: done!`,
+  oops: () => `${name()} got startled: something went wrong`,
   wait: c =>
-    `${NAME} is waiting for you: ${
+    `${name()} is waiting for you: ${
       c.tool === 'AskUserQuestion' ? "answer Claude's question" : c.tool === 'ExitPlanMode' ? "review Claude's plan" : `answer the ${shortTool(c.tool ?? 'permission')} prompt`
     }`,
-  dance: () => `${NAME} dances: the tests passed`,
-  hiss: () => `${NAME} hisses: the tests failed`,
-  feast: c => `${NAME} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`,
-  bored: c => `${NAME} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
+  dance: () => `${name()} dances: the tests passed`,
+  hiss: () => `${name()} hisses: the tests failed`,
+  feast: c => `${name()} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`,
+  bored: c => `${name()} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
+  slap: () => `${name()} slapped Clawd for nagging`,
+  snub: () => `${name()} is ignoring Clawd`,
 }
-
-// Cretan mantinades: fifteen-syllable rhyming couplets, sung while the cat works.
-const MANTINADES: [string, string][] = [
-  ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.'],
-  ['Σιγά σιγά ο κώδικας, σιγά και το πιθάρι,', 'ο βιαστικός ο γάτος μου ποτέ δεν πιάνει ψάρι.'],
-  ['Ψάχνω στα logs σαν το βοσκό που χάθηκε τ\' αρνί του,', 'κι όταν το βρει, πώς χαίρεται σαν να \'βρε την ψυχή του.'],
-  ['Ψηλά στον Ψηλορείτη μας χιονίζει και φυσάει,', 'κι ο γάτος μέσα στο ζεστό τον κώδικα κοιτάει.'],
-  ['Μην κάνεις merge Παρασκευή, το λέει κι η γιαγιά μου,', 'γιατί το Σάββατο θα κλαις, θα λες «αχ, η καρδιά μου».'],
-  ['Σκέφτεται ο Μανούσος μου, και μην τον ενοχλείτε,', 'θα φέρει μιαν απάντηση ψηλή σαν Ψηλορείτη.'],
-  ['Η λύρα θέλει δοξάρι, κι ο γάτος θέλει χάδι,', 'κι ο κώδικας θέλει δουλειά τη μέρα και το βράδυ.'],
-  ['Στις τρεις τη νύχτα μ’ έπιασε το on-call με τρομάρα,', 'κι εγώ στον ύπνο μου ζητώ ρακή και μια κιθάρα.'],
-  ['Τα tests μου είναι κάπριτσα, σαν κοπελιά που αλλάζει,', 'κι εκεί που λες πως πέρασε, το build σε κατασφάζει.'],
-  ['Έστειλα PR το πρωί κι ακόμα περιμένω,', 'τα γένια μου μακρύνανε, στον καφενέ πηγαίνω.'],
-  ['Ρακή μου και ρακάκι μου, σε πίνω να ξεχάσω', 'το force push στο main που ’κανα, πριν τη δουλειά τη χάσω.'],
-  ['Μια σύσκεψη, δυο σύσκεψεις, τρεις σύσκεψεις τη μέρα,', 'κι ο κώδικας μου κάθεται και χάσκει στον αέρα.'],
-  ['Πάτησε ο Μανούσος μου στο πληκτρολόγιο πάνω,', 'κι έφτιαξε το bug που ’ψαχνα, κι εγώ τη δόξα χάνω.'],
-  ['Το Datadog μας ακριβό, σαν τ’ ακριβό χρυσάφι,', 'κι οι logs που δεν διαβάζουμε σαπίζουνε στο ράφι.'],
-  ['Σαν μεθυσμένος στο γλεντί, το pod πέφτει και βγαίνει,', 'κι ο Kubernetes το κοιτά και λέει πως υγιαίνει.'],
-  ['Το Jira μου έχει tickets σαν τ’ ουρανού τ’ αστέρια,', 'κι εγώ τα κλείνω ένα ένα με δυο μονάχα χέρια.'],
-  ['Στο laptop μου δουλεύει, ναι, το ορκίζομαι στη μάνα,', 'μα στην production έπεσε, και χτύπησε καμπάνα.'],
-  ['Στο standup λέω «προχωρώ», το ίδιο κάθε μέρα,', 'κι ο ticket μου ’ναι In Progress ώσπου να βάλω βέρα.'],
-  ['Βρίζω αυτόν που έγραψε τον κώδικα πριν χρόνια,', 'και το git blame με πρόδωσε, και πέφτουν τα κανόνια.'],
-  ['Απ’ τον μπακάλη ζήτησα ρακή και δυο κουλούρια μόνο,', 'κι ήρθε πιο γρήγορα απ’ το build που περιμένω χρόνο.'],
-  ['Δυο πράγματα ’ναι δύσκολα σε τούτη τη ζωή μας:', 'το cache και τα ονόματα, κι off-by-one στην αρχή μας.'],
-  ['Έτρεξα DELETE χωρίς WHERE μες στην production βάση,', 'και τώρα ψάχνω το backup πριν η ομάδα με πιάσει.'],
-]
 
 // A shuffled deck: every couplet plays once before any repeats. The deck is
 // seeded from the clock, since the sandbox's Math.random may start the same
@@ -240,7 +260,7 @@ const random = () => {
 async function nextVerse($: EngineInterface, current: number) {
   if (deck.length === 0) {
     seed ^= (await $.clock.now()) | 0
-    deck = MANTINADES.map((_, i) => i)
+    deck = who.songs.map((_, i) => i)
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1))
       ;[deck[i], deck[j]] = [deck[j]!, deck[i]!]
@@ -262,6 +282,8 @@ const COLOR: Record<Mood, string> = {
   hiss: 'red',
   feast: 'green',
   bored: 'gray',
+  slap: 'red',
+  snub: 'gray',
 }
 
 // The cat paces back and forth while it works: a triangle wave across the pane.
@@ -412,8 +434,12 @@ function eatSardine($: EngineInterface) {
 
 async function pet($: EngineInterface) {
   const ms = await $.clock.now()
-  stage.pettedAt = ms / 1000
-  await update($, cat, c => ({ ...c, pettedAt: ms }))
+  // A cat with a temper may swat the hand that pets her, unless she was on
+  // your keyboard asking for exactly that: then she purrs and gets off it.
+  const wasOnKeys = (await read($, cat)).isOnKeys
+  const isSwatted = !wasOnKeys && who.says !== undefined && random() < who.temper.slap
+  Object.assign(stage, { pettedAt: ms / 1000, isSwatted, isOnKeys: false })
+  await update($, cat, c => ({ ...c, pettedAt: ms, isSwatted, isOnKeys: false }))
   // Redraw once the purring is over, so the caption lets go of it.
   $.clock.after(PETTING_S * 1000 + 50, () => void update($, cat, c => ({ ...c, frame: c.frame + 1 })).catch(() => {}))
   const pets = await $.store.get('pets')
@@ -428,7 +454,10 @@ const COMMITTED = /^\[[^\]\n]+ [0-9a-f]{7,}\]/m
 
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
-  const lines = LINES[language]
+  const lines = LINES[language](who.name)
+  if (c.isOnKeys && who.says) return who.says.typed[c.nudge % who.says.typed.length]
+  if (c.mood === 'slap') return lines.slapped
+  if (c.mood === 'snub') return lines.snubbed
   if (c.mood === 'tool') return lines.tool(c.tool ?? '?')
   if (c.mood === 'happy') return lines.done
   if (c.mood === 'oops') return lines.oops
@@ -455,12 +484,16 @@ export const register: Register = (on, options) => {
   flash = null
   settle = null
   deck = []
+  who = CATS.manousos
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'cat', description: `Show or hide ${NAME} (/cat hide, /cat show); /cat manousos, ginger or tuxedo changes his coat` })
+    await $.command.register({ name: 'cat', description: 'Show or hide the cat (/cat hide, /cat show); /cat manousos, tuxedo, or ginger (Asturias) changes the cat' })
     await quietly(async () => {
       const saved = await $.store.get('coat')
-      if (isCoat(saved)) await update($, coat, () => saved)
+      if (isCoat(saved)) {
+        await update($, coat, () => saved)
+        wear(saved)
+      }
       const { today: sardines } = await tally($)
       // A new session, or this module reloaded: no turn is known to be under
       // way, so he starts asleep rather than stuck in a mood from before.
@@ -487,6 +520,15 @@ export const register: Register = (on, options) => {
         const working = c.mood === 'think' || c.mood === 'tool'
         const verse = working && ticks % VERSE_TICKS === 0 ? await nextVerse($, c.verse) : c.verse
         const nudge = c.mood === 'think' && ticks % NUDGE_TICKS === 0 ? c.nudge + 1 : c.nudge
+        // A nudge too many: a cat with a temper may slap Clawd, or snub him.
+        if (nudge !== c.nudge && who.says !== undefined) {
+          const roll = random()
+          const temper = roll < who.temper.slap ? 'slap' : roll < who.temper.slap + who.temper.snub ? 'snub' : undefined
+          if (temper) {
+            await update($, cat, cur => ({ ...cur, nudge }))
+            return react($, temper)
+          }
+        }
         // The terminal's yard animates by blit; only the ASCII cat elsewhere
         // needs a redraw per frame, so skip one that would change nothing else.
         const isQuiet = helpers === c.helpers && verse === c.verse && nudge === c.nudge
@@ -510,28 +552,34 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // /cat hides or shows him (or /cat hide, /cat show); /cat <coat> changes his coat, kept across sessions.
+  // /cat hides or shows the cat (or /cat hide, /cat show); /cat <coat> changes
+  // the cat, kept across sessions (/cat asturias is the ginger coat).
   on('command.run', { command: 'cat' }, async ($, e) => {
-    const arg = e.args.trim().toLowerCase()
+    const typed = e.args.trim().toLowerCase()
+    const arg = typed === 'asturias' ? 'ginger' : typed
     if (arg === '' || arg === 'hide' || arg === 'show') {
       const hidden = await update($, isHidden, h => (arg === '' ? !h : arg === 'hide'))
-      return { text: hidden ? `${NAME} went to hide under the sofa.` : `${NAME} is back.` }
+      return { text: hidden ? `${name()} went to hide under the sofa.` : `${name()} is back.` }
     }
     if (arg === 'stats') {
       const { today: sardines, total } = await tally($)
       const pets = await $.store.get('pets')
       const s = (n: number) => (n === 1 ? '' : 's')
       const petted = typeof pets === 'number' ? pets : 0
-      return { text: `${NAME} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit. He has been petted ${petted} time${s(petted)}.` }
+      const He = who.he[0]!.toUpperCase() + who.he.slice(1)
+      return { text: `${name()} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit. ${He} has been petted ${petted} time${s(petted)}.` }
     }
     if (isCoat(arg)) {
       await update($, coat, () => arg)
       await update($, isHidden, () => false)
       await $.store.set('coat', arg)
-      return { text: `${NAME} is wearing his ${arg} coat now.` }
+      wear(arg)
+      // She's no coat of his: she lets you know she's here.
+      const says = who.says
+      return { text: says ? `${name()} is here now. ${says.wait}` : `${name()} is wearing his ${arg} coat now.` }
     }
     return {
-      text: `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>). /cat stats: his sardines and pets. /cat hide and /cat show (or /cat alone, to toggle) put ${NAME} away and back. Language and sound: /config, "Cretan cat".`,
+      text: `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>; ginger is Asturias). /cat stats: sardines and pets. /cat hide and /cat show (or /cat alone, to toggle) put ${name()} away and back. Language and sound: /config, "Cretan cat".`,
     }
   })
 
@@ -553,7 +601,9 @@ export const register: Register = (on, options) => {
     stopFlash()
     await quietly(async () => {
       const verse = await nextVerse($, (await read($, cat)).verse)
-      await update($, cat, c => ({ ...c, verse }))
+      // Some days she gets to your keyboard before Claude does.
+      const isOnKeys = who.says !== undefined && random() < who.temper.keys
+      await update($, cat, c => ({ ...c, verse, isOnKeys: c.isOnKeys || isOnKeys }))
       await setMood($, 'think')
     })
     return next(e)
@@ -713,7 +763,9 @@ export const register: Register = (on, options) => {
     // The clock now (the frame loop's last reading, if the clock won't say).
     const now = await $.clock.now().catch(() => seconds * 1000)
     const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000
-    const caption = (isPetted ? `${NAME} purrs <3` : CAPTION[c.mood](c)) + kittens
+    const petted = c.isSwatted ? `${name()} swatted your hand: ${who.says?.swat ?? ''}` : `${name()} purrs <3`
+    const onKeys = `${name()} is on your keyboard: pet ${who.him} (p) to get it back`
+    const caption = (isPetted ? petted : c.isOnKeys ? onKeys : CAPTION[c.mood](c)) + kittens
     // Petting: a click on it, or p while the band has the focus.
     const petting = (
       <Button key="pet" plain hotkey="p" dimColor onPress={() => void pet($).catch(() => {})}>
@@ -737,6 +789,8 @@ export const register: Register = (on, options) => {
         rows: layout.rows,
         kittens: c.helpers,
         pettedAt: c.pettedAt / 1000,
+        isSwatted: c.isSwatted,
+        isOnKeys: c.isOnKeys,
       })
       return (
         <Box flexDirection="column">

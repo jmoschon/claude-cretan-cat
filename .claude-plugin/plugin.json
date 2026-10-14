@@ -1,7 +1,7 @@
 {
   "name": "cretan-cat",
-  "version": "1.2.1",
-  "description": "Manousos, a pixel-art Cretan cat above the prompt. Clawd tells him what to do while Claude works, and he answers in mantinades.",
+  "version": "1.3.0",
+  "description": "Manousos, a pixel-art Cretan cat above the prompt, or Asturias, his Argentine ginger cousin. Clawd tells the cat what to do while Claude works; Manousos answers in mantinades, Asturias in coplas and tangos, when she isn't slapping him.",
   "author": {
     "name": "Yiannis Moschonas"
   },
@@ -12,7 +12,7 @@
     "language": {
       "type": "string",
       "title": "Cretan cat: language",
-      "description": "What Clawd says to Manousos, and Manousos' short replies. The mantinades he sings are always in Greek.",
+      "description": "What Clawd says to the cat, and the cat's short replies. Manousos' mantinades are always in Greek; Asturias sings and answers in Argentine Spanish whatever this says.",
       "default": "greek",
       "options": [
         "greek",

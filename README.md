@@ -107,7 +107,7 @@ To update, run `git pull` in the folder.
 |---|---|
 | `/cat hide`, `/cat show` | Hide him, or bring him back. A bare `/cat` toggles. |
 | `/cat manousos` | The original coat: dark brown with a white bib and mittens. |
-| `/cat ginger` | An orange tabby. |
+| `/cat ginger` (or `/cat asturias`) | Asturias, an orange tabby from Buenos Aires. See below. |
 | `/cat tuxedo` | Black and white. |
 | `/cat stats` | How many sardines he has had today and in all (one per commit, or per finished task that used tools), and how often he has been petted. |
 | `/cat help` | Lists the coats, and where the settings are. |
@@ -120,6 +120,28 @@ Two settings, under `/config`:
 |---|---|---|---|
 | Cretan cat: language | `greek`, `english`, `spanish` | `greek` | The language of what Clawd says and of Manousos' short replies. The mantinades are always in Greek; they are Cretan songs, and they stay that way. |
 | Cretan cat: sound | `off`, `on` | `off` | A soft meow when the work is done or Claude is waiting for you. It plays through `afplay`, so on macOS only. |
+
+## Asturias
+
+The ginger coat is Asturias, not Manousos. Her temper is spicier than his,
+and she is Argentine, so she doesn't sing mantinades:
+
+- **Her songs** are payador coplas (four eight-syllable lines, the gauchos'
+  improvised verse and the closest thing to a mantinada) and the odd tango,
+  bent to the work. Like the mantinades, they stay in their own language:
+  rioplatense Spanish.
+- **Her replies** are her own too, whatever the language setting says:
+  *¿Qué querés?* when Claude waits for you, *Yo no fui, che* at red tests,
+  *¿Sardina? ¿Y el asado?* for a commit.
+- **Nag her and she bites back.** Each time Clawd nudges her while Claude
+  thinks, she may slap him (*¡Qué pesado!*, *¡Qué hincha pelotas!*) or
+  ignore him altogether (*Ni ahí.*). Clawd only says what his language
+  setting says.
+- **Petting her** sometimes gets you a swat instead of a purr.
+- **Your keyboard.** Some turns she gets there before Claude does, lies down
+  on it and types into Clawd's bubble (*asdfjjjjj;;;;*, *ñññññ*), asking
+  *¿Y mis mimos?*. She stays, through any number of turns, until you pet
+  her. Nothing is held up: it's only her side of the yard.
 
 ## Room it needs
 
