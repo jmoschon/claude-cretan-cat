@@ -135,8 +135,10 @@ and she is Argentine, so she doesn't sing mantinades:
   *¿Sardina? ¿Y el asado?* for a commit.
 - **Nag her and she bites back.** Each time Clawd nudges her while Claude
   thinks, she may slap him (*¡Qué pesado!*, *¡Qué hincha pelotas!*) or
-  ignore him altogether (*Ni ahí.*). Clawd only says what his language
-  setting says.
+  ignore him altogether (*Ni ahí.*).
+- **Clawd** follows the language setting with her too, but in Spanish he
+  talks to her the way they do in Buenos Aires: *¡Dale Asturias, arrancamos!*,
+  *¡Corré el comando!*
 - **Petting her** sometimes gets you a swat instead of a purr.
 - **Your keyboard.** Some turns she gets there before Claude does, lies down
   on it and types into Clawd's bubble (*asdfjjjjj;;;;*, *ñññññ*), asking

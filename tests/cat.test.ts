@@ -650,6 +650,17 @@ describe('cretan-cat', () => {
     expect(await caption($, /Asturias is thinking it over|slapped|ignoring/)).toBe(true)
   })
 
+  test('in Spanish, Clawd talks to Asturias the rioplatense way, and to Manousos as before', { options: { language: 'spanish' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    expect(await yardText($)).toContain('Manousos, ¡a trabajar!')
+    await asAsturias($)
+    await $.turn.start({ turnId: 't2' } as never)
+    await clock.settle()
+    expect(await yardText($)).toMatch(/Dale Asturias|a laburar|Qué hacés ahí|asdf|ñññ|qwww|gggg/)
+  })
+
   test('some turns she lies on your keyboard until petted; Manousos never does', async ($, on) => {
     const { clock } = setUp(on)
     const onKeys = () => caption($, /on your keyboard: pet her \(p\)/)

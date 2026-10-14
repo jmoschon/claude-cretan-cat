@@ -4,7 +4,7 @@
 // Spanish whatever the language setting says.
 
 import type { Coat } from '../types'
-import type { Name } from './lines'
+import { RIOPLATENSE, type Language, type Lines, type Name } from './lines'
 
 // Her own short answers, in place of the language setting's.
 export type Says = {
@@ -32,6 +32,8 @@ export type Persona = {
   his: string
   songs: [string, string][]
   says?: Says
+  // How Clawd speaks a language to this cat, where it isn't the usual way.
+  dialects?: Partial<Record<Language, (n: Name) => Lines>>
   // The chance that a nudge from Clawd earns a slap, or a snub, instead;
   // and that a turn starts with her on your keyboard.
   temper: { slap: number; snub: number; keys: number }
@@ -101,6 +103,7 @@ const ASTURIAS: Persona = {
   him: 'her',
   his: 'her',
   songs: COPLAS,
+  dialects: { spanish: RIOPLATENSE },
   says: {
     hiss: '¡Fffs! ¿Quién fue?',
     wait: '¿Qué querés?',

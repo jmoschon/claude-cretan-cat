@@ -156,6 +156,40 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
   }),
 }
 
+// Spanish as Clawd speaks it to a cat from Buenos Aires: voseo, and "dale".
+export const RIOPLATENSE = (n: Name): Lines => ({
+  nudges: [
+    t => `${n.latin}, ¡mirá «${t}»!`,
+    t => `¿Cómo va «${t}», ${n.latin}?`,
+    t => `¡Nada de siesta! «${t}» te espera.`,
+    t => `${n.latin}, ¡quiero «${t}» para el mediodía!`,
+    t => `Si arreglás «${t}», hay sardina.`,
+    t => `Dale ${n.latin}, un poquito más con «${t}».`,
+  ],
+  vague: [`${n.latin}, ¡a laburar!`, `¿Qué hacés ahí, ${n.latin}?`, `¡Dale ${n.latin}, arrancamos!`],
+  tool: tool =>
+    ({
+      run: `${n.latin}, ¡corré el comando!`,
+      read: `¡Leé el archivo, ${n.latin}!`,
+      edit: `¡Arreglá el código, ${n.latin}!`,
+      search: `¡Buscalo, ${n.latin}! Fijate por todos lados.`,
+      web: `¡Buscá en internet, ${n.latin}!`,
+      agents: `¡Llamá a los gatitos para que ayuden, ${n.latin}!`,
+      mcp: `Preguntale a nuestros amigos, ${n.latin}: ${shortTool(tool)}`,
+      other: `${n.latin}, ¡hacé un ${tool}!`,
+    })[kind(tool)],
+  done: `¡Bien ahí, ${n.latin}! Tomá una golosina.`,
+  oops: `Uh, ${n.latin}... ¿qué pasó?`,
+  hiss: '¡Fffs! Algo salió mal.',
+  wait: ['¡Ey! ¡Te estamos esperando!', '¡Miau! Te estoy esperando.'],
+  green: [`¡Tests en verde, ${n.latin}!`, '¡Bravo! ¡A bailar!'],
+  red: [`Tests en rojo, ${n.latin}...`, '¡Fffs! ¡Rojo!'],
+  commit: [`¡Tomá una sardina, ${n.latin}!`, '¡Ñam! ¡Gracias!'],
+  bored: [`${n.latin}, no te duermas, ¡todavía sigue!`, 'Aaah... zzz'],
+  slapped: '¡Ay! ¿Y eso por qué?',
+  snubbed: `¿${n.latin}? ¿Hola?`,
+})
+
 // Words that say nothing about what a prompt is about, in the languages
 // people are likely to write prompts in, so the topic Clawd picks is a
 // real one ("fix the failing checkout tests" -> "checkout tests").

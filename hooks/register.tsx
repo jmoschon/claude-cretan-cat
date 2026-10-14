@@ -9,6 +9,8 @@ import { COATS, drawCat, fit, PETTING_S, replyFits } from './manousos'
 // Who is in the yard, by the coat picked: Manousos, or Asturias.
 let who: Persona = CATS.manousos
 const name = () => who.name.latin
+// What Clawd says, in the language setting, the way this cat is spoken to.
+const linesOf = () => (who.dialects?.[language] ?? LINES[language])(who.name)
 const TICK_MS = 400
 const CAPTION_WIDTH = 60
 // A fresh song every VERSE_TICKS ticks (~12s) while the cat works.
@@ -93,7 +95,7 @@ const isSinging = (mood: Mood) => mood === 'think' || mood === 'tool' || mood ==
 function replyOf(c: Cat): string[] | undefined {
   if (c.isOnKeys && who.says) return [who.says.asks]
   if (isSinging(c.mood)) return who.songs[c.verse % who.songs.length]
-  const lines = LINES[language](who.name)
+  const lines = linesOf()
   const own = who.says
   if (own && (c.mood === 'slap' || c.mood === 'snub')) return [own[c.mood][c.nudge % own[c.mood].length]!]
   const short = {
@@ -454,7 +456,7 @@ const COMMITTED = /^\[[^\]\n]+ [0-9a-f]{7,}\]/m
 
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
-  const lines = LINES[language](who.name)
+  const lines = linesOf()
   if (c.isOnKeys && who.says) return who.says.typed[c.nudge % who.says.typed.length]
   if (c.mood === 'slap') return lines.slapped
   if (c.mood === 'snub') return lines.snubbed
