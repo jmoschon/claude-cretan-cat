@@ -65,17 +65,20 @@ in [commands](docs/commands.md).
 
 ## Settings
 
-All of these are under `/config`, "Cretan cat", and most have a `/cat` command
-too.
+All of these are under `/config`, "Cretan cat" (and on the screen that
+installs him), and each has a `/cat` command too.
 
 | Setting          | Values                                                       | Default    |
 | ---------------- | ------------------------------------------------------------ | ---------- |
 | name             | any name, up to 20 characters                                | `Manousos` |
+| coat             | `manousos`, `ginger`, `tuxedo`                               | `manousos` |
 | Clawd's language | `greek`, `english`, `spanish` (as in Buenos Aires)           | `greek`    |
 | songs            | `greek`, `english`, `spanish`                                | `greek`    |
 | temper           | `off`, `on`: he slaps, swats and naps on your keys           | `off`      |
 | sound            | `off`, `on`: a trill, a mew, a purr, a hiss (macOS)          | `off`      |
 | resolution       | `low`, `high`: a sharper yard in kitty and Ghostty terminals | `low`      |
+| where he lives   | `band`, `small`, `dock`                                      | `band`     |
+| hints            | `on`, `off`: the /cat tips under the napping cat             | `on`       |
 | ai               | `off`, `on`: songs and nudges written for each prompt by one small Haiku call a turn (tokens; at most 100 a day; only the topic words are sent, [details](docs/settings.md#ai-songs-and-lines)) | `off` |
 
 The GIF above is `resolution: high`; [this one](docs/demo-low.gif) is how

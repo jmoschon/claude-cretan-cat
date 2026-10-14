@@ -339,7 +339,7 @@ export function greekSongProblem(song: readonly string[]): string | undefined {
 
 // A Greek song that is a built-in one (or the prompt's example) with at most
 // NEAR_COPY words changed, added or taken out: a copy, not a song about the topic.
-export const NEAR_COPY = 3
+export const NEAR_COPY = 5
 const wordList = (song: readonly string[]) => song.flatMap(l => plain(l).split(/[^\p{L}\p{N}]+/u)).filter(w => w !== '')
 function wordDistance(a: string[], b: string[]): number {
   let row = Array.from({ length: b.length + 1 }, (_, j) => j)
