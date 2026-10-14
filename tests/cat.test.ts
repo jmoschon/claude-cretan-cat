@@ -269,6 +269,43 @@ describe('cretan-cat', () => {
     expect(stats.text).toMatch(/2 sardines today and 2 in all/)
   })
 
+  test('finished work earns a sardine, then the song; a chat, Esc or a commit turn earns no extra', async ($, on) => {
+    const { clock, saved, finish } = setUp(on)
+    const done = { reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false }
+    const sardines = () => (saved.sardines as { today: number } | undefined)?.today ?? 0
+    // A reply without tools: no sardine.
+    await $.turn.start({ turnId: 't1' } as never)
+    await $.turn.complete({ turnId: 't1', ...done } as never)
+    expect(sardines()).toBe(0)
+    // A turn that ran a tool: a sardine, then he purrs and sings.
+    await $.turn.start({ turnId: 't2' } as never)
+    const read = $.tool.call({ tool: 'Read', file_path: 'x' } as never)
+    await clock.settle()
+    await finish('Read')
+    await read
+    await $.turn.complete({ turnId: 't2', ...done } as never)
+    expect(sardines()).toBe(1)
+    expect(await caption($, /got a sardine for the work \(1 today\)/)).toBe(true)
+    await clock.advance(3_501)
+    expect(await caption($, /purrs: done/)).toBe(true)
+    // Stopped with Esc after a tool: no sardine.
+    await $.turn.start({ turnId: 't3' } as never)
+    const grep = $.tool.call({ tool: 'Grep', pattern: 'x' } as never)
+    await clock.settle()
+    await finish('Grep')
+    await grep
+    await $.turn.complete({ turnId: 't3', reason: 'aborted', answer: '', durationMs: 1, isAborted: true } as never)
+    expect(sardines()).toBe(1)
+    // A commit feeds him; the turn ending doesn't feed him twice.
+    await $.turn.start({ turnId: 't4' } as never)
+    const commit = $.tool.call({ tool: 'Bash', command: 'git commit -m x' } as never)
+    await clock.settle()
+    await finish('Bash')
+    await commit
+    await $.turn.complete({ turnId: 't4', ...done } as never)
+    expect(sardines()).toBe(2)
+  })
+
   test('a long tool bores him to sleep; it ending wakes him', async ($, on) => {
     const { clock, finish } = setUp(on)
     await $.turn.start({ turnId: 't1' } as never)

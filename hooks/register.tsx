@@ -195,7 +195,7 @@ const CAPTION: Record<Mood, (c: Cat) => string> = {
     }`,
   dance: () => `${NAME} dances: the tests passed`,
   hiss: () => `${NAME} hisses: the tests failed`,
-  feast: c => `${NAME} got a sardine for the commit (${c.sardines} today)`,
+  feast: c => `${NAME} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`,
   bored: c => `${NAME} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
 }
 
@@ -323,6 +323,11 @@ type Call = { tool: string; input: Record<string, unknown>; turn: number; isWait
 let calls: Call[] = []
 let turn = 0
 let inTurn = false
+// Whether this turn ran a tool, and whether a sardine already came of it;
+// what the last sardine was for.
+let didWork = false
+let isFed = false
+let fedFor: 'commit' | 'work' = 'commit'
 const lastOf = (list: Call[], test: (c: Call) => boolean) => {
   for (let i = list.length - 1; i >= 0; i--) if (test(list[i]!)) return list[i]
   return undefined
@@ -378,7 +383,8 @@ function meow($: EngineInterface) {
   if (isSoundOn) void $.audio.play({ asset: MEOW }).catch(() => {})
 }
 
-// The day's sardines, one per commit, kept across sessions: the count for
+// The day's sardines, one per commit or per finished turn that did some
+// work (not both for the same turn), kept across sessions: the count for
 // the local date it was last counted on, and the count of all time.
 type Tally = { day: string; today: number; total: number }
 const today = () => {
@@ -442,6 +448,8 @@ export const register: Register = (on, options) => {
   Object.assign(stage, STAGE_START)
   inTurn = false
   calls = []
+  didWork = false
+  isFed = false
   current = 'nap'
   currentTool = null
   flash = null
@@ -514,7 +522,7 @@ export const register: Register = (on, options) => {
       const pets = await $.store.get('pets')
       const s = (n: number) => (n === 1 ? '' : 's')
       const petted = typeof pets === 'number' ? pets : 0
-      return { text: `${NAME} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per commit. He has been petted ${petted} time${s(petted)}.` }
+      return { text: `${NAME} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit. He has been petted ${petted} time${s(petted)}.` }
     }
     if (isCoat(arg)) {
       await update($, coat, () => arg)
@@ -540,6 +548,8 @@ export const register: Register = (on, options) => {
     turn += 1
     inTurn = true
     calls = []
+    didWork = false
+    isFed = false
     stopFlash()
     await quietly(async () => {
       const verse = await nextVerse($, (await read($, cat)).verse)
@@ -558,6 +568,7 @@ export const register: Register = (on, options) => {
     if (e.agentId !== undefined || !inTurn) return next(e)
     const call: Call = { tool: e.tool, input: e as unknown as Record<string, unknown>, turn, isWaiting: ASKS_YOU.has(e.tool), isBored: false }
     calls.push(call)
+    didWork = true
     void resume($).catch(() => {})
     if (call.isWaiting) meow($)
     const bore = NEVER_BORING.has(e.tool)
@@ -599,6 +610,8 @@ export const register: Register = (on, options) => {
             // A commit went in if git says so ("[main abc1234] ..."), or if
             // its own exit code says so.
             if (COMMITTED.test(text) || (kind.isExitTold && result.isError !== true)) {
+              isFed = true
+              fedFor = 'commit'
               await eatSardine($)
               return react($, 'feast')
             }
@@ -659,14 +672,26 @@ export const register: Register = (on, options) => {
       // A new turn may have begun while this one wrapped up: it wins.
       const ended = turn
       if (inTurn) return
-      // If that can't be shown, he goes back to sleep rather than stay at work.
-      await setMood($, isDone ? 'happy' : 'oops').catch(() => setMood($, 'nap'))
-      if (isDone) meow($)
-      // Long enough to read the couplet before he curls up again, unless a
-      // new turn has begun by then.
+      const wrapUp = async () => {
+        // If that can't be shown, he goes back to sleep rather than stay at work.
+        await setMood($, isDone ? 'happy' : 'oops').catch(() => setMood($, 'nap'))
+        if (isDone) meow($)
+        // Long enough to read the couplet before he curls up again, unless a
+        // new turn has begun by then.
+        if (inTurn || turn !== ended) return
+        settle = $.clock.after(isDone ? 12000 : 5000, () => {
+          if (!inTurn && turn === ended) void setMood($, 'nap').catch(() => {})
+        })
+      }
+      // Work done, and no commit fed him for it: a sardine first, then the song.
+      if (!isDone || !didWork || isFed) return wrapUp()
+      isFed = true
+      fedFor = 'work'
+      await eatSardine($)
       if (inTurn || turn !== ended) return
-      settle = $.clock.after(isDone ? 12000 : 5000, () => {
-        if (!inTurn && turn === ended) void setMood($, 'nap').catch(() => {})
+      await setMood($, 'feast').catch(() => {})
+      settle = $.clock.after(FLASH_MS, () => {
+        if (!inTurn && turn === ended) void wrapUp().catch(() => {})
       })
     })
     return next(e)
