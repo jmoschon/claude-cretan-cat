@@ -552,14 +552,16 @@ export const register: Register = (on, options) => {
       if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
       const { today: sardines } = await tally($)
       // A new session, or this module reloaded: no turn is known to be under
-      // way, so he starts asleep rather than stuck in a mood from before.
+      // way, so he starts asleep rather than stuck in a mood from before, and
+      // off your keyboard.
       inTurn = false
       calls = []
       stopFlash()
       current = 'nap'
       currentTool = null
       stage.mood = 'nap'
-      await update($, cat, c => ({ ...c, sardines, mood: 'nap' as Mood, tool: null }))
+      stage.isOnKeys = false
+      await update($, cat, c => ({ ...c, sardines, mood: 'nap' as Mood, tool: null, isOnKeys: false }))
     })
 
     let ticks = 0
