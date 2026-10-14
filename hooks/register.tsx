@@ -650,7 +650,7 @@ export const register: Register = (on, options) => {
     stopFlash()
     await quietly(async () => {
       // Stopped by you (Esc): no fuss, he just curls up again.
-      if (e.reason === 'aborted') return inTurn ? undefined : setMood($, 'nap')
+      if (e.reason === 'aborted') return setMood($, 'nap')
       const isDone = e.reason === 'answer'
       if (isDone) {
         const verse = await nextVerse($, (await read($, cat)).verse)
@@ -659,7 +659,8 @@ export const register: Register = (on, options) => {
       // A new turn may have begun while this one wrapped up: it wins.
       const ended = turn
       if (inTurn) return
-      await setMood($, isDone ? 'happy' : 'oops')
+      // If that can't be shown, he goes back to sleep rather than stay at work.
+      await setMood($, isDone ? 'happy' : 'oops').catch(() => setMood($, 'nap'))
       if (isDone) meow($)
       // Long enough to read the couplet before he curls up again, unless a
       // new turn has begun by then.

@@ -182,6 +182,7 @@ export function topicOf(text: string): string {
 const RUNNERS = new Set(['pytest', 'jest', 'vitest', 'mocha', 'ava', 'tap', 'rspec', 'phpunit', 'pest', 'tox', 'nox', 'ctest', 'karma', 'playwright', 'cypress'])
 const WITH_TEST = new Set(['go', 'cargo', 'mix', 'dotnet', 'swift', 'deno', 'bun', 'zig', 'flutter', 'dart', 'gradle', 'gradlew', 'mvn', 'mvnw', 'sbt', 'lein', 'stack', 'cabal'])
 const PACKAGE = new Set(['npm', 'pnpm', 'yarn', 'bun'])
+const SETUP = new Set(['install', 'install-deps', 'codegen', 'open', 'show-report', 'init', 'verify'])
 // Ahead of the real command: a variable, a wrapper, a runner of runners.
 const PREFIX = /^(?:\w+=\S*\s+|(?:sudo|time|nice|env|command|exec|if|then|else|do|while|until)\s+|!\s*|timeout\s+(?:-\S+\s+)*\S+\s+|(?:npx|bunx|pnpx)\s+(?:-y\s+|--yes\s+)?|(?:pnpm|yarn|npm)\s+(?:exec|dlx)\s+|bundle\s+exec\s+|(?:uv|poetry|pipenv|hatch|pdm|rye)\s+run\s+|python3?\s+-m\s+)/
 
@@ -205,7 +206,8 @@ function commandsOf(line: string): { words: string[]; isExitTold: boolean }[] {
       .replace(/\s*[)}]\s*$/, '')
     for (let prefix = PREFIX.exec(text); prefix; prefix = PREFIX.exec(text)) text = text.slice(prefix[0].length)
     // A trailing `&` sends it to the background: its exit code is the shell's.
-    const after = parts.filter((p, j) => j > i && j % 2 === 1 && (p === '&' || (parts[j + 1] ?? '').trim() !== ''))
+    // (A lone `)` or `}` closing a group is no command of its own.)
+    const after = parts.filter((p, j) => j > i && j % 2 === 1 && (p === '&' || !/^[\s)}]*$/.test(parts[j + 1] ?? '')))
     out.push({ words: text.split(/\s+/).filter(Boolean), isExitTold: after.every(sep => sep === '&&') })
   }
   return out
@@ -217,19 +219,22 @@ const nameOf = (word: string | undefined) => (word ?? '').split('/').pop() ?? ''
 function isTests(words: string[]): boolean {
   const name = nameOf(words[0])
   const rest = words.slice(1).filter(w => !w.startsWith('-'))
-  if (RUNNERS.has(name)) return true
+  // A runner, unless it's only being set up (`npx playwright install`).
+  if (RUNNERS.has(name)) return !SETUP.has(rest[0] ?? '')
   if (name === 'node' && words.includes('--test')) return true
   if (PACKAGE.has(name)) {
     // Past a workspace and the values of --filter, --prefix and the like.
     const words2: string[] = []
     for (let i = 1; i < words.length; i++) {
       const w = words[i]!
-      if (/^--?(filter|prefix|dir|cwd|workspace|C|F|w)$/.test(w)) i++
+      // (npm's -w names a workspace; pnpm's -w is the workspace root, alone.)
+      if (/^--?(filter|prefix|dir|cwd|workspace|C|F)$/.test(w) || (w === '-w' && name === 'npm')) i++
       else if (!w.startsWith('-')) words2.push(w)
     }
     const at = words2[0] === 'workspace' ? 2 : 0
     const script = words2[at] === 'run' ? words2[at + 1] : words2[at]
-    if (script !== undefined && (['test', 't', 'tests'].includes(script) || script.startsWith('test:') || RUNNERS.has(script))) return true
+    const after = words2[words2.indexOf(script ?? '') + 1] ?? ''
+    if (script !== undefined && (['test', 't', 'tests'].includes(script) || script.startsWith('test:') || (RUNNERS.has(script) && !SETUP.has(after)))) return true
   }
   if (name === 'cargo' && rest[0] === 'nextest') return true
   if (name === 'make') return rest.some(w => ['test', 'tests', 'check'].includes(w))
