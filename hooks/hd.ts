@@ -9,8 +9,8 @@
 
 import type { Coat } from '../types'
 import { clawdPixels } from './clawd'
-import { HD_CLAWD, HD_COATS, HD_FIXED, HD_KITTEN, HD_SARDINE, HD_SCALE, HD_SHADES, HD_SPRITES, type HdGrid } from './hd-sprites'
-import { drawFrame, hash, scale, SKY, YARD, type Plan, type Rgb, type Scene } from './manousos'
+import { HD_CLAWD, HD_COATS, HD_FIXED, HD_KITTEN, HD_SARDINE, HD_SCALE, HD_SHADES, HD_SPRITES, HD_TOY, type HdGrid } from './hd-sprites'
+import { drawFrame, hash, scale, SKY, TOY, TOY_COLORS, YARD, type Plan, type Rgb, type Scene } from './manousos'
 import { COATS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES } from './sprites'
 
 const S = HD_SCALE
@@ -290,12 +290,14 @@ export function paintHd(plan: Plan): { rgba: Uint8Array; width: number; height: 
 
   const [clawdShadow, ...catShadows] = plan.shadows
   if (clawdShadow) shadow(...clawdShadow)
-  const hdClawd = HD_CLAWD(plan.clawd.look)
-  if (hdClawd && hdClawd.rows.length > 0) {
+  // Clawd, unless the cat is alone in his square.
+  const clawd = plan.clawd
+  const hdClawd = clawd ? HD_CLAWD(clawd.look) : undefined
+  if (clawd && hdClawd && hdClawd.rows.length > 0) {
     const gw = hdClawd.rows[0]!.length
-    grid(hdClawd.rows, plan.clawd.x * S + Math.round((14 * S - gw) / 2) + (hdClawd.dx ?? 0), (plan.clawd.top + 8) * S - hdClawd.rows.length + (hdClawd.dy ?? 0), hdClawd.palette)
-  } else {
-    for (const p of clawdPixels({ ...plan.clawd.look, scale: S })) set(plan.clawd.x * S + p.x, plan.clawd.top * S + p.y, p.c)
+    grid(hdClawd.rows, clawd.x * S + Math.round((14 * S - gw) / 2) + (hdClawd.dx ?? 0), (clawd.top + 8) * S - hdClawd.rows.length + (hdClawd.dy ?? 0), hdClawd.palette)
+  } else if (clawd) {
+    for (const p of clawdPixels({ ...clawd.look, scale: S })) set(clawd.x * S + p.x, clawd.top * S + p.y, p.c)
   }
 
   const cat = plan.cat
@@ -319,7 +321,21 @@ export function paintHd(plan: Plan): { rgba: Uint8Array; width: number; height: 
     }
   }
   for (const s of catShadows) shadow(...s)
+  // The fishing toy's rod and string, under him: a line through the middles
+  // of the yard pixels it crosses, the rod as thick as a yard pixel is.
+  for (const [i, [x0, y0, x1, y1, c]] of (plan.toy?.lines ?? []).entries()) {
+    const thick = plan.clawd && i === 0 ? Math.max(1, S - 1) : 1
+    const [ax, ay, bx, by] = [x0 * S + (S >> 1), y0 * S + (S >> 1), x1 * S + (S >> 1), y1 * S + (S >> 1)]
+    const steps = Math.max(Math.abs(bx - ax), Math.abs(by - ay), 1)
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.round(ax + ((bx - ax) * i) / steps)
+      const y = Math.round(ay + ((by - ay) * i) / steps)
+      rect(x, y, x + thick, y + thick, c)
+    }
+  }
   sprite(SPRITES[cat.pose], HD_SPRITES[cat.pose], cat.x, cat.top, COATS[cat.coat], coatPalette(cat.coat), cat.isLeft)
+  // The feather, over him.
+  if (plan.toy) sprite(TOY, HD_TOY, plan.toy.x, plan.toy.y, TOY_COLORS, HD_TOY?.palette ?? TOY_COLORS)
 
   if (plan.sardine) sprite(SARDINE, HD_SARDINE, plan.sardine.x, plan.sardine.y, SARDINE_COLORS, HD_SARDINE?.palette ?? SARDINE_COLORS)
   for (const k of plan.kittens) sprite(KITTEN[k.frame], HD_KITTEN[k.frame], k.x, k.y, COATS[k.coat], coatPalette(k.coat), k.isMirrored)

@@ -2,7 +2,7 @@
 // mantinades, rioplatense coplas and tangos, or English couplets. Each set
 // stays in its own language, whatever language Clawd speaks.
 
-export const SONG_LANGUAGES = ['greek', 'spanish', 'english'] as const
+export const SONG_LANGUAGES = ['greek', 'english', 'spanish'] as const
 export type SongLanguage = (typeof SONG_LANGUAGES)[number]
 export const isSongLanguage = (v: unknown): v is SongLanguage => typeof v === 'string' && (SONG_LANGUAGES as readonly string[]).includes(v)
 
@@ -30,6 +30,12 @@ const MANTINADES: [string, string][] = [
   ['Απ’ τον μπακάλη ζήτησα ρακή και παξιμάδι,', 'κι ήρθε πιο γρήγορα απ’ το build που τρέχει απ’ το βράδυ.'],
   ['Δυο πράγματα ’ναι δύσκολα σε τούτη τη ζωή μας:', 'το cache και τα ονόματα, κι off-by-one η ντροπή μας.'],
   ['DELETE χωρίς WHERE έτρεξα μες στην production βάση,', 'backup γυρεύω τώρα πια, μα κάπου θα ’χει σπάσει.'],
+  // Beef with the Argentine across the sea, never by name.
+  ['Η Αργεντινή μου φωνάζει πως τ’ ασάδο της νικάει,', 'μα έναν ντάκο κρητικό ποτέ της δεν ξεχνάει.'],
+  ['Μου λέει «che» και «boludo», κι εγώ δεν καταλαβαίνω,', 'της λέω «άντε στο καλό», και στη ρακή μου πηαίνω.'],
+  ['Ταγκό χορεύει η Αργεντινή, τα πόδια της τα σέρνει,', 'μα στο δικό μου πεντοζάλι ανάσα δεν την παίρνει.'],
+  ['Όλη τη μέρα πίνει μάτε, με το καλαμάκι,', 'κι εγώ γλεντώ στον καφενέ με κρητικό ρακάκι.'],
+  ['Μου λέει τ’ Ακονκάγκουα της ως τα ουράνια πάει,', 'μα στην κορφή του Ψηλορείτη ο Δίας μας κερνάει.'],
 ]
 
 // Payador coplas, four eight-syllable lines sung two to a line, the
@@ -52,6 +58,15 @@ const COPLAS: [string, string][] = [
   ['Que el legacy fue y será una porquería, ya lo sé,', 'en el commit quinientos seis y en el dos mil también.'],
   ['Volver, con la frente marchita, al ticket que dejé en Review;', 'sentir que es un soplo la vida, que veinte commits no es nada.'],
   ['Che, Clawd, no me apurés, que yo laburo a mi modo:', 'un ratito con el código, y una siesta para todo.'],
+  // Beef with the Greek across the sea, never by name.
+  ['Dice el griego que es filósofo porque duerme todo el día;', 'yo también duermo la siesta, y no la llamo sabiduría.'],
+  ['El gato de Creta canta con la lira desafinada;', 'le saco el bandoneón, y se le apaga la mantinada.'],
+  ['El griego me habla de Homero, de Ulises y de su viaje;', 'yo me tomo un colectivo, y llego antes, sin equipaje.'],
+  ['Me jura que su aceite es el mejor de todo el mundo;', 'le serví un chimichurri, y quedó meditabundo.'],
+  ['El griego come sardinas y dice que es un manjar;', 'que pruebe una milanesa, y después vuelva a hablar.'],
+  ['Me dijo «καλημέρα», y yo le dije «¿qué decís?»;', 'si querés hablar conmigo, hablame en castellano, aprendiz.'],
+  ['Dice que inventó la lógica, la democracia y el teatro;', 'pero el dulce de leche es nuestro, y eso no lo empata ningún gato.'],
+  ['Dice que en su paniguiri se baila hasta que sale el sol;', 'a esa hora, en Buenos Aires, recién abre el boliche, mi amor.'],
 ]
 
 // English rhyming couplets, in the same spirit.
@@ -73,4 +88,4 @@ const COUPLETS: [string, string][] = [
   ['Like a dancer at a wedding, the pod goes down and up,', "and Kubernetes swears it's healthy, raising high its cup."],
 ]
 
-export const SONGS: Record<SongLanguage, [string, string][]> = { greek: MANTINADES, spanish: COPLAS, english: COUPLETS }
+export const SONGS: Record<SongLanguage, [string, string][]> = { greek: MANTINADES, english: COUPLETS, spanish: COPLAS }

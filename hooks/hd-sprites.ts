@@ -553,6 +553,54 @@ export const HD_SPRITES: Partial<Record<Pose, HdGrid>> = {
     '.....................oooogggggggggoooooogggggggggooooddddddddddddddo......',
     '.........................ooooooooo......ooooooooo...odddddddddddddo.......',
   ], dy: 1 },
+  // 66 x 43. From behind, tail up (the butt). Drawn from shapes at 3x rather
+  // than grown from the low sprite: the head, the ears, the body, the tail's
+  // curve, the paws and the pink, each outlined where it meets what's behind.
+  back: { rows: [
+    '............oo.....................oo........ooooooo..............',
+    '...........oddo..................oodo.........odddddo.............',
+    '...........odddoo.....oooo......oddddo........odddddo.............',
+    '...........oddddHoooooHHHHooooooHddddo.........oddddo.............',
+    '..........odddddfHHHHHffffHHHHHHfddddo.........omfffo.............',
+    '..........odddddffmffffmmffffmmffdddddo.........offfo.............',
+    '.........ododdddffmffffmmffffmmffddddoo.........offfmo............',
+    '.........oo.ofFFFFmffffmmffffmmfffffo.oo.......offfmo.............',
+    '...........ofFFFFFmFFffmmffffmmfffffo..........offmmo.............',
+    '...........oFFFFFFmFFffmmffffmmffffffo.........ofmmfo.............',
+    '..........ofFFFFFFmFFffmmffffmmffffffo........ofmmmo..............',
+    '..........offFFFFFFFFffffffffffffffffo........ommmfo..............',
+    '..........offfFFFFFFfffffffffffffffffo.......ommmffo..............',
+    '..........offffffffffffffffffffffffffo......ommmffo...............',
+    '...........offfffffffffffffffffffffffo......ommfffo...............',
+    '...........offfffffffffffffffffffffffo.....ommfffo................',
+    '............offfffffffffffffffffffffo.....ommfffo.................',
+    '............offffffffffffffffffffffo.....ommffffo.................',
+    '.............oofffffffffffffffffffo.....ommffffo..................',
+    '...............offfffffffffffffffo.....ommffffo...................',
+    '................offfffffffffffffffo...ommmfffo....................',
+    '...............ommmmmmmmmmmmmmmmmmmooommmfffo.....................',
+    '............ooommmmmmmmmmmmmmmmmmmmofmmmfffo......................',
+    '..........ooHHHfffffffffffffffffffofmmmffffo......................',
+    '........ooHHffffffffffffffffffffffofmmffffomoo....................',
+    '.......oHHfFFFFFFFFffffffffffffffofmmffffommmmo...................',
+    '......oHffFFFFFFFFFFffffffffffffofmmffffommmmmmo..................',
+    '.....oHffFFFFFFFFFFFFffffffffffofmmffffofmmmmmmmo.................',
+    '....oHfffFFFFFFFFFFFFffffffffffommfffffofmmmmmmmmo................',
+    '....offffFFFFFFFFFFFFfffffffffommfffffoffmmmmmmmmo................',
+    '....offfffFFFFFFFFFFffffffffffommffffofffmmmmmdddo................',
+    '....offfffffffffffffffffffffffomffffmofffmmmmmdddo................',
+    '....offffffffffffffffffffffffomfffffoffffmmmmmdddo................',
+    '.....offfffffffffffffffffffffofffffmoffffmmmmmddo.................',
+    '.....offfffffffffffffffffffffoffffmofffffmmmmmddo.................',
+    '......ommmmmfffffffffffffffooffffmmommmmmmmmmmdo..................',
+    '.......ommmmffffffffffffffopofffmmfommmmmmmmmmo...................',
+    '........ooooooooooffffffffopoffmmffomooooooooo....................',
+    '..........owwwwwwwofffffffoPofmmmffoowwwwwwwo.....................',
+    '........oowwwwwwwwwodddddddoommmffowwwwwwwwwwo....................',
+    '........owwwwwwwwwoodddddddddomffooowwwwwwwwwo....................',
+    '.........ooooooooo..oooooooooooooo..ooooooooo.....................',
+    '..................................................................',
+  ], dy: 1 },
 }
 
 // A kitten's two running frames (they face left, as KITTEN's do).
@@ -667,6 +715,33 @@ function scale3x(g: string[][]): string[][] {
     }
   }
   return out
+}
+
+// The fishing toy's feather at 3x: a yellow bead the string ties to, and a
+// pink plume, its spine lighter and its edges darker.
+export const HD_TOY: HdArt | undefined = {
+  rows: [
+    '...yyy...',
+    '..yhyyY..',
+    '...yYY...',
+    '...lpp...',
+    '..lpppP..',
+    '.lpppppP.',
+    'lppplpppP',
+    '.lpppppP.',
+    '.lpplppP.',
+    '..lpppP..',
+    '..lpPpP..',
+    '...p.P...',
+  ],
+  palette: {
+    y: [255, 214, 90],
+    Y: [214, 164, 50],
+    h: [255, 250, 220],
+    p: [236, 104, 160],
+    P: [190, 70, 124],
+    l: [250, 160, 200],
+  },
 }
 
 export const HD_CLAWD = (look: ClawdLook): HdArt | undefined => {

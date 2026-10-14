@@ -2,10 +2,12 @@
 // language the "language" setting offers. The songs are in songs.ts, under
 // a setting of their own.
 
-export const LANGUAGES = ['greek', 'english', 'spanish', 'rioplatense'] as const
+export const LANGUAGES = ['greek', 'english', 'spanish'] as const
 export type Language = (typeof LANGUAGES)[number]
 
 export const isLanguage = (v: unknown): v is Language => typeof v === 'string' && (LANGUAGES as readonly string[]).includes(v)
+// Spanish is rioplatense; "rioplatense", saved by older versions, means it too.
+export const languageOf = (v: unknown): Language | undefined => (v === 'rioplatense' ? 'spanish' : isLanguage(v) ? v : undefined)
 
 export type Lines = {
   // Nudges about the prompt's topic, one every few seconds while Claude thinks.
@@ -149,44 +151,7 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     asks: 'Where are my cuddles?',
     offKeys: `${n.latin}, get off the keyboard!`,
   }),
-  spanish: n => ({
-    nudges: [
-      t => `${n.latin}, ¡mira «${t}»!`,
-      t => `¿Cómo va «${t}», ${n.latin}?`,
-      t => `¡Nada de siestas! «${t}» te espera.`,
-      t => `${n.latin}, ¡quiero «${t}» para el mediodía!`,
-      t => `Si arreglas «${t}», hay sardina.`,
-      t => `Venga ${n.latin}, un poco más con «${t}».`,
-    ],
-    vague: [`${n.latin}, ¡a trabajar!`, `¿Qué haces ahí, ${n.latin}?`, `¡Venga ${n.latin}, empezamos!`],
-    tool: tool =>
-      ({
-        run: `${n.latin}, ¡ejecuta el comando!`,
-        read: `¡Lee el archivo, ${n.latin}!`,
-        edit: `¡Arregla el código, ${n.latin}!`,
-        search: `¡Encuéntralo, ${n.latin}! Busca por todas partes.`,
-        web: `¡Busca en internet, ${n.latin}!`,
-        agents: `¡Llama a los gatitos para que ayuden, ${n.latin}!`,
-        mcp: `Pregunta a nuestros amigos, ${n.latin}: ${shortTool(tool)}`,
-        other: `${n.latin}, ¡haz un ${tool}!`,
-      })[kind(tool)],
-    done: `¡Bien hecho, ${n.latin}! Toma una golosina.`,
-    oops: `Ay, ${n.latin}... ¿qué ha pasado?`,
-    hiss: '¡Fffs! Algo salió mal.',
-    wait: ['¡Psst! ¡Te estamos esperando!', '¡Miau! Te estoy esperando.'],
-    green: [`¡Tests en verde, ${n.latin}!`, '¡Bravo! ¡A bailar!'],
-    red: [`Tests en rojo, ${n.latin}...`, '¡Fffs! ¡Rojo!'],
-    commit: [`¡Toma una sardina, ${n.latin}!`, '¡Ñam! ¡Gracias!'],
-    bored: [`${n.latin}, no te duermas, ¡aún sigue!`, 'Aaah... zzz'],
-    slapped: '¡Ay! ¿Y eso por qué?',
-    snubbed: `¿${n.latin}? ¿Hola?`,
-    retort: ['¿Qué quieres?', '¡Qué pesado!', '¡Toma!', '¡Déjame en paz!', '¡Fuera de aquí!', '¿Me tomas el pelo?'],
-    shrug: ['...', 'Ni hablar.', 'Mmm. No.', 'Ahora no.', 'Luego vemos.'],
-    swat: '¡Eh! Sin tocar.',
-    asks: '¿Y mis mimos?',
-    offKeys: `¡${n.latin}, bájate del teclado!`,
-  }),
-  rioplatense: n => RIOPLATENSE(n),
+  spanish: n => RIOPLATENSE(n),
 }
 
 // Spanish as they speak it in Buenos Aires: voseo, and "dale". The cat's own

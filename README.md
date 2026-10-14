@@ -49,8 +49,10 @@ Kittens, dozing off, petting and the yard through the day are all in
 
 ```text
 /cat                    hide him, or bring him back
-/cat pet                pet him
-/cat ginger             a coat: manousos, ginger, tuxedo
+/cat pet                pet him (treat and play too)
+/cat ginger             a coat: ginger, tuxedo (/cat coat manousos)
+/cat small, /cat dock   just the cat, in a square or a pane on the right
+/cat asturias           his sister; /cat manousos brings him back
 /cat name Kostis        call him something else
 /cat songs spanish      what he sings
 /cat stats              sardines, pets and his rank
@@ -69,8 +71,8 @@ too.
 | Setting          | Values                                                       | Default    |
 | ---------------- | ------------------------------------------------------------ | ---------- |
 | name             | any name, up to 20 characters                                | `Manousos` |
-| Clawd's language | `greek`, `english`, `spanish`, `rioplatense`                 | `greek`    |
-| songs            | `greek`, `spanish`, `english`                                | `greek`    |
+| Clawd's language | `greek`, `english`, `spanish` (as in Buenos Aires)           | `greek`    |
+| songs            | `greek`, `english`, `spanish`                                | `greek`    |
 | temper           | `off`, `on`: he slaps, swats and naps on your keys           | `off`      |
 | sound            | `off`, `on`: a trill, a mew, a purr, a hiss (macOS)          | `off`      |
 | resolution       | `low`, `high`: a sharper yard in kitty and Ghostty terminals | `low`      |

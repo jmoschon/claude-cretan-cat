@@ -6,17 +6,24 @@
 | -------------------------- | --------------------------------------------------------------------- |
 | `/cat`                     | Hide him, or bring him back (toggles)                                 |
 | `/cat hide`, `/cat show`   | Hide him, or bring him back; hidden stays hidden across sessions      |
-| `/cat pet`                 | Pet him: he closes his eyes and purrs                                 |
-| `/cat manousos`            | The original coat: dark brown, white bib and mittens                  |
+| `/cat small`               | Just the cat, in a small square at the right above the prompt          |
+| `/cat dock`                | Just the cat, in a pane docked on the right (fullscreen layout)        |
+| `/cat band`                | The whole yard above the prompt again                                  |
+| `/cat pet`                 | Pet him: he closes his eyes and purrs (or press `pet`, `p`)            |
+| `/cat treat`               | Toss him a sardine (or press `treat`, `t`)                             |
+| `/cat play`                | Dangle the fishing toy, its bell jingling (or press `play`, `y`)       |
+| `/cat coat <coat>`         | The coat alone: `manousos` (dark brown, white bib and mittens), `ginger`, `tuxedo` |
 | `/cat ginger`              | An orange tabby                                                       |
 | `/cat tuxedo`              | Black and white                                                       |
 | `/cat name <name>`         | Call the cat something else, up to 20 characters                      |
-| `/cat language <language>` | What Clawd speaks: `greek`, `english`, `spanish`, `rioplatense`       |
-| `/cat songs <language>`    | What the cat sings: `greek`, `spanish`, `english`                     |
+| `/cat language <language>` | What Clawd speaks: `greek`, `english`, `spanish`                      |
+| `/cat songs <language>`    | What the cat sings: `greek`, `english`, `spanish`                     |
 | `/cat temper on\|off`      | Give the cat a temper, or take it away (see [Temper](settings.md#temper)) |
+| `/cat sound on\|off`       | His voice, on macOS (see [Sound](settings.md#sound))                   |
 | `/cat resolution high\|low` | The yard as a fine picture in kitty and Ghostty, or in cells (see [Resolution](settings.md#resolution)) |
+| `/cat hints on\|off`       | The /cat tips under the napping cat                                   |
 | `/cat asturias`            | Asturias, all at once (see [Meet Asturias](../README.md#meet-asturias)) |
-| `/cat reset`               | Manousos as he came                                                   |
+| `/cat manousos`            | Manousos as he came, coat and settings (`/cat reset` too)              |
 | `/cat stats`               | Sardines, pets and his rank, drawn                                    |
 | `/cat config`              | Every setting and what it is now                                      |
 | `/cat help`                | Lists the commands                                                    |
@@ -27,18 +34,23 @@ A few details:
   `/cat config`.
 - **Names.** `/cat name Manousos` goes back to the original. `/cat name` on
   its own says what he is called now.
+- **Where he lives.** `/cat small` and `/cat dock` show the cat alone, no
+  Clawd and no bubbles, in a square: at the right of the band, or in a pane
+  of its own that the fullscreen layout docks on the right (elsewhere it sits
+  above the prompt). Closing the pane by hand gives him back to the band. The
+  place is remembered across sessions.
 - **Asturias.** `/cat asturias` names the cat Asturias, puts her in the ginger
-  coat, has Clawd speak rioplatense, sets the songs to coplas and tangos, and
+  coat, has Clawd speak Spanish as they speak it in Buenos Aires, sets the songs to coplas and tangos, and
   turns the temper on. She answers in her own words (*¿Qué querés?*, *Yo no
   fui, che*, *¿Sardina? ¿Y el asado?*).
-- **Reset.** `/cat reset` brings back his name and coat, Greek, mantinades
-  and no temper. Neither it nor `/cat asturias` touches the sound or the
-  resolution.
+- **Manousos.** `/cat manousos` (or `/cat reset`) brings back his name and
+  coat, Greek, mantinades and no temper. Neither it nor `/cat asturias`
+  touches the sound or the resolution. To put a coat on whoever the cat is
+  now, use `/cat coat <coat>`.
 - **Stats.** `/cat stats` draws today's sardines as fish (one per commit, or
   per finished task that used tools), how full his belly is, sardines in all
   and his best day, pets and swats, the last seven days as bars, and his
   rank, from *Kitten, no sardine yet* to *Lord of Psiloritis*.
-- **Sound.** Sound has no `/cat` command; change it in `/config`.
 - **Typos.** Anything `/cat` doesn't know says so, then shows the help.
 
 ## `/cat help`
@@ -47,19 +59,26 @@ A few details:
 Manousos, the cat above the prompt
 
   /cat name <name>          what the cat is called (Manousos now)
-  /cat <coat>               the coat: manousos, ginger, tuxedo (manousos now)
-  /cat language <language>  what Clawd speaks: greek, english, spanish, rioplatense (greek now)
-  /cat songs <language>     what Manousos sings: greek, spanish, english (greek now)
+  /cat coat <coat>          the coat: manousos, ginger, tuxedo (manousos now); /cat ginger or tuxedo too
+  /cat language <language>  what Clawd speaks: greek, english, spanish (greek now)
+  /cat songs <language>     what Manousos sings: greek, english, spanish (greek now)
   /cat temper on|off        whether Manousos slaps Clawd, swats you, sits on your keyboard (off now)
+  /cat sound on|off         whether Manousos mrrps, mews, purrs and hisses, on macOS (off now)
   /cat resolution high|low  the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (low now)
-  /cat asturias             Asturias: ginger, rioplatense, coplas and a temper
-  /cat reset                Manousos as he came
+  /cat asturias             Asturias: ginger, rioplatense Spanish, coplas and a temper
+  /cat manousos             Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)
   /cat pet                  pet the cat (or press pet under the yard)
+  /cat treat                toss the cat a sardine (or press treat)
+  /cat play                 dangle the fishing toy (or press play)
   /cat stats                sardines and pets
   /cat config               every setting and what it is now
   /cat hide|show            hide the cat, or bring it back (/cat alone toggles)
+  /cat hints on|off         the /cat tips under the napping cat (on now)
+  /cat small                the cat alone in a small square at the right, above the prompt
+  /cat dock                 the cat in a pane of its own, docked on the right
+  /cat band                 the whole yard above the prompt again
 
-The same settings, and sound, are under /config, "Cretan cat".
+The same settings are under /config, "Cretan cat".
 ```
 
 ## `/cat config`
@@ -75,7 +94,7 @@ Manousos's settings
   sound       off
   resolution  low
 
-/cat help says how to change them; sound only changes in /config, "Cretan cat".
+/cat help says how to change them; they are under /config, "Cretan cat", too.
 ```
 
 With `resolution: high`, the last row also says whether the picture is

@@ -3,16 +3,18 @@
 [Back to the README](../README.md)
 
 The coat you pick, whether he is hidden, his sardines and his pets are
-remembered across sessions. The name, the two languages, the temper and the
-resolution are settings: `/cat name`, `/cat language`, `/cat songs`,
-`/cat temper` and `/cat resolution` change the same rows you find under
+remembered across sessions, and so are where he lives (`/cat small`,
+`/cat dock`, `/cat band`) and the caption's tips (`/cat hints`). The name,
+the two languages, the temper, the sound and the resolution are settings:
+`/cat name`, `/cat language`, `/cat songs`, `/cat temper`, `/cat sound` and
+`/cat resolution` change the same rows you find under
 `/config`, "Cretan cat", so the two never disagree.
 
 | Setting (`/config`)          | Values                                       | Default    |
 | ---------------------------- | -------------------------------------------- | ---------- |
 | Cretan cat: name             | any name, up to 20 characters                | `Manousos` |
-| Cretan cat: Clawd's language | `greek`, `english`, `spanish`, `rioplatense` | `greek`    |
-| Cretan cat: songs            | `greek`, `spanish`, `english`                | `greek`    |
+| Cretan cat: Clawd's language | `greek`, `english`, `spanish`                | `greek`    |
+| Cretan cat: songs            | `greek`, `english`, `spanish`                | `greek`    |
 | Cretan cat: temper           | `off`, `on`                                  | `off`      |
 | Cretan cat: sound            | `off`, `on`                                  | `off`      |
 | Cretan cat: resolution       | `low`, `high`                                | `low`      |
@@ -28,9 +30,10 @@ it.
 
 ## Clawd's language
 
-What Clawd says, and the cat's short replies. Rioplatense is the Spanish of
+What Clawd says, and the cat's short replies. Spanish is the Spanish of
 Buenos Aires (*¡Dale Manousos, arrancamos!*), and the cat answers in it the
-way Asturias does.
+way Asturias does. A `/config` row still set to the old `rioplatense` reads as
+the default, Greek, until you pick `spanish`.
 
 ## Songs
 
@@ -46,6 +49,8 @@ With the temper on, the cat has opinions:
   thinks, he may slap Clawd (*Stop nagging!*) or ignore him altogether
   (*Nope.*).
 - **Petting him** sometimes gets you a swat instead of a purr.
+- **The fishing toy.** About one time in three he won't play: he curls up
+  and looks the other way, or turns around, tail up, and shows you his butt.
 - **Your keyboard.** Some turns he gets there before Claude does, lies down
   on it and asks for cuddles, while Clawd tells him to get off. Pet him and
   he gets off; otherwise he stays until the turn ends, so when you're idle he
@@ -60,13 +65,14 @@ Turned on, the cat has a voice:
 - a questioning *mew?* when Claude is waiting for you (a permission prompt,
   a question, a plan to approve),
 - a purr when you pet him,
-- a short hiss when the tests fail or he swats your hand.
+- a short hiss when the tests fail or he swats your hand,
+- the fishing toy's bell, a little cascabel, when you dangle it.
 
 Never more than one sound every two seconds, so a burst of events is one
 sound, not a chorus. The *mew?* is the exception: it tells you Claude is
 waiting, so it always plays. Claude Code plays the sounds with `afplay`, so on
-macOS only; a Linux or Windows terminal stays quiet. Sound has no `/cat`
-command; change it in `/config`.
+macOS only; a Linux or Windows terminal stays quiet. `/cat sound on` or `off`
+changes it, as `/config` does.
 
 ## Resolution
 

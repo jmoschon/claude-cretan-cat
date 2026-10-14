@@ -1,4 +1,4 @@
-"""Synthesizes the cat's four sounds into sounds/, the ones the "sound"
+"""Synthesizes the cat's sounds into sounds/, the ones the "sound"
 setting plays. No samples, so no license but this repository's; stdlib only
 and seeded, so the same bytes every run.
 
@@ -17,6 +17,12 @@ closes). Each sound is a pitch contour and a mouth contour:
              (petted)
   hiss.wav   a short growl, then a hiss: noise through the open mouth with a
              sharp start (red tests, a swat)
+
+And one that isn't his voice:
+
+  bell.wav   the jingle bell (cascabel) on the fishing toy, shaken: a metal
+             pea rattling in a small shell, each knock ringing its few
+             inharmonic partials (play)
 """
 
 import math
@@ -221,6 +227,41 @@ def hiss():
     return out
 
 
+def bell():
+    """The toy's cascabel, shaken three times: two small jingle bells, each a
+    loose pea rattling in a slotted shell. A knock rings the shell's high,
+    inharmonic partials for only a few hundredths of a second, so what you
+    hear is the rattle, ~45 knocks a second, not a tone."""
+    rng = random.Random(7)
+    # Each little bell's modes (Hz, gain, seconds to ring down).
+    bells = [
+        [(4650, 1.0, 0.035), (7010, 0.8, 0.024), (9300, 0.6, 0.016)],
+        [(5230, 1.0, 0.03), (7640, 0.7, 0.02), (9850, 0.5, 0.014)],
+    ]
+    knocks = []
+    for start, length in [(0.0, 0.22), (0.30, 0.2), (0.58, 0.28)]:
+        t = start
+        while t < start + length:
+            # Hardest mid-shake, a flick at each end.
+            k = (t - start) / length
+            strength = (0.35 + 0.65 * math.sin(math.pi * k)) * rng.uniform(0.5, 1.0)
+            knocks.append((t, strength, rng.randrange(len(bells)), rng.uniform(-120, 120)))
+            t += rng.uniform(0.012, 0.035)
+    n = int(RATE * 0.95)
+    out = [0.0] * n
+    click = Filter('high')
+    for start, strength, which, detune in knocks:
+        first = int(start * RATE)
+        for i in range(first, min(n, first + int(RATE * 0.1))):
+            u = (i - first) / RATE
+            ring = sum(gain * math.sin(2 * math.pi * (freq + detune) * u) * math.exp(-u / decay) for freq, gain, decay in bells[which])
+            out[i] += strength * ring
+        # The pea on the shell: a couple of milliseconds of bright noise.
+        for i in range(first, min(n, first + int(RATE * 0.002))):
+            out[i] += strength * 0.9 * click(rng.gauss(0, 1), 6000)
+    return out
+
+
 def write(target, samples, peak=0.55):
     """Normalizes to `peak` of full scale, fades the very ends (no click)
     and writes 16-bit mono."""
@@ -239,7 +280,7 @@ def write(target, samples, peak=0.55):
     print(f'{target}: {n / RATE:.2f}s')
 
 
-SOUNDS = {'happy': (happy, 0.55), 'mew': (mew, 0.5), 'purr': (purr, 0.5), 'hiss': (hiss, 0.4)}
+SOUNDS = {'happy': (happy, 0.55), 'mew': (mew, 0.5), 'purr': (purr, 0.5), 'hiss': (hiss, 0.4), 'bell': (bell, 0.35)}
 
 if __name__ == '__main__':
     folder = sys.argv[1] if len(sys.argv) > 1 else 'sounds'

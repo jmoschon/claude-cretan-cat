@@ -88,6 +88,8 @@ export type Scene = {
   isSwatted?: boolean
   // Asleep on a keyboard in the middle of the yard, whatever the mood.
   isOnKeys?: boolean
+  // The cat alone in a small square of yard: no Clawd, no bubbles.
+  isSolo?: boolean
 }
 
 // Rows Clawd's bubble takes above the yard, when it fits.
@@ -103,6 +105,21 @@ const MOST_KITTENS = 4
 // How long petting shows, and how long the sardine is in the air.
 export const PETTING_S = 3
 const TOSS_S = 1.2
+// The fishing toy: a feather on a string, swinging over his head.
+export const TOY = ['.y.', 'pyp', 'ppp', '.p.']
+export const TOY_COLORS: Record<string, Rgb> = { y: [255, 214, 90], p: [236, 104, 160] }
+// A straight line in yard pixels, from one end to the other, in a color.
+export type ToyLine = [x0: number, y0: number, x1: number, y1: number, color: Rgb]
+const STRING: Rgb = [206, 206, 220]
+const ROD: Rgb = [128, 84, 52]
+const TOY_SWING = 1.6
+// Where the toy's middle swings to at time t, in the cat's room.
+const toyX = (t: number, from: number, to: number) => {
+  const width = SPRITES.walkA[0]!.length
+  const left = from + width / 2
+  const right = to - width / 2
+  return Math.round((left + right) / 2 + (Math.sin(t * TOY_SWING) * Math.max(0, right - left)) / 2)
+}
 // How long a slap's swiping lasts before she sits back, glaring.
 const SWIPE_S = 1.5
 
@@ -111,6 +128,19 @@ export const replyFits = (cols: number) => Math.min(REPLY_MOST, cols - CAT_FROM 
 
 // Narrower than this, Clawd and the cat don't both fit.
 const MIN_COLS = 50
+
+// The square of yard the cat has to himself (/cat small, /cat dock): wide
+// enough for his widest pose, as many pixels tall as it is wide where the
+// rows allow, and never so short that the wall and lawn crowd him out.
+const SOLO_LEAST_COLS = 30
+const SOLO_MOST_COLS = 40
+const SOLO_LEAST_ROWS = 9
+export function soloFit(cols: number, maxRows: number): { cols: number; rows: number } | undefined {
+  if (cols < SOLO_LEAST_COLS) return undefined
+  const width = Math.min(SOLO_MOST_COLS, cols)
+  const rows = Math.min(Math.ceil(width / 2), maxRows)
+  return rows >= SOLO_LEAST_ROWS ? { cols: width, rows } : undefined
+}
 
 // What the band can show in the room it has, under it a caption line (and
 // the couplet as text when its bubble doesn't fit): the whole strip with
@@ -193,9 +223,19 @@ function catAt(mood: Mood, t: number, since: number, from: number, to: number): 
       // Right up to Clawd, swiping, then sitting back to glare at him.
       if (since < SWIPE_S) return { pose: Math.floor(since * 7) % 2 === 0 ? 'slapA' : 'slapB', x: from, lift: 0, isLeft: false }
       return { pose: 'sitA', x: from + 2, lift: 0, isLeft: false }
+    case 'play': {
+      // A beat behind the toy, leaping at it and swiping, then crouching.
+      const lift = Math.round(Math.max(0, Math.sin(t * 5)) * 4)
+      const pose = lift > 0 ? (Math.floor(t * 6) % 2 === 0 ? 'slapA' : 'slapB') : 'crouch'
+      return { pose, x: toyX(t - 0.25, from, to) - Math.round(width / 2), lift, isLeft: Math.cos((t - 0.25) * TOY_SWING) < 0 }
+    }
     case 'snub':
+    case 'sulk':
       // Off to the far side, eyes shut, as if he weren't there.
       return { pose: 'purr', x: to - SPRITES.purr[0]!.length, lift: 0, isLeft: false }
+    case 'butt':
+      // Turned around where he sits, tail up.
+      return { pose: 'back', x: seated, lift: 0, isLeft: false }
   }
 }
 
@@ -217,6 +257,7 @@ function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { 
     }
     case 'oops':
     case 'hiss':
+    case 'butt':
       return { look: { ...base, eyes: 'wide', arms: { left: 'up', right: 'up' } }, lift: 0 }
     case 'wait':
       // Facing you, both arms waving.
@@ -224,6 +265,9 @@ function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { 
     case 'slap':
       // Knocked back by the swipe, arms up.
       return { look: { ...base, eyes: 'wide', facing: 1, arms: { left: 'up', right: 'up' } }, lift: 0, dx: since < SWIPE_S && Math.floor(since * 7) % 2 === 1 ? -2 : -1 }
+    case 'play':
+      // Holding up the rod.
+      return { look: { ...base, arms: { left: 'down', right: 'up' } }, lift: 0 }
     case 'feast':
       // The toss: arm up, then out as the sardine leaves.
       return { look: { ...base, arms: { left: 'down', right: since < 0.25 ? 'up' : 'out' } }, lift: 0 }
@@ -302,8 +346,11 @@ export type Plan = {
   windowX: number
   feet: number
   shadows: [number, number][]
-  clawd: { look: ClawdLook; x: number; top: number }
+  // Clawd, unless the cat is alone in his square.
+  clawd?: { look: ClawdLook; x: number; top: number }
   cat: { pose: Pose; x: number; top: number; isLeft: boolean; coat: Coat }
+  // The fishing toy: the rod and the string, and the feather's top-left.
+  toy?: { lines: ToyLine[]; x: number; y: number }
   keyboard?: [number, number]
   cushion?: [number, number]
   sardine?: { x: number; y: number }
@@ -322,7 +369,9 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
   const since = scene.since ?? t
   const light = daylightAt(scene.hour ?? 12)
   const sky = SKY[light]
-  const top = rows >= YARD_ROWS + TOP_ROWS ? TOP_ROWS : 0
+  const isSolo = scene.isSolo === true
+  const catFrom = isSolo ? 1 : CAT_FROM
+  const top = !isSolo && rows >= YARD_ROWS + TOP_ROWS ? TOP_ROWS : 0
   const w = cols
   // The pixels cover the whole strip, so a pounce can rise above the yard.
   const h = rows * 2
@@ -342,11 +391,11 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
 
   // The reply bubble's place decides the cat's room.
   const replyInner = Math.min(REPLY_MOST, cols - CAT_FROM - CAT_ROOM - 6)
-  const hasReply = scene.reply !== undefined && scene.reply.length > 0 && replyInner >= REPLY_LEAST
+  const hasReply = !isSolo && scene.reply !== undefined && scene.reply.length > 0 && replyInner >= REPLY_LEAST
   const replyLines = hasReply ? wrap(scene.reply!.map(clean), replyInner, rows - 2) : []
   const replyWidth = hasReply ? Math.max(...replyLines.map(l => [...l].length)) + 2 : 0
   const bx = cols - replyWidth - 3
-  const catTo = hasReply ? bx - 3 : Math.min(cols - 1, CAT_FROM + CAT_ROOM + 10)
+  const catTo = isSolo ? cols - 1 : hasReply ? bx - 3 : Math.min(cols - 1, CAT_FROM + CAT_ROOM + 10)
 
   // The sky: stars at night, then the sun or the moon, then the mountains
   // in front of them, Psiloritis the tallest, snow-capped in winter.
@@ -362,7 +411,7 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
   // the end of Clawd's bubble, and with no reply bubble, far right, clear
   // of a sleeper's z's.
   const saidEnd = top > 0 && scene.said ? Math.min([...clean(scene.said)].length, catTo - 6) + 5 : 0
-  const orbX = hasReply ? Math.max(CAT_FROM, saidEnd + 1, catTo - 8) : cols - 10
+  const orbX = hasReply ? Math.max(CAT_FROM, saidEnd + 1, catTo - 8) : isSolo ? cols - 6 : cols - 10
   const orbY = light === 'day' || light === 'night' ? 1 : Math.max(1, trimY - 6)
   const isOrbShown = orbX + 4 < (hasReply ? bx - 1 : cols)
   const shadows: [number, number][] = []
@@ -397,7 +446,7 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
     }
   }
   // The window sits at the right of the cat's room, clear of the bubble.
-  const windowX = Math.max(CAT_FROM, Math.min(cols - 4, catTo - 5))
+  const windowX = Math.max(catFrom, Math.min(cols - 4, catTo - 5))
   plan.windowX = windowX
   for (let x = windowX; x < windowX + 3; x++) for (let y = trimY + 2; y < trimY + 4; y++) set(x, y, light === 'night' || light === 'dusk' ? LAMP : GLASS)
 
@@ -408,26 +457,28 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
     for (let x = x0; x <= x1; x++) for (const y of [feet, feet + 1]) if (y < h && y > h - LAWN_PX) set(x, y, scale(SHADOW, sky.dim))
   }
 
-  // Clawd, on the left.
-  const said = clean(scene.said ?? '')
+  // Clawd, on the left; alone, the cat has the yard to himself.
+  const said = isSolo ? '' : clean(scene.said ?? '')
   const clawd = clawdLook(mood, t, since, said !== '')
   const clawdTop = feet + 1 - CLAWD_H - clawd.lift
-  shadow(CLAWD_X + 1, CLAWD_X + CLAWD_W - 2)
   const clawdX = CLAWD_X + (clawd.dx ?? 0)
-  for (const p of clawdPixels(clawd.look)) set(clawdX + p.x, clawdTop + p.y, p.c)
-  plan.clawd = { look: clawd.look, x: clawdX, top: clawdTop }
+  if (!isSolo) {
+    shadow(CLAWD_X + 1, CLAWD_X + CLAWD_W - 2)
+    for (const p of clawdPixels(clawd.look)) set(clawdX + p.x, clawdTop + p.y, p.c)
+    plan.clawd = { look: clawd.look, x: clawdX, top: clawdTop }
+  }
 
   // Manousos, in his room. Petted, he stops to purr (asleep, he purrs on).
   const C = COATS[scene.coat]
   const isPetted = scene.petted !== undefined && scene.petted < PETTING_S
   const isSwatting = isPetted && scene.isSwatted === true
-  const cat = scene.isOnKeys ? { ...catAt('nap', t, since, CAT_FROM, catTo) } : catAt(mood, t, since, CAT_FROM, catTo)
+  const cat = scene.isOnKeys ? { ...catAt('nap', t, since, catFrom, catTo) } : catAt(mood, t, since, catFrom, catTo)
   if (isSwatting) Object.assign(cat, { pose: Math.floor((scene.petted ?? 0) * 7) % 2 === 0 ? 'slapA' : 'slapB', lift: 0, isLeft: false })
   else if (isPetted && cat.pose !== 'sleep') Object.assign(cat, { pose: 'purr', lift: 0, isLeft: false, x: cat.x + (cat.pose.startsWith('sit') ? 0 : 3) })
   const sprite = SPRITES[cat.pose]
   const spriteW = sprite[0]!.length
   // Never over Clawd, never off the right edge; never above the strip.
-  cat.x = Math.max(CAT_FROM, Math.min(cols - spriteW, cat.x))
+  cat.x = Math.max(catFrom, Math.min(cols - spriteW, cat.x))
   const isAsleep = cat.pose === 'sleep'
   const onKeys = scene.isOnKeys === true && !isPetted
   const catTop = feet + 1 - CAT_H - Math.min(cat.lift, feet + 1 - CAT_H) - (isAsleep ? 1 : 0) - (onKeys ? KEYBOARD_PX - 1 : 0)
@@ -446,14 +497,31 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
       set(x, feet + 1, CUSHION_EDGE)
     }
   } else shadow(cat.x + 3, cat.x + spriteW - 4)
+  // The fishing toy: its string from the rod's tip (Clawd holds the rod; alone,
+  // it comes from above), drawn under him, the feather over him.
+  const line = (x0: number, y0: number, x1: number, y1: number, c: Rgb) => {
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1)
+    for (let i = 0; i <= steps; i++) set(Math.round(x0 + ((x1 - x0) * i) / steps), Math.round(y0 + ((y1 - y0) * i) / steps), c)
+  }
+  const toy = mood === 'play' ? { x: toyX(t, catFrom, catTo) - 1, y: Math.max(2, feet + 1 - CAT_H - 6 + Math.round(Math.sin(t * 5 + 1) * 1.5)) } : undefined
+  if (toy) {
+    // The tip trails the swing, so the string leans.
+    const tipX = toy.x + 1 - Math.round(Math.cos(t * TOY_SWING) * 3)
+    const lines: ToyLine[] = [[tipX, 0, toy.x + 1, toy.y, STRING]]
+    if (!isSolo) lines.unshift([clawdX + CLAWD_W - 1, clawdTop + 1, tipX, 0, ROD])
+    for (const l of lines) line(...l)
+    plan.toy = { lines, x: toy.x, y: toy.y }
+  }
   blit(sprite, cat.x, catTop, C, cat.isLeft)
+  if (toy) blit(TOY, toy.x, toy.y, TOY_COLORS)
   plan.cat = { pose: cat.pose, x: cat.x, top: catTop, isLeft: cat.isLeft, coat: scene.coat }
 
   // The sardine a commit earns, tossed from Clawd's claw to his mouth.
   if (mood === 'feast' && since < TOSS_S) {
     const k = since / TOSS_S
-    const fromX = clawdX + CLAWD_W + 1
-    const fromY = clawdTop
+    // Alone, the sardine falls in from the top left.
+    const fromX = isSolo ? 0 : clawdX + CLAWD_W + 1
+    const fromY = isSolo ? 0 : clawdTop
     const toX = cat.x + 6
     const toY = catTop + 5
     const sardine = { x: Math.round(fromX + (toX - fromX) * k), y: Math.round(fromY + (toY - fromY) * k - Math.sin(k * Math.PI) * 7) }
@@ -541,7 +609,7 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
     if (Math.floor(t * 2) % 2 === 0) over(headCol + 2, Math.max(0, headRow), '!', [255, 210, 80])
   } else if (mood === 'slap') {
     // Stars where the paw lands, while it swipes.
-    if (since < SWIPE_S) over(clawdX + CLAWD_W - 1, Math.max(0, Math.floor(clawdTop / 2) + Math.floor(since * 7) % 2), '*', [255, 230, 120])
+    if (since < SWIPE_S && !isSolo) over(clawdX + CLAWD_W - 1, Math.max(0, Math.floor(clawdTop / 2) + Math.floor(since * 7) % 2), '*', [255, 230, 120])
     over(headCol + 2, Math.max(0, headRow - 1), '!', [255, 90, 90])
   } else if (mood === 'oops' || mood === 'hiss') {
     over(headCol + 2, Math.max(0, headRow - 1), '!', [255, 90, 90])

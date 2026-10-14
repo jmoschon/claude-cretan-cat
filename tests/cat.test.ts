@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import { topicOf } from '../hooks/lines'
 import { drawHd } from '../hooks/hd'
 import { HD_SCALE } from '../hooks/hd-sprites'
-import { COATS, drawCat, drawCells, skyAt } from '../hooks/manousos'
+import { COATS, drawCat, drawCells, skyAt, type Scene } from '../hooks/manousos'
 import { cellsToSvg, SVG_MOST } from '../hooks/svg'
 
 const BAND = { component: 'AbovePrompt' } as const
@@ -15,7 +15,7 @@ describe('cretan-cat', () => {
       const ui = await $.ui.mount({ plugin: 'cretan-cat', surface, ...BAND, props: PROPS })
       expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
       // The caption tells you how to hide him and change his coat.
-      expect(await ui.find({ type: 'Text', text: /\/cat ginger, tuxedo or manousos/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /\/cat asturias or manousos swaps the cat/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /γάτος|κώδικα|Μανούσος/ })).toBeUndefined()
       await ui.unmount()
     }
@@ -99,6 +99,78 @@ describe('cretan-cat', () => {
     expect((await run('ginger')).text).toMatch(/Manousos is wearing the ginger coat/)
     expect(saved.coat).toBe('ginger')
     expect((await run('zebra')).text).toMatch(/manousos, ginger, tuxedo/)
+  })
+
+  test('alone in his square, the cat has the yard to himself: no Clawd, no bubbles', () => {
+    const scene: Scene = { mood: 'think', coat: 'ginger', t: 3, cols: 34, rows: 17, said: 'go on', reply: ['a song'], hour: 12, isSolo: true }
+    const cells = drawCells(scene)
+    const orange = (217 << 16) | (119 << 8) | 87
+    const colors = new Set<number>()
+    for (let i = 0; i < cells.length; i += 3) colors.add(cells[i + 1]!).add(cells[i + 2]!)
+    expect(colors.has(orange)).toBe(false)
+    expect(cellsText(drawCat(scene))).not.toMatch(/go on|a song|╭/)
+    // The same scene in the wide yard has Clawd in it.
+    const wide = drawCells({ ...scene, cols: 120, rows: 11, isSolo: false })
+    const wideColors = new Set<number>()
+    for (let i = 0; i < wide.length; i += 3) wideColors.add(wide[i + 1]!).add(wide[i + 2]!)
+    expect(wideColors.has(orange)).toBe(true)
+  })
+
+  test('/cat small puts him in a small square in the band; /cat band gives back the yard', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('small')).toMatch(/small square/)
+    expect(saved.place).toBe('small')
+    const small = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    const raster = (await small.find({ type: 'Raster' })) as { props: { columns: number; rows: number } } | undefined
+    expect(raster?.props.columns).toBe(30)
+    expect(raster?.props.rows).toBe(12)
+    expect(await small.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    await small.unmount()
+    expect(await run('band')).toMatch(/whole yard/)
+    expect(saved.place).toBe('band')
+    const wide = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(((await wide.find({ type: 'Raster' })) as { props: { columns: number } } | undefined)?.props.columns).toBe(120)
+    await wide.unmount()
+  })
+
+  test('/cat dock opens his own pane and leaves the band; /cat band brings him back', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    // The surface's panes: open ids, placed at once.
+    const panes = new Set<string>()
+    on('ui.open', async (_$, e) => {
+      panes.add(e.id)
+      return { value: { isPlaced: true } } as never
+    })
+    on('ui.close', async (_$, e) => {
+      panes.delete(e.id)
+      return { value: undefined } as never
+    })
+    on('ui.panes', async () => ({ value: [...panes].map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })) }) as never)
+    on('ui.render', () => ({ type: 'Text', children: ['engine'] }) as never)
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } } as never)).text
+    expect(await run('dock')).toMatch(/pane of its own, docked on the right/)
+    expect(saved.place).toBe('dock')
+    expect(panes.has('cat')).toBe(true)
+    // Docked and placed, the band is left to the engine.
+    const band = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(await band.find({ type: 'Raster' })).toBeUndefined()
+    await band.unmount()
+    // /cat band closes the pane and brings him back.
+    expect(await run('band')).toMatch(/whole yard/)
+    expect(panes.has('cat')).toBe(false)
   })
 
   test('/cat help lists what he does; anything else says it is unknown, then helps', async ($, on) => {
@@ -521,6 +593,126 @@ describe('cretan-cat', () => {
     await ui.unmount()
   })
 
+  test('a treat: the treat button tosses him a sardine, apart from the work sardines', async ($, on) => {
+    const { clock, saved } = setUp(on)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'treat' })
+    await clock.settle()
+    expect(saved.treats).toBe(1)
+    expect(await ui.find({ type: 'Text', text: /got a treat from you/ })).toBeDefined()
+    expect(saved.sardines).toBeUndefined()
+    // Then back to his nap.
+    await clock.advance(4_000)
+    expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('play: the fishing toy dangles over him while he chases it, then he naps', async ($, on) => {
+    const { clock } = setUp(on)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'play' })
+    await clock.settle()
+    expect(await ui.find({ type: 'Text', text: /chasing the fishing toy/ })).toBeDefined()
+    await clock.advance(7_000)
+    expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    await ui.unmount()
+    // The feather's pink is in the yard, alone or with Clawd holding the rod.
+    const pink = (236 << 16) | (104 << 8) | 160
+    const rod = (128 << 16) | (84 << 8) | 52
+    const colorsOf = (cells: Uint32Array) => {
+      const seen = new Set<number>()
+      for (let i = 0; i < cells.length; i += 3) seen.add(cells[i + 1]!).add(cells[i + 2]!)
+      return seen
+    }
+    for (const t of [0, 1.3, 2.9]) {
+      const wide = colorsOf(drawCells({ mood: 'play', coat: 'ginger', t, cols: 120, rows: 11, hour: 12 }))
+      expect(wide.has(pink)).toBe(true)
+      expect(wide.has(rod)).toBe(true)
+      const solo = colorsOf(drawCells({ mood: 'play', coat: 'ginger', t, cols: 30, rows: 12, hour: 12, isSolo: true }))
+      expect(solo.has(pink)).toBe(true)
+      expect(solo.has(rod)).toBe(false)
+    }
+  })
+
+  test('/cat sound on: a mrrp to say so, and sounds from then on; off, quiet', async ($, on) => {
+    const { clock, saved } = setUp(on)
+    const played = listen(on)
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('sound')).toMatch(/Sound is off/)
+    expect(await run('sound on')).toMatch(/has a voice now/)
+    expect((saved.settings as Record<string, { value: string } | undefined>).sound?.value).toBe('on')
+    await clock.settle()
+    expect(played).toContain('sounds/happy.wav')
+    expect(await run('sound off')).toMatch(/quiet again/)
+    expect(await run('config')).toMatch(/^ {2}sound +off$/m)
+  })
+
+  test('play with sound on: the bell on the toy jingles, twice, then he purrs', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    const played = listen(on)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'play' })
+    await clock.settle()
+    expect(played).toEqual(['sounds/bell.wav'])
+    await clock.advance(7_000)
+    expect(played).toEqual(['sounds/bell.wav', 'sounds/bell.wav', 'sounds/purr.wav'])
+    await ui.unmount()
+  })
+
+  for (const temper of ['off', 'on'] as const) {
+    test(`temper ${temper}: play ${temper === 'on' ? 'is turned down now and then, with a sulk or the butt' : 'is always a chase'}`, { options: { temper } }, async ($, on) => {
+      const { clock } = setUp(on)
+      await clock.settle()
+      const seen = new Set<string>()
+      for (let i = 0; i < 30; i++) {
+        const said = (await $.command.run({ command: 'cat', args: 'play', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text!
+        seen.add(/shows you the butt/.test(said) ? 'butt' : /looks the other way/.test(said) ? 'sulk' : 'play')
+        await clock.advance(7_000)
+      }
+      expect([...seen].sort()).toEqual(temper === 'on' ? ['butt', 'play', 'sulk'] : ['play'])
+    })
+  }
+
+  test('high resolution has its own art for the butt and the feather, not blocks', () => {
+    const scene = { coat: 'ginger', t: 1.3, since: 1.3, cols: 110, rows: 11, hour: 12 } as const
+    // The HD feather's light spine and the HD back's rim light are colors the
+    // low-resolution blocks never use.
+    const has = (rgba: Uint8Array, [r, g, b]: number[]) => {
+      for (let i = 0; i < rgba.length; i += 4) if (rgba[i] === r && rgba[i + 1] === g && rgba[i + 2] === b && rgba[i + 3] === 255) return true
+      return false
+    }
+    expect(has(drawHd({ ...scene, mood: 'play' }).rgba, [250, 160, 200])).toBe(true)
+    expect(has(drawHd({ ...scene, mood: 'butt' }).rgba, [252, 208, 152])).toBe(true)
+  })
+
+  test('the butt: drawn from behind, tail up, the pink under it', () => {
+    const pink = (232 << 16) | (120 << 8) | 140
+    const cells = drawCells({ mood: 'butt', coat: 'ginger', t: 1, cols: 120, rows: 11, hour: 12 })
+    let hasPink = false
+    for (let i = 0; i < cells.length; i += 3) if (cells[i + 1] === pink || cells[i + 2] === pink) hasPink = true
+    expect(hasPink).toBe(true)
+  })
+
+  test('/cat hints off: just "napping", no tips; on brings them back, kept', async ($, on) => {
+    const { saved } = setUp(on)
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('hints off')).toMatch(/Just "Manousos is napping"/)
+    expect(saved.hints).toBe(false)
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /\/cat help/ })).toBeUndefined()
+    await run('hints on')
+    await ui.redraw()
+    expect(await ui.find({ type: 'Text', text: /\/cat help · \/cat hide/ })).toBeDefined()
+    await ui.unmount()
+    expect(await run('hints')).toMatch(/Hints are on/)
+  })
+
   // What $.audio.play was asked to play, asset by asset.
   const listen = (on: any) => {
     const played: string[] = []
@@ -906,14 +1098,15 @@ describe('cretan-cat', () => {
     expect(await cmd($, 'name')).toMatch(/called Manousos/)
     expect(await cmd($, 'name Luna Bella')).toMatch(/called Luna Bella now/)
     expect(await cmd($, 'name ' + 'x'.repeat(21))).toMatch(/too long/)
-    expect(await cmd($, 'language rioplatense')).toMatch(/speaks rioplatense now/)
-    expect(await cmd($, 'lang klingon')).toMatch(/greek, english, spanish, rioplatense/)
+    // The old name still works, and means spanish.
+    expect(await cmd($, 'language rioplatense')).toMatch(/speaks spanish now/)
+    expect(await cmd($, 'lang klingon')).toMatch(/greek, english, spanish changes it/)
     expect(await cmd($, 'songs english')).toMatch(/sings in english now/)
-    expect(await cmd($, 'songs')).toMatch(/greek, spanish, english/)
+    expect(await cmd($, 'songs')).toMatch(/greek, english, spanish changes it/)
     expect(await cmd($, 'temper on')).toMatch(/has a temper now/)
     expect(writes).toEqual([
       ['cretan-cat.name', 'Luna Bella'],
-      ['cretan-cat.language', 'rioplatense'],
+      ['cretan-cat.language', 'spanish'],
       ['cretan-cat.songs', 'english'],
       ['cretan-cat.temper', 'on'],
     ])
@@ -970,11 +1163,11 @@ describe('cretan-cat', () => {
   test('/cat asturias brings her back whole; /cat reset brings Manousos back as he came', async ($, on) => {
     const { clock, saved, finish } = setUp(on)
     on('config.list', async () => ({ value: [] }) as never)
-    expect(await cmd($, 'asturias')).toMatch(/^Asturias is here now\. ¿Qué querés\? \(\/cat reset brings Manousos back\)$/)
+    expect(await cmd($, 'asturias')).toMatch(/^Asturias is here now\. ¿Qué querés\? \(\/cat manousos brings Manousos back\)$/)
     expect(saved.coat).toBe('ginger')
     expect(saved.settings).toEqual({
       name: { value: 'Asturias', over: 'Manousos' },
-      language: { value: 'rioplatense', over: 'greek' },
+      language: { value: 'spanish', over: 'greek' },
       songs: { value: 'spanish', over: 'greek' },
       temper: { value: 'on', over: 'off' },
     })
@@ -1004,6 +1197,32 @@ describe('cretan-cat', () => {
     expect(await caption($, /Manousos is napping/)).toBe(true)
   })
 
+  test('/cat asturias saves her coat before any /config write (a write may reload the plugin); /cat manousos is him whole', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    const coatAtWrite: unknown[] = []
+    const row = (field: string) => ({ key: `cretan-cat.${field}`, label: field, kind: 'text', value: '', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: false })
+    on('config.list', async () => ({ value: ['name', 'language', 'songs', 'temper'].map(row) }) as never)
+    on('config.set', async (_$, e) => {
+      coatAtWrite.push(saved.coat)
+      return { value: e.value } as never
+    })
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    await cmd($, 'asturias')
+    expect(coatAtWrite.length).toBeGreaterThan(0)
+    expect(coatAtWrite.every(c => c === 'ginger')).toBe(true)
+    expect(await cmd($, 'manousos')).toMatch(/Manousos is back/)
+    expect(saved.coat).toBe('manousos')
+    expect(await cmd($, 'temper')).toMatch(/Temper is off/)
+    // A coat alone: /cat coat manousos keeps her Asturias.
+    await cmd($, 'asturias')
+    expect(await cmd($, 'coat manousos')).toMatch(/Asturias is wearing the manousos coat/)
+    expect(await cmd($, 'coat')).toMatch(/\/cat coat manousos, ginger, tuxedo/)
+  })
+
   test('/cat asturias writes the /config rows, and leaves a locked one alone', async ($, on) => {
     const writes: [string, unknown][] = []
     const row = (field: string) => ({ key: `cretan-cat.${field}`, label: field, kind: 'text', value: '', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: field === 'temper' })
@@ -1021,7 +1240,7 @@ describe('cretan-cat', () => {
     expect(await cmd($, 'asturias')).toMatch(/Couldn't change the temper is locked in \/config/)
     expect(writes).toEqual([
       ['cretan-cat.name', 'Asturias'],
-      ['cretan-cat.language', 'rioplatense'],
+      ['cretan-cat.language', 'spanish'],
       ['cretan-cat.songs', 'spanish'],
     ])
     expect(await cmd($, 'temper')).toMatch(/Temper is off/)
@@ -1036,11 +1255,21 @@ describe('cretan-cat', () => {
     expect(await caption($, /Asturias is thinking/)).toBe(true)
   })
 
-  test('language rioplatense: Clawd says it the Buenos Aires way', { options: { language: 'rioplatense' } }, async ($, on) => {
+  test('language spanish: Clawd says it the Buenos Aires way', { options: { language: 'spanish' } }, async ($, on) => {
     const { clock } = setUp(on)
     await $.turn.start({ turnId: 't1' } as never)
     await clock.settle()
     expect(await yardText($)).toMatch(/a laburar|Qué hacés ahí|Dale Manousos/)
+  })
+
+  test('kept by /cat under the old name, rioplatense is spanish', async ($, on) => {
+    const { saved } = setUp(on)
+    saved.settings = { language: { value: 'rioplatense', over: 'greek' } }
+    on('session.start', async (_$: unknown, e: { cwd: string }) => ({ cwd: e.cwd }) as never)
+    on('command.register', async () => ({ value: undefined }) as never)
+    on('agent.list', async () => ({ value: [] }) as never)
+    await $.session.start({ cwd: '/tmp' } as never)
+    expect(await cmd($, 'language')).toMatch(/Clawd speaks spanish/)
   })
 
   // Nudges come while Claude thinks; with a temper, some earn a slap or a snub.

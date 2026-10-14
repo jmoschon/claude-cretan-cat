@@ -206,6 +206,23 @@ export const SPRITES = {
     '.....offfowwwwwofffoodo.',
     '......oowwwoowwwoooddo..',
   ],
+  // From behind, tail up: what you get for dangling a toy at a cat with a temper.
+  back: [
+    '...ofo.ooo.ofo.oddo...',
+    '...odfofffofdo..oddo..',
+    '....offfffffo...oddo..',
+    '...offfffffffo.oddo...',
+    '...offfffffffo.oddo...',
+    '...offfffffffooddo....',
+    '....offfffffooddo.....',
+    '...oooddddddoddo......',
+    '..offffffffoddofo.....',
+    '.offfFFfffoddofffo....',
+    '.offffffffoddofffo....',
+    '.offfffffoddoffffo....',
+    '..offfffonddofffo.....',
+    '...wwwfffofffwww......',
+  ],
 } satisfies Record<string, string[]>
 
 // A kitten, one per subagent Claude has running, in two running frames,
