@@ -1,5 +1,6 @@
 {
   "name": "claude-cretan-cat",
+  "description": "Manousos, a pixel-art Cretan cat above your Claude Code prompt.",
   "owner": { "name": "Yiannis Moschonas" },
   "plugins": [{ "name": "cretan-cat", "source": "./" }]
 }
