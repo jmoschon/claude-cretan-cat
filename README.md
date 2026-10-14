@@ -119,7 +119,7 @@ To update, run `git pull` in the folder.
 | `/cat temper on`, `/cat temper off` | Give the cat a temper, or take it away. See below. |
 | `/cat asturias` | Asturias, all at once: named Asturias, in the ginger coat, Clawd in rioplatense, coplas and tangos, temper on. She answers in her own words (*¿Qué querés?*, *Yo no fui, che*, *¿Sardina? ¿Y el asado?*). |
 | `/cat reset` | Manousos as he came: his name and coat, Greek, mantinades, no temper. |
-| `/cat stats` | How many sardines he has had today and in all (one per commit, or per finished task that used tools), and how often he has been petted. |
+| `/cat stats` | His stats, drawn: today's sardines as fish (one per commit, or per finished task that used tools), how full his belly is, sardines in all and his best day, pets and swats, the last seven days as bars, and his rank, from *Village kitten* to *Lord of Psiloritis*. |
 | `/cat config` | Every setting and what it is now, sound included. `/cat settings` works too. |
 | `/cat help` | Lists all of this. Anything `/cat` doesn't know says so, then shows the same. |
 
