@@ -693,7 +693,7 @@ async function treatTo($: EngineInterface, mood: Mood, ms: number) {
     if (!inTurn) void setMood($, 'nap').catch(() => {})
   })
 }
-const PLAY_MS = 6_000
+const PLAY_MS = 4_500
 
 // The fishing toy: its bell jingles as it comes out and again mid-chase,
 // and he purrs when he gives up on it. With a temper, now and then he won't:

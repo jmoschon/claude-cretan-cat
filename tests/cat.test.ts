@@ -677,6 +677,18 @@ describe('cretan-cat', () => {
     })
   }
 
+  test('high resolution has its own art for the butt and the feather, not blocks', () => {
+    const scene = { coat: 'ginger', t: 1.3, since: 1.3, cols: 110, rows: 11, hour: 12 } as const
+    // The HD feather's light spine and the HD back's rim light are colors the
+    // low-resolution blocks never use.
+    const has = (rgba: Uint8Array, [r, g, b]: number[]) => {
+      for (let i = 0; i < rgba.length; i += 4) if (rgba[i] === r && rgba[i + 1] === g && rgba[i + 2] === b && rgba[i + 3] === 255) return true
+      return false
+    }
+    expect(has(drawHd({ ...scene, mood: 'play' }).rgba, [250, 160, 200])).toBe(true)
+    expect(has(drawHd({ ...scene, mood: 'butt' }).rgba, [252, 208, 152])).toBe(true)
+  })
+
   test('the butt: drawn from behind, tail up, the pink under it', () => {
     const pink = (232 << 16) | (120 << 8) | 140
     const cells = drawCells({ mood: 'butt', coat: 'ginger', t: 1, cols: 120, rows: 11, hour: 12 })
