@@ -446,15 +446,27 @@ function meow($: EngineInterface) {
 // The day's sardines, one per commit or per finished turn that did some
 // work (not both for the same turn), kept across sessions: the count for
 // the local date it was last counted on, and the count of all time.
-type Tally = { day: string; today: number; total: number }
-const today = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// Sardines: today's, all of them, the best day, and the last week's, day by day.
+type Tally = { day: string; today: number; total: number; best: number; bestDay: string; days: Record<string, number> }
+const dateOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const today = () => dateOf(new Date())
+// The last seven days, oldest first, today last.
+const lastWeek = () =>
+  Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (6 - i))
+    return d
+  })
 async function tally($: EngineInterface): Promise<Tally> {
   const saved = (await $.store.get('sardines')) as Partial<Tally> | undefined
   const total = typeof saved?.total === 'number' ? saved.total : 0
-  return { day: today(), today: saved?.day === today() && typeof saved.today === 'number' ? saved.today : 0, total }
+  const todays = saved?.day === today() && typeof saved.today === 'number' ? saved.today : 0
+  const days = { ...(typeof saved?.days === 'object' && saved.days !== null ? saved.days : {}) }
+  // Kept from before days were counted: the last day it ate is still known.
+  if (typeof saved?.day === 'string' && typeof saved.today === 'number' && days[saved.day] === undefined) days[saved.day] = saved.today
+  const best = typeof saved?.best === 'number' ? saved.best : Math.max(0, ...Object.values(days))
+  const bestDay = typeof saved?.bestDay === 'string' ? saved.bestDay : (Object.entries(days).find(([, n]) => n === best)?.[0] ?? '')
+  return { day: today(), today: todays, total, best, bestDay, days }
 }
 // One at a time, so two commits finishing together both count.
 let eating: Promise<unknown> = Promise.resolve()
@@ -462,12 +474,72 @@ function eatSardine($: EngineInterface) {
   eating = eating
     .then(async () => {
       const was = await tally($)
-      const now = { ...was, today: was.today + 1, total: was.total + 1 }
+      const eaten = was.today + 1
+      // Only the last week is drawn, so only the last week is kept.
+      const week = new Set(lastWeek().map(dateOf))
+      const days = Object.fromEntries(Object.entries({ ...was.days, [was.day]: eaten }).filter(([d]) => week.has(d)))
+      const isBest = eaten > was.best
+      const now = { ...was, today: eaten, total: was.total + 1, days, best: isBest ? eaten : was.best, bestDay: isBest ? was.day : was.bestDay }
       await $.store.set('sardines', now)
       await update($, cat, c => ({ ...c, sardines: now.today }))
     })
     .catch(() => {})
   return eating
+}
+
+// /cat stats, drawn: fish for today, a belly, the week as bars, a rank.
+const RANKS: [number, string][] = [
+  [0, 'Kitten, no sardine yet'],
+  [1, 'Village kitten'],
+  [10, 'Courtyard cat'],
+  [30, 'Harbour cat of Chania'],
+  [100, 'Sardine pirate'],
+  [300, 'Captain of the fishing boats'],
+  [1000, 'Lord of Psiloritis'],
+]
+const BELLY: [number, string][] = [
+  [0, 'empty, staring at you'],
+  [1, 'peckish'],
+  [3, 'content'],
+  [6, 'round'],
+  [10, 'stuffed, purring'],
+]
+const BELLY_FULL = 10
+const BARS = ' ▁▂▃▄▅▆▇█'
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+function statsText(cat: string, t: Tally, pets: number, swats: number): string {
+  const s = (n: number) => (n === 1 ? '' : 's')
+  const atLeast = <T,>(steps: [number, T][], n: number) => steps.filter(([from]) => n >= from).at(-1)![1]
+  const fish = t.today === 0 ? '·' : '🐟'.repeat(Math.min(t.today, BELLY_FULL)) + (t.today > BELLY_FULL ? ` +${t.today - BELLY_FULL}` : '')
+  const full = Math.min(t.today, BELLY_FULL)
+  const belly = `${'█'.repeat(full)}${'░'.repeat(BELLY_FULL - full)} ${atLeast(BELLY, t.today)}`
+  const rank = atLeast(RANKS, t.total)
+  const next = RANKS.find(([from]) => from > t.total)
+  const week = lastWeek()
+  const counts = week.map(d => t.days[dateOf(d)] ?? 0)
+  const top = Math.max(1, ...counts)
+  const bars = counts.map(n => (n === 0 ? '  ' : BARS[Math.max(1, Math.round((n / top) * 8))]!.repeat(2))).join(' ')
+  const labels = week.map(d => WEEKDAYS[d.getDay()]).join(' ')
+  const best = t.best === 0 ? '' : ` · best day ${t.best}${t.bestDay === t.day ? ' (today!)' : ` (${t.bestDay})`}`
+  const rows: [string, string][] = [
+    ['today', `${fish}  ${t.today} sardine${s(t.today)}`],
+    ['belly', belly],
+    ['in all', `${t.total} sardine${s(t.total)}${best}`],
+    ['petted', `${pets} time${s(pets)} ♥${swats > 0 ? ` · swatted you ${swats} time${s(swats)}` : ''}`],
+    ['rank', `${rank}${next ? ` (${next[1]} at ${next[0]})` : ''}`],
+  ]
+  const width = Math.max(...rows.map(([k]) => k.length), 'this week'.length)
+  const line = (k: string, v: string) => `  ${k.padEnd(width)}  ${v}`
+  return [
+    `${cat}'s stats`,
+    '',
+    ...rows.map(([k, v]) => line(k, v)),
+    '',
+    line('this week', bars.trimEnd() === '' ? '(nothing yet)' : bars),
+    ...(bars.trimEnd() === '' ? [] : [line('', labels)]),
+    '',
+    'One sardine per commit, or per finished task that used tools.',
+  ].join('\n')
 }
 
 // Pets the cat; whether it earned a swat instead of a purr.
@@ -483,6 +555,10 @@ async function pet($: EngineInterface): Promise<boolean> {
   $.clock.after(PETTING_S * 1000 + 50, () => void update($, cat, c => ({ ...c, frame: c.frame + 1 })).catch(() => {}))
   const pets = await $.store.get('pets')
   await $.store.set('pets', (typeof pets === 'number' ? pets : 0) + 1)
+  if (isSwatted) {
+    const swats = await $.store.get('swats')
+    await $.store.set('swats', (typeof swats === 'number' ? swats : 0) + 1)
+  }
   return isSwatted
 }
 
@@ -688,11 +764,8 @@ export const register: Register = (on, options) => {
       return { text: isSwatted ? `${name()} swats your hand: ${linesOf().swat}` : `${name()} purrs, eyes closed.` }
     }
     if (arg === 'stats') {
-      const { today: sardines, total } = await tally($)
-      const pets = await $.store.get('pets')
-      const s = (n: number) => (n === 1 ? '' : 's')
-      const petted = typeof pets === 'number' ? pets : 0
-      return { text: `${name()} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit, and has been petted ${petted} time${s(petted)}.` }
+      const count = (v: unknown) => (typeof v === 'number' ? v : 0)
+      return { text: statsText(name(), await tally($), count(await $.store.get('pets')), count(await $.store.get('swats'))) }
     }
     if (arg === 'name') {
       // As you typed it, capitals and all; empty, the name it has now.

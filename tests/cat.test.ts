@@ -121,6 +121,21 @@ describe('cretan-cat', () => {
     expect(config).toMatch(/^ {2}sound +off$/m)
   })
 
+  test('/cat stats draws stats kept before days were counted, swats included', async ($, on) => {
+    const d = new Date()
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const store: Record<string, unknown> = { sardines: { day, today: 33, total: 33 }, pets: 30, swats: 9 }
+    on('store.get', async (_$, e) => ({ value: store[(e as { key: string }).key] }))
+    on('store.set', async () => ({ value: undefined }))
+    const stats = (await $.command.run({ command: 'cat', args: 'stats', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text!
+    expect(stats).toMatch(/today +(🐟){10} \+23  33 sardines/)
+    expect(stats).toMatch(/belly +█{10} stuffed, purring/)
+    expect(stats).toMatch(/in all +33 sardines · best day 33 \(today!\)/)
+    expect(stats).toMatch(/petted +30 times ♥ · swatted you 9 times/)
+    expect(stats).toMatch(/rank +Harbour cat of Chania \(Sardine pirate at 100\)/)
+    expect(stats).toMatch(/this week +.*██$/m)
+  })
+
   test('/cat pet pets him from the prompt; hidden, he waits to come back first', async ($, on) => {
     const saved: Record<string, unknown> = {}
     on('store.get', async (_$, e) => ({ value: saved[e.key] }))
@@ -140,7 +155,7 @@ describe('cretan-cat', () => {
     await run('hide')
     expect(await run('pet')).toMatch(/\/cat show/)
     expect(saved.pets).toBe(1)
-    expect(await run('stats')).toMatch(/petted 1 time\./)
+    expect(await run('stats')).toMatch(/petted +1 time ♥/)
   })
 
   test('hidden stays hidden in the next session; /cat show or a coat brings him back', async ($, on) => {
@@ -433,7 +448,14 @@ describe('cretan-cat', () => {
     await finish('Bash', { result: 'nothing to commit', isError: true })
     await failed
     const stats = await $.command.run({ command: 'cat', args: 'stats', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
-    expect(stats.text).toMatch(/2 sardines today and 2 in all/)
+    expect(stats.text).toMatch(/today +🐟🐟  2 sardines/)
+    expect(stats.text).toMatch(/belly +██░{8} peckish/)
+    expect(stats.text).toMatch(/in all +2 sardines · best day 2 \(today!\)/)
+    expect(stats.text).toMatch(/rank +Village kitten \(Courtyard cat at 10\)/)
+    // The week as bars, today's the tallest, over the days' names.
+    const week = stats.text!.split('\n').findIndex(l => l.includes('this week'))
+    expect(stats.text!.split('\n')[week]).toMatch(/██$/)
+    expect(stats.text!.split('\n')[week + 1]).toMatch(/(Su|Mo|Tu|We|Th|Fr|Sa)$/)
   })
 
   test('finished work earns a sardine, then the song; a chat, Esc or a commit turn earns no extra', async ($, on) => {
@@ -808,7 +830,7 @@ describe('cretan-cat', () => {
     const text = await yardText($)
     expect(text).toContain('Luna')
     expect(text).not.toContain('Μανούσο')
-    expect(await cmd($, 'stats')).toMatch(/^Luna has had/)
+    expect(await cmd($, 'stats')).toMatch(/^Luna's stats/)
   })
 
   for (const [songs, sung] of [
