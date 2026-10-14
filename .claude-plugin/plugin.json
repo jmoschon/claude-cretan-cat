@@ -12,7 +12,7 @@
       "title": "Cretan cat: language",
       "description": "What Clawd says to Manousos, and Manousos' short replies. The mantinades he sings are always in Greek.",
       "default": "greek",
-      "options": ["greek", "english", "spanish"]
+      "options": ["greek", "english", "spanish", "polish"]
     }
   }
 }
