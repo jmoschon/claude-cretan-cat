@@ -25,7 +25,7 @@ const linesOf = () => LINES[language](catName)
 // it can; where it can't, it keeps the value in the store, with the /config
 // value it was set over. Whichever changed last wins: a /config value that
 // has changed since replaces the command's.
-const FIELDS = ['name', 'language', 'songs', 'temper'] as const
+const FIELDS = ['name', 'language', 'songs', 'temper', 'sound'] as const
 type Field = (typeof FIELDS)[number]
 type Override = { value: string; over: unknown }
 let fromConfig: Partial<Record<Field, unknown>> = {}
@@ -38,6 +38,7 @@ function apply(field: Field, value: unknown) {
     songLanguage = next
   }
   if (field === 'temper') isTempered = value === 'on'
+  if (field === 'sound') isSoundOn = value === 'on'
 }
 const TICK_MS = 400
 const CAPTION_WIDTH = 60
@@ -78,7 +79,7 @@ let language: Language = 'greek'
 // sardine comes, a "mew?" when Claude waits for you, a purr when petted, a
 // hiss at red tests or with a swat (scripts/sounds.py makes them).
 let isSoundOn = false
-type Sound = 'happy' | 'mew' | 'purr' | 'hiss'
+type Sound = 'happy' | 'mew' | 'purr' | 'hiss' | 'bell'
 // At most one sound in SOUND_GAP_MS, the first of a burst: done and a
 // sardine back to back make one sound.
 const SOUND_GAP_MS = 2_000
@@ -271,6 +272,7 @@ const POSES: Record<Mood, string[][]> = {
   hiss: BASE_POSES.oops,
   feast: BASE_POSES.happy,
   bored: BASE_POSES.nap,
+  play: BASE_POSES.slap,
 }
 
 // Pad every line to the widest pose so the walk offset stays even.
@@ -279,8 +281,11 @@ const FRAMES = Object.fromEntries(
   Object.entries(POSES).map(([mood, frames]) => [mood, frames.map(f => f.map(l => l.padEnd(CAT_WIDTH)))]),
 ) as Record<Mood, string[][]>
 
+// Whether the napping caption carries the /cat hints (/cat hints on|off),
+// kept across sessions.
+let hasHints = true
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${name()} is napping · /cat help · /cat hide · /cat ginger, tuxedo or manousos changes the coat`,
+  nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat ginger, tuxedo or manousos changes the coat' : ''}`,
   think: () => `${name()} is thinking it over`,
   tool: c => `${name()} is on it: ${shortTool(c.tool ?? 'a tool')}`,
   happy: () => `${name()} purrs: done!`,
@@ -291,10 +296,11 @@ const CAPTION: Record<Mood, (c: Cat) => string> = {
     }`,
   dance: () => `${name()} dances: the tests passed`,
   hiss: () => `${name()} hisses: the tests failed`,
-  feast: c => `${name()} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`,
+  feast: c => (fedFor === 'treat' ? `${name()} got a treat from you` : `${name()} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`),
   bored: c => `${name()} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
   slap: () => `${name()} slapped Clawd for nagging`,
   snub: () => `${name()} is ignoring Clawd`,
+  play: () => `${name()} is chasing the fishing toy`,
 }
 
 // A shuffled deck: every couplet plays once before any repeats. The deck is
@@ -336,6 +342,7 @@ const COLOR: Record<Mood, string> = {
   bored: 'gray',
   slap: 'red',
   snub: 'gray',
+  play: 'cyan',
 }
 
 // Outside the terminal the ASCII cat wears his coat's color while calm; a
@@ -406,7 +413,7 @@ let inTurn = false
 // what the last sardine was for.
 let didWork = false
 let isFed = false
-let fedFor: 'commit' | 'work' = 'commit'
+let fedFor: 'commit' | 'work' | 'treat' = 'commit'
 const lastOf = (list: Call[], test: (c: Call) => boolean) => {
   for (let i = list.length - 1; i >= 0; i--) if (test(list[i]!)) return list[i]
   return undefined
@@ -595,6 +602,37 @@ async function pet($: EngineInterface): Promise<boolean> {
   return isSwatted
 }
 
+// A moment you give him from the band or /cat: in a turn, a short reaction;
+// outside one, the mood for `ms`, then back to his nap.
+async function treatTo($: EngineInterface, mood: Mood, ms: number) {
+  if (inTurn) return react($, mood)
+  await setMood($, mood)
+  settle = $.clock.after(ms, () => {
+    if (!inTurn) void setMood($, 'nap').catch(() => {})
+  })
+}
+const PLAY_MS = 6_000
+
+// The fishing toy: its bell jingles as it comes out and again mid-chase,
+// and he purrs when he gives up on it.
+async function play($: EngineInterface) {
+  sound($, 'bell')
+  await treatTo($, 'play', PLAY_MS)
+  const ms = inTurn ? FLASH_MS : PLAY_MS
+  if (!inTurn) $.clock.after(ms / 2, () => sound($, 'bell'))
+  $.clock.after(ms, () => sound($, 'purr'))
+}
+
+// A treat from you: the sardine toss. It isn't one of the day's sardines,
+// which are earned by the work.
+async function treat($: EngineInterface) {
+  fedFor = 'treat'
+  sound($, 'happy')
+  const treats = await $.store.get('treats')
+  await $.store.set('treats', (typeof treats === 'number' ? treats : 0) + 1)
+  return treatTo($, 'feast', FLASH_MS)
+}
+
 // What a finished Bash call's output says: you rejected it at the prompt;
 // it went to the background (it has not finished); a commit went in.
 const REJECTED = /^\s*(?:The user doesn't want to proceed|User rejected|.{0,60}tool use was rejected)/i
@@ -685,7 +723,6 @@ function yardOf(table: ReturnType<EngineInterface['ui']['resolve']>, isTerminal:
 }
 
 export const register: Register = (on, options) => {
-  isSoundOn = options.sound === 'on'
   soundAt = -Infinity
   isSounding = false
   Object.assign(stage, STAGE_START)
@@ -698,7 +735,7 @@ export const register: Register = (on, options) => {
   flash = null
   settle = null
   deck = []
-  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper }
+  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper, sound: options.sound }
   for (const field of FIELDS) apply(field, fromConfig[field])
 
   on('session.start', async ($, e, next) => {
@@ -728,6 +765,7 @@ export const register: Register = (on, options) => {
       // So does where he lives; docked, his pane opens again.
       const where = await $.store.get('place')
       if (isPlace(where)) await update($, place, () => where)
+      hasHints = (await $.store.get('hints')) !== false
       if (where === 'dock' && !(await read($, isHidden))) void openPane($)
       const { today: sardines } = await tally($)
       // A new session, or this module reloaded: no turn is known to be under
@@ -841,7 +879,7 @@ export const register: Register = (on, options) => {
       return { text: refused.length === 0 ? done : `Couldn't change ${refused.join('; ')}` }
     }
     // A whole cat at once: its settings and its coat.
-    const becomes = async (look: Coat, settings: Record<Field, string>, done: string) => {
+    const becomes = async (look: Coat, settings: Record<Exclude<Field, 'sound'>, string>, done: string) => {
       const refused = await change(settings)
       await update($, coat, () => look)
       await reveal($)
@@ -878,6 +916,22 @@ export const register: Register = (on, options) => {
       const isSwatted = await pet($)
       return { text: isSwatted ? `${name()} swats your hand: ${linesOf().swat}` : `${name()} purrs, eyes closed.` }
     }
+    if (arg === 'hints') {
+      if (value !== 'on' && value !== 'off') return { text: `Hints are ${hasHints ? 'on' : 'off'}. /cat hints on or off shows or hides the /cat tips under the napping cat.` }
+      hasHints = value === 'on'
+      await $.store.set('hints', hasHints)
+      await update($, cat, c => ({ ...c, frame: c.frame + 1 }))
+      return { text: hasHints ? 'The /cat tips are back under the napping cat.' : `Just "${name()} is napping" from now on. /cat hints on brings the tips back.` }
+    }
+    if ((arg === 'treat' || arg === 'play') && value === '') {
+      if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back first.` }
+      if (arg === 'treat') {
+        await treat($)
+        return { text: `${name()} catches the sardine and eats it whole.` }
+      }
+      await play($)
+      return { text: `You dangle the fishing toy, and ${name()} goes after it.` }
+    }
     if (arg === 'stats') {
       const count = (v: unknown) => (typeof v === 'number' ? v : 0)
       return { text: statsText(name(), await tally($), count(await $.store.get('pets')), count(await $.store.get('swats'))) }
@@ -902,6 +956,13 @@ export const register: Register = (on, options) => {
       if (value !== 'on' && value !== 'off') return { text: `Temper is ${isTempered ? 'on' : 'off'}. /cat temper on or off changes it.` }
       return setting('temper', value, value === 'on' ? `${name()} has a temper now: nag and it bites back.` : `${name()} is calm again.`)
     }
+    if (arg === 'sound') {
+      if (value !== 'on' && value !== 'off') return { text: `Sound is ${isSoundOn ? 'on' : 'off'}. /cat sound on or off changes it (it plays on macOS only).` }
+      const done = value === 'on' ? `${name()} has a voice now: a happy mrrp when the work is done, a mew when Claude waits for you, a purr when petted.` : `${name()} is quiet again.`
+      const said = await setting('sound', value, done)
+      if (value === 'on') sound($, 'happy')
+      return said
+    }
     if ((arg === 'config' || arg === 'settings') && value === '') {
       const rows: [string, string][] = [
         ['name', name()],
@@ -911,7 +972,7 @@ export const register: Register = (on, options) => {
         ['temper', isTempered ? 'on' : 'off'],
         ['sound', isSoundOn ? 'on' : 'off'],
       ]
-      return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; sound only changes in /config, "Cretan cat".` }
+      return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; they are under /config, "Cretan cat", too.` }
     }
     if (isCoat(arg) && value === '') {
       await update($, coat, () => arg)
@@ -928,18 +989,22 @@ export const register: Register = (on, options) => {
         ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now)`],
         ['/cat songs <language>', `what ${name()} sings: ${SONG_LANGUAGES.join(', ')} (${songLanguage} now)`],
         ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
+        ['/cat sound on|off', `whether ${name()} mrrps, mews, purrs and hisses, on macOS (${isSoundOn ? 'on' : 'off'} now)`],
         ['/cat asturias', 'Asturias: ginger, rioplatense, coplas and a temper'],
         ['/cat reset', 'Manousos as he came'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
+        ['/cat treat', 'toss the cat a sardine (or press treat)'],
+        ['/cat play', 'dangle the fishing toy (or press play)'],
         ['/cat stats', 'sardines and pets'],
         ['/cat config', 'every setting and what it is now'],
         ['/cat hide|show', 'hide the cat, or bring it back (/cat alone toggles)'],
+        ['/cat hints on|off', `the /cat tips under the napping cat (${hasHints ? 'on' : 'off'} now)`],
         ['/cat small', 'the cat alone in a small square at the right, above the prompt'],
         ['/cat dock', 'the cat in a pane of its own, docked on the right'],
         ['/cat band', 'the whole yard above the prompt again'],
       ]),
       '',
-      'The same settings, and sound, are under /config, "Cretan cat".',
+      'The same settings are under /config, "Cretan cat".',
     ].join('\n')
     return { text: arg === 'help' && value === '' ? help : `${name()} doesn't know "/cat ${raw}".\n\n${help}` }
   })
@@ -1138,6 +1203,16 @@ export const register: Register = (on, options) => {
         pet
       </Button>
     )
+    const treating = (
+      <Button key="treat" plain hotkey="t" dimColor onPress={() => void treat($).catch(() => {})}>
+        treat
+      </Button>
+    )
+    const playing = (
+      <Button key="play" plain hotkey="y" dimColor onPress={() => void play($).catch(() => {})}>
+        play
+      </Button>
+    )
     const isTerminal = e.surface === 'terminal'
     const requestId = isTerminal ? e.requestId : undefined
     const verse = isSinging(c.mood) ? reply : undefined
@@ -1151,10 +1226,12 @@ export const register: Register = (on, options) => {
         return (
           <Box flexDirection="row" justifyContent="flex-end">
             <Box key="beside" flexDirection="column" justifyContent="flex-end" alignItems="flex-end" flexShrink={1} marginRight={1}>
-              <Box key="under" flexDirection="row">
+              <Box key="under" flexDirection="row" gap={2}>
                 {petting}
+                {treating}
+                {playing}
                 <Text key="caption" dimColor wrap="truncate">
-                  {`  ${caption}`}
+                  {caption}
                 </Text>
               </Box>
               {verse?.map((line, i) => (
@@ -1186,10 +1263,12 @@ export const register: Register = (on, options) => {
               {`Clawd: ${said}`}
             </Text>
           )}
-          <Box key="under" flexDirection="row">
+          <Box key="under" flexDirection="row" gap={2}>
             {petting}
+            {treating}
+            {playing}
             <Text key="caption" dimColor wrap="truncate">
-              {`  ${caption}`}
+              {caption}
             </Text>
           </Box>
           {/* Too narrow for his bubble: he sings under the yard instead. */}
@@ -1218,10 +1297,12 @@ export const register: Register = (on, options) => {
           ))}
         </Box>
         <Box flexDirection="column" justifyContent="flex-end" marginLeft={1}>
-          <Box key="under" flexDirection="row">
+          <Box key="under" flexDirection="row" gap={2}>
             {petting}
+            {treating}
+            {playing}
             <Text key="caption" dimColor wrap="truncate">
-              {`  ${caption}`}
+              {caption}
             </Text>
           </Box>
           {verse?.map((line, i) => (
@@ -1258,14 +1339,20 @@ export const register: Register = (on, options) => {
             {(FRAMES[c.mood][c.frame % FRAMES[c.mood].length] ?? []).join('\n')}
           </Text>
         )}
-        <Box key="under" flexDirection="row">
+        <Box key="buttons" flexDirection="row" gap={2}>
           <Button key="pet" plain hotkey="p" dimColor onPress={() => void pet($).catch(() => {})}>
             pet
           </Button>
-          <Text key="caption" dimColor wrap="wrap">
-            {`  ${caption}`}
-          </Text>
+          <Button key="treat" plain hotkey="t" dimColor onPress={() => void treat($).catch(() => {})}>
+            treat
+          </Button>
+          <Button key="play" plain hotkey="y" dimColor onPress={() => void play($).catch(() => {})}>
+            play
+          </Button>
         </Box>
+        <Text key="caption" dimColor wrap="wrap">
+          {caption}
+        </Text>
         {said !== undefined && (
           <Text key="said" wrap="wrap">
             {`Clawd: ${said}`}

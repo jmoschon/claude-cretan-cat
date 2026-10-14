@@ -102,6 +102,19 @@ const MOST_KITTENS = 4
 // How long petting shows, and how long the sardine is in the air.
 export const PETTING_S = 3
 const TOSS_S = 1.2
+// The fishing toy: a feather on a string, swinging over his head.
+const TOY = ['.y.', 'pyp', 'ppp', '.p.']
+const TOY_COLORS: Record<string, Rgb> = { y: [255, 214, 90], p: [236, 104, 160] }
+const STRING: Rgb = [206, 206, 220]
+const ROD: Rgb = [128, 84, 52]
+const TOY_SWING = 1.6
+// Where the toy's middle swings to at time t, in the cat's room.
+const toyX = (t: number, from: number, to: number) => {
+  const width = SPRITES.walkA[0]!.length
+  const left = from + width / 2
+  const right = to - width / 2
+  return Math.round((left + right) / 2 + (Math.sin(t * TOY_SWING) * Math.max(0, right - left)) / 2)
+}
 // How long a slap's swiping lasts before she sits back, glaring.
 const SWIPE_S = 1.5
 
@@ -205,6 +218,12 @@ function catAt(mood: Mood, t: number, since: number, from: number, to: number): 
       // Right up to Clawd, swiping, then sitting back to glare at him.
       if (since < SWIPE_S) return { pose: Math.floor(since * 7) % 2 === 0 ? 'slapA' : 'slapB', x: from, lift: 0, isLeft: false }
       return { pose: 'sitA', x: from + 2, lift: 0, isLeft: false }
+    case 'play': {
+      // A beat behind the toy, leaping at it and swiping, then crouching.
+      const lift = Math.round(Math.max(0, Math.sin(t * 5)) * 4)
+      const pose = lift > 0 ? (Math.floor(t * 6) % 2 === 0 ? 'slapA' : 'slapB') : 'crouch'
+      return { pose, x: toyX(t - 0.25, from, to) - Math.round(width / 2), lift, isLeft: Math.cos((t - 0.25) * TOY_SWING) < 0 }
+    }
     case 'snub':
       // Off to the far side, eyes shut, as if he weren't there.
       return { pose: 'purr', x: to - SPRITES.purr[0]!.length, lift: 0, isLeft: false }
@@ -236,6 +255,9 @@ function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { 
     case 'slap':
       // Knocked back by the swipe, arms up.
       return { look: { ...base, eyes: 'wide', facing: 1, arms: { left: 'up', right: 'up' } }, lift: 0, dx: since < SWIPE_S && Math.floor(since * 7) % 2 === 1 ? -2 : -1 }
+    case 'play':
+      // Holding up the rod.
+      return { look: { ...base, arms: { left: 'down', right: 'up' } }, lift: 0 }
     case 'feast':
       // The toss: arm up, then out as the sardine leaves.
       return { look: { ...base, arms: { left: 'down', right: since < 0.25 ? 'up' : 'out' } }, lift: 0 }
@@ -419,7 +441,21 @@ export function drawCells(scene: Scene): Uint32Array {
       set(x, feet + 1, CUSHION_EDGE)
     }
   } else shadow(cat.x + 3, cat.x + spriteW - 4)
+  // The fishing toy: its string from the rod's tip (Clawd holds the rod; alone,
+  // it comes from above), drawn under him, the feather over him.
+  const line = (x0: number, y0: number, x1: number, y1: number, c: Rgb) => {
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1)
+    for (let i = 0; i <= steps; i++) set(Math.round(x0 + ((x1 - x0) * i) / steps), Math.round(y0 + ((y1 - y0) * i) / steps), c)
+  }
+  const toy = mood === 'play' ? { x: toyX(t, catFrom, catTo) - 1, y: Math.max(2, feet + 1 - CAT_H - 6 + Math.round(Math.sin(t * 5 + 1) * 1.5)) } : undefined
+  if (toy) {
+    // The tip trails the swing, so the string leans.
+    const tipX = toy.x + 1 - Math.round(Math.cos(t * TOY_SWING) * 3)
+    if (!isSolo) line(clawdX + CLAWD_W - 1, clawdTop + 1, tipX, 0, ROD)
+    line(tipX, 0, toy.x + 1, toy.y, STRING)
+  }
   blit(sprite, cat.x, catTop, C, cat.isLeft)
+  if (toy) blit(TOY, toy.x, toy.y, TOY_COLORS)
 
   // The sardine a commit earns, tossed from Clawd's claw to his mouth.
   if (mood === 'feast' && since < TOSS_S) {

@@ -591,6 +591,92 @@ describe('cretan-cat', () => {
     await ui.unmount()
   })
 
+  test('a treat: the treat button tosses him a sardine, apart from the work sardines', async ($, on) => {
+    const { clock, saved } = setUp(on)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'treat' })
+    await clock.settle()
+    expect(saved.treats).toBe(1)
+    expect(await ui.find({ type: 'Text', text: /got a treat from you/ })).toBeDefined()
+    expect(saved.sardines).toBeUndefined()
+    // Then back to his nap.
+    await clock.advance(4_000)
+    expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('play: the fishing toy dangles over him while he chases it, then he naps', async ($, on) => {
+    const { clock } = setUp(on)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'play' })
+    await clock.settle()
+    expect(await ui.find({ type: 'Text', text: /chasing the fishing toy/ })).toBeDefined()
+    await clock.advance(7_000)
+    expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    await ui.unmount()
+    // The feather's pink is in the yard, alone or with Clawd holding the rod.
+    const pink = (236 << 16) | (104 << 8) | 160
+    const rod = (128 << 16) | (84 << 8) | 52
+    const colorsOf = (cells: Uint32Array) => {
+      const seen = new Set<number>()
+      for (let i = 0; i < cells.length; i += 3) seen.add(cells[i + 1]!).add(cells[i + 2]!)
+      return seen
+    }
+    for (const t of [0, 1.3, 2.9]) {
+      const wide = colorsOf(drawCells({ mood: 'play', coat: 'ginger', t, cols: 120, rows: 11, hour: 12 }))
+      expect(wide.has(pink)).toBe(true)
+      expect(wide.has(rod)).toBe(true)
+      const solo = colorsOf(drawCells({ mood: 'play', coat: 'ginger', t, cols: 30, rows: 12, hour: 12, isSolo: true }))
+      expect(solo.has(pink)).toBe(true)
+      expect(solo.has(rod)).toBe(false)
+    }
+  })
+
+  test('/cat sound on: a mrrp to say so, and sounds from then on; off, quiet', async ($, on) => {
+    const { clock, saved } = setUp(on)
+    const played = listen(on)
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('sound')).toMatch(/Sound is off/)
+    expect(await run('sound on')).toMatch(/has a voice now/)
+    expect((saved.settings as Record<string, { value: string } | undefined>).sound?.value).toBe('on')
+    await clock.settle()
+    expect(played).toContain('sounds/happy.wav')
+    expect(await run('sound off')).toMatch(/quiet again/)
+    expect(await run('config')).toMatch(/^ {2}sound +off$/m)
+  })
+
+  test('play with sound on: the bell on the toy jingles, twice, then he purrs', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    const played = listen(on)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'play' })
+    await clock.settle()
+    expect(played).toEqual(['sounds/bell.wav'])
+    await clock.advance(7_000)
+    expect(played).toEqual(['sounds/bell.wav', 'sounds/bell.wav', 'sounds/purr.wav'])
+    await ui.unmount()
+  })
+
+  test('/cat hints off: just "napping", no tips; on brings them back, kept', async ($, on) => {
+    const { saved } = setUp(on)
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('hints off')).toMatch(/Just "Manousos is napping"/)
+    expect(saved.hints).toBe(false)
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /\/cat help/ })).toBeUndefined()
+    await run('hints on')
+    await ui.redraw()
+    expect(await ui.find({ type: 'Text', text: /\/cat help · \/cat hide/ })).toBeDefined()
+    await ui.unmount()
+    expect(await run('hints')).toMatch(/Hints are on/)
+  })
+
   // What $.audio.play was asked to play, asset by asset.
   const listen = (on: any) => {
     const played: string[] = []

@@ -136,10 +136,13 @@ the kittens while helpers run.
 | -------------------------- | ---------------------------------------------------------------- |
 | `/cat`                     | Hide him, or bring him back (toggles)                            |
 | `/cat hide`, `/cat show`   | Hide him, or bring him back; hidden stays hidden across sessions |
+| `/cat hints on\|off`       | Show or hide the /cat tips under the napping cat                 |
 | `/cat small`               | Just the cat, in a small square at the right above the prompt    |
 | `/cat dock`                | Just the cat, in a pane docked on the right (fullscreen layout)  |
 | `/cat band`                | The whole yard above the prompt again                            |
 | `/cat pet`                 | Pet him: he closes his eyes and purrs                            |
+| `/cat treat`               | Toss him a sardine (or press `treat`, `t`, under the yard)       |
+| `/cat play`                | Dangle the fishing toy (or press `play`, `y`): he leaps at it    |
 | `/cat manousos`            | The original coat: dark brown, white bib and mittens             |
 | `/cat ginger`              | An orange tabby                                                  |
 | `/cat tuxedo`              | Black and white                                                  |
@@ -147,6 +150,7 @@ the kittens while helpers run.
 | `/cat language <language>` | What Clawd speaks: `greek`, `english`, `spanish`, `rioplatense`  |
 | `/cat songs <language>`    | What the cat sings: `greek`, `spanish`, `english`                |
 | `/cat temper on\|off`      | Give the cat a temper, or take it away (see [Temper](#temper))   |
+| `/cat sound on\|off`       | Its voice on macOS: mrrp when done, mew when waiting, purr, hiss |
 | `/cat asturias`            | Asturias, all at once (see below)                                |
 | `/cat reset`               | Manousos as he came                                              |
 | `/cat stats`               | Sardines, pets and his rank, drawn                               |
@@ -180,17 +184,21 @@ Manousos, the cat above the prompt
   /cat language <language>  what Clawd speaks: greek, english, spanish, rioplatense (greek now)
   /cat songs <language>     what Manousos sings: greek, spanish, english (greek now)
   /cat temper on|off        whether Manousos slaps Clawd, swats you, sits on your keyboard (off now)
+  /cat sound on|off         whether Manousos mrrps, mews, purrs and hisses, on macOS (off now)
   /cat asturias             Asturias: ginger, rioplatense, coplas and a temper
   /cat reset                Manousos as he came
   /cat pet                  pet the cat (or press pet under the yard)
+  /cat treat                toss the cat a sardine (or press treat)
+  /cat play                 dangle the fishing toy (or press play)
   /cat stats                sardines and pets
   /cat config               every setting and what it is now
   /cat hide|show            hide the cat, or bring it back (/cat alone toggles)
+  /cat hints on|off         the /cat tips under the napping cat (on now)
   /cat small                the cat alone in a small square at the right, above the prompt
   /cat dock                 the cat in a pane of its own, docked on the right
   /cat band                 the whole yard above the prompt again
 
-The same settings, and sound, are under /config, "Cretan cat".
+The same settings are under /config, "Cretan cat".
 ```
 
 `/cat config`:
@@ -205,7 +213,7 @@ Manousos's settings
   temper    off
   sound     off
 
-/cat help says how to change them; sound only changes in /config, "Cretan cat".
+/cat help says how to change them; they are under /config, "Cretan cat", too.
 ```
 
 `/cat stats`, on a fresh install after one pet:
@@ -227,8 +235,8 @@ One sardine per commit, or per finished task that used tools.
 ## Settings
 
 The coat you pick, whether he is hidden, his sardines and his pets are
-remembered across sessions. The name, the two languages and the temper are
-settings: `/cat name`, `/cat language`, `/cat songs` and `/cat temper` change
+remembered across sessions. The name, the two languages, the temper and sound are
+settings: `/cat name`, `/cat language`, `/cat songs`, `/cat temper` and `/cat sound` change
 the same rows you find under `/config`, so the two never disagree.
 
 | Setting (`/config`)          | Values                                       | Default    |
@@ -252,10 +260,10 @@ the same rows you find under `/config`, so the two never disagree.
 - **Sound.** Turned on, the cat has a voice: a happy *mrrp!* when the work is
   done or a sardine lands, a questioning *mew?* when Claude is waiting for you
   (a permission prompt, a question, a plan to approve), a purr when you pet
-  him, and a short hiss when the tests fail or he swats your hand. Never more
-  than one sound every two seconds, so a burst of events is one sound, not a
-  chorus. It plays through `afplay`, so on macOS only. Sound has no `/cat`
-  command; change it in `/config`.
+  him, and a short hiss when the tests fail or he swats your hand. The fishing
+  toy (`/cat play`) jingles its bell. Never more than one sound every two
+  seconds, so a burst of events is one sound, not a chorus. It plays through
+  `afplay`, so on macOS only. `/cat sound on|off` changes it, as `/config` does.
 
 ## Temper
 
