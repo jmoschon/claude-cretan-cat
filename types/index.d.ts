@@ -32,6 +32,6 @@ export type Cat = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'cretan-cat': { cat: Cat; isHidden: boolean; coat: Coat; place: Place }
+    'cretan-cat': { cat: Cat; isHidden: boolean }
   }
 }

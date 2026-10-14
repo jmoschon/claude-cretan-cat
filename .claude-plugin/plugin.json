@@ -11,14 +11,25 @@
   "userConfig": {
     "name": {
       "type": "string",
-      "title": "Cretan cat: name",
-      "description": "What the cat is called, up to 20 characters. /cat name <name> sets it too.",
+      "title": "Cretan cat: his name",
+      "description": "What the cat is called, in the caption and when Clawd talks to him, up to 20 characters; Luna, say. /cat name <name>.",
       "default": "Manousos"
+    },
+    "coat": {
+      "type": "string",
+      "title": "Cretan cat: coat",
+      "description": "His fur: manousos is dark brown with a white bib and mittens, ginger an orange tabby, tuxedo black and white. /cat coat manousos|ginger|tuxedo.",
+      "default": "manousos",
+      "options": [
+        "manousos",
+        "ginger",
+        "tuxedo"
+      ]
     },
     "language": {
       "type": "string",
-      "title": "Cretan cat: Clawd's language",
-      "description": "What Clawd says to the cat, and the cat's short replies: Greek, English, or Spanish as they speak it in Buenos Aires. /cat language sets it too.",
+      "title": "Cretan cat: what Clawd speaks",
+      "description": "The language Clawd nags him in, and his short answers: greek, english, or spanish as they speak it in Buenos Aires (¡Dale, arrancamos!). /cat language greek|english|spanish.",
       "default": "greek",
       "options": [
         "greek",
@@ -28,8 +39,8 @@
     },
     "songs": {
       "type": "string",
-      "title": "Cretan cat: songs",
-      "description": "What the cat sings while Claude works: Cretan mantinades (greek), English couplets, or payador coplas and tangos (spanish). /cat songs sets it too.",
+      "title": "Cretan cat: what he sings",
+      "description": "The songs in his bubble while Claude works: Cretan mantinades (greek), English couplets, or coplas and tangos (spanish). /cat songs greek|english|spanish.",
       "default": "greek",
       "options": [
         "greek",
@@ -40,7 +51,7 @@
     "temper": {
       "type": "string",
       "title": "Cretan cat: temper",
-      "description": "On, the cat may slap Clawd for nagging, swat your hand when petted, and sit on your keyboard until petted. /cat temper sets it too.",
+      "description": "On: he slaps Clawd for nagging, sometimes swats your hand and naps on your keyboard. /cat temper on|off.",
       "default": "off",
       "options": [
         "off",
@@ -50,7 +61,7 @@
     "sound": {
       "type": "string",
       "title": "Cretan cat: sound",
-      "description": "The cat's voice: a happy trill when the work is done or he gets a sardine, a questioning mew when Claude waits for you, a purr when petted, a hiss at failing tests or a swat. At most one sound every 2 seconds. Plays on macOS only.",
+      "description": "A trill, a mew, a purr and a hiss, on macOS. /cat sound on|off.",
       "default": "off",
       "options": [
         "off",
@@ -60,11 +71,32 @@
     "resolution": {
       "type": "string",
       "title": "Cretan cat: resolution",
-      "description": "How finely the yard is drawn: low, two pixels a terminal cell, everywhere; high, a fine picture where the terminal shows pictures (kitty, Ghostty; not under tmux), cells elsewhere. /cat resolution sets it too.",
+      "description": "high draws the yard as a sharp picture in kitty and Ghostty terminals (cmux recommended); low works everywhere. /cat resolution high|low.",
       "default": "low",
       "options": [
         "low",
         "high"
+      ]
+    },
+    "place": {
+      "type": "string",
+      "title": "Cretan cat: where he lives",
+      "description": "band gives him the whole yard above the prompt with Clawd; small, just him in a little square at the right; dock, a pane of his own on the side. /cat band|small|dock.",
+      "default": "band",
+      "options": [
+        "band",
+        "small",
+        "dock"
+      ]
+    },
+    "hints": {
+      "type": "string",
+      "title": "Cretan cat: hints",
+      "description": "On: the napping caption ends with tips such as \"/cat help · /cat hide\"; off, it just says he is napping. /cat hints on|off.",
+      "default": "on",
+      "options": [
+        "on",
+        "off"
       ]
     }
   }

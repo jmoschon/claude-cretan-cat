@@ -2,22 +2,29 @@
 
 [Back to the README](../README.md)
 
-The coat you pick, whether he is hidden, his sardines and his pets are
-remembered across sessions, and so are where he lives (`/cat small`,
-`/cat dock`, `/cat band`) and the caption's tips (`/cat hints`). The name,
-the two languages, the temper, the sound and the resolution are settings:
-`/cat name`, `/cat language`, `/cat songs`, `/cat temper`, `/cat sound` and
-`/cat resolution` change the same rows you find under
-`/config`, "Cretan cat", so the two never disagree.
+Every setting is a row under `/config`, "Cretan cat", and on the screen that
+installs him. Each has a `/cat` command that changes the same row, so the two
+never disagree: `/cat name`, `/cat coat` (or `/cat ginger`, `/cat tuxedo`),
+`/cat language`, `/cat songs`, `/cat temper`, `/cat sound`,
+`/cat resolution`, `/cat band|small|dock` and `/cat hints`. A row your
+organization has locked keeps its value, and `/cat` says so. Whether he is
+hidden, his sardines and his pets are remembered across sessions too.
+
+Up to 1.10 the coat, where he lives and the hints were kept apart from the
+settings. The first session after the update moves what you picked into
+them: a cat you dressed in the ginger coat stays ginger.
 
 | Setting (`/config`)          | Values                                       | Default    |
 | ---------------------------- | -------------------------------------------- | ---------- |
-| Cretan cat: name             | any name, up to 20 characters                | `Manousos` |
-| Cretan cat: Clawd's language | `greek`, `english`, `spanish`                | `greek`    |
-| Cretan cat: songs            | `greek`, `english`, `spanish`                | `greek`    |
-| Cretan cat: temper           | `off`, `on`                                  | `off`      |
-| Cretan cat: sound            | `off`, `on`                                  | `off`      |
-| Cretan cat: resolution       | `low`, `high`                                | `low`      |
+| Cretan cat: his name           | any name, up to 20 characters              | `Manousos` |
+| Cretan cat: coat               | `manousos`, `ginger`, `tuxedo`             | `manousos` |
+| Cretan cat: what Clawd speaks  | `greek`, `english`, `spanish`              | `greek`    |
+| Cretan cat: what he sings      | `greek`, `english`, `spanish`              | `greek`    |
+| Cretan cat: temper             | `off`, `on`                                | `off`      |
+| Cretan cat: sound              | `off`, `on`                                | `off`      |
+| Cretan cat: resolution         | `low`, `high`                              | `low`      |
+| Cretan cat: where he lives     | `band`, `small`, `dock`                    | `band`     |
+| Cretan cat: hints              | `on`, `off`                                | `on`       |
 
 `/cat config` lists them all with what they are now
 ([example](commands.md#cat-config)).

@@ -8,6 +8,8 @@ import { cellsToSvg, SVG_MOST } from '../hooks/svg'
 
 const BAND = { component: 'AbovePrompt' } as const
 const PROPS = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120 } as never
+// What /cat keeps for a setting in the store, where no /config row was written.
+const kept = (saved: Record<string, unknown>, field: string) => (saved.settings as Record<string, { value: unknown }> | undefined)?.[field]?.value
 
 describe('cretan-cat', () => {
   test('naps above the prompt until Claude starts working', async $ => {
@@ -95,9 +97,9 @@ describe('cretan-cat', () => {
     const run = (args: string) =>
       $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
     expect((await run('tuxedo')).text).toMatch(/Manousos is wearing the tuxedo coat/)
-    expect(saved.coat).toBe('tuxedo')
+    expect(kept(saved, 'coat')).toBe('tuxedo')
     expect((await run('ginger')).text).toMatch(/Manousos is wearing the ginger coat/)
-    expect(saved.coat).toBe('ginger')
+    expect(kept(saved, 'coat')).toBe('ginger')
     expect((await run('zebra')).text).toMatch(/manousos, ginger, tuxedo/)
   })
 
@@ -126,7 +128,7 @@ describe('cretan-cat', () => {
     const run = async (args: string) =>
       (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
     expect(await run('small')).toMatch(/small square/)
-    expect(saved.place).toBe('small')
+    expect(kept(saved, 'place')).toBe('small')
     const small = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     const raster = (await small.find({ type: 'Raster' })) as { props: { columns: number; rows: number } } | undefined
     expect(raster?.props.columns).toBe(30)
@@ -134,7 +136,7 @@ describe('cretan-cat', () => {
     expect(await small.find({ type: 'Text', text: /napping/ })).toBeDefined()
     await small.unmount()
     expect(await run('band')).toMatch(/whole yard/)
-    expect(saved.place).toBe('band')
+    expect(kept(saved, 'place')).toBe('band')
     const wide = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     expect(((await wide.find({ type: 'Raster' })) as { props: { columns: number } } | undefined)?.props.columns).toBe(120)
     await wide.unmount()
@@ -162,7 +164,7 @@ describe('cretan-cat', () => {
     const run = async (args: string) =>
       (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } } as never)).text
     expect(await run('dock')).toMatch(/pane of its own, docked on the right/)
-    expect(saved.place).toBe('dock')
+    expect(kept(saved, 'place')).toBe('dock')
     expect(panes.has('cat')).toBe(true)
     // Docked and placed, the band is left to the engine.
     const band = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
@@ -702,7 +704,7 @@ describe('cretan-cat', () => {
     const run = async (args: string) =>
       (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
     expect(await run('hints off')).toMatch(/Just "Manousos is napping"/)
-    expect(saved.hints).toBe(false)
+    expect(kept(saved, 'hints')).toBe('off')
     const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /\/cat help/ })).toBeUndefined()
@@ -1164,8 +1166,8 @@ describe('cretan-cat', () => {
     const { clock, saved, finish } = setUp(on)
     on('config.list', async () => ({ value: [] }) as never)
     expect(await cmd($, 'asturias')).toMatch(/^Asturias is here now\. ¿Qué querés\? \(\/cat manousos brings Manousos back\)$/)
-    expect(saved.coat).toBe('ginger')
     expect(saved.settings).toEqual({
+      coat: { value: 'ginger', over: 'manousos' },
       name: { value: 'Asturias', over: 'Manousos' },
       language: { value: 'spanish', over: 'greek' },
       songs: { value: 'spanish', over: 'greek' },
@@ -1190,7 +1192,7 @@ describe('cretan-cat', () => {
     expect(sung).toMatch(/\b(que|el|la|me|y)\b.*\b(que|el|la|me|y)\b/)
     // And back.
     expect(await cmd($, 'reset')).toMatch(/Manousos is back/)
-    expect(saved.coat).toBe('manousos')
+    expect(kept(saved, 'coat')).toBe('manousos')
     expect(await cmd($, 'temper')).toMatch(/Temper is off/)
     expect(await cmd($, 'songs')).toMatch(/sings in greek/)
     await clock.advance(13_000)
@@ -1201,9 +1203,9 @@ describe('cretan-cat', () => {
     const saved: Record<string, unknown> = {}
     const coatAtWrite: unknown[] = []
     const row = (field: string) => ({ key: `cretan-cat.${field}`, label: field, kind: 'text', value: '', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: false })
-    on('config.list', async () => ({ value: ['name', 'language', 'songs', 'temper'].map(row) }) as never)
+    on('config.list', async () => ({ value: ['name', 'coat', 'language', 'songs', 'temper'].map(row) }) as never)
     on('config.set', async (_$, e) => {
-      coatAtWrite.push(saved.coat)
+      coatAtWrite.push(kept(saved, 'coat'))
       return { value: e.value } as never
     })
     on('store.get', async (_$, e) => ({ value: saved[e.key] }))
@@ -1215,7 +1217,7 @@ describe('cretan-cat', () => {
     expect(coatAtWrite.length).toBeGreaterThan(0)
     expect(coatAtWrite.every(c => c === 'ginger')).toBe(true)
     expect(await cmd($, 'manousos')).toMatch(/Manousos is back/)
-    expect(saved.coat).toBe('manousos')
+    expect(kept(saved, 'coat')).toBe('manousos')
     expect(await cmd($, 'temper')).toMatch(/Temper is off/)
     // A coat alone: /cat coat manousos keeps her Asturias.
     await cmd($, 'asturias')
@@ -1726,3 +1728,194 @@ const fnv = (s: string) => {
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0
   return h.toString(16).padStart(8, '0')
 }
+
+// coat, place and hints: settings like the rest, moved there from the store.
+describe('cretan-cat settings: coat, place and hints', () => {
+  const row = (field: string, isLocked = false) => ({ key: `cretan-cat.${field}`, label: field, kind: 'text', value: '', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked })
+  // A store, /config rows (locked ones named) and the writes made to them.
+  const setUp = (on: any, store: Record<string, unknown> = {}, locked: string[] = [], rows = ['coat', 'place', 'hints']) => {
+    mock.clock(on, { now: 1_700_000_000_000 })
+    const saved: Record<string, unknown> = { ...store }
+    on('store.get', async (_$: unknown, e: { key: string }) => ({ value: saved[e.key] }))
+    on('store.set', async (_$: unknown, e: { key: string; value: unknown }) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    on('store.delete', async (_$: unknown, e: { key: string }) => {
+      delete saved[e.key]
+      return { value: undefined }
+    })
+    const writes: [string, unknown][] = []
+    on('config.list', async () => ({ value: rows.map(f => row(f, locked.includes(f))) }) as never)
+    on('config.set', async (_$: unknown, e: { key: string; value: unknown }) => {
+      writes.push([e.key, e.value])
+      return { value: e.value } as never
+    })
+    on('command.register', async () => ({ value: undefined }) as never)
+    on('session.start', async (_$: unknown, e: { cwd: string }) => ({ cwd: e.cwd }) as never)
+    return { saved, writes }
+  }
+  const start = ($: any) => $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true } as never)
+  const narrow = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 40 } as never
+  const tintOf = async ($: any) => {
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: narrow })
+    const line = (await ui.find({ type: 'Text', text: /\/\\_\/\\/ })) as { props: { color?: string } } | undefined
+    await ui.unmount()
+    return line?.props.color
+  }
+  const columns = async ($: any) => {
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    const raster = (await ui.find({ type: 'Raster' })) as { props: { columns: number } } | undefined
+    const tips = (await ui.find({ type: 'Text', text: /\/cat help · \/cat hide/ })) !== undefined
+    await ui.unmount()
+    return { columns: raster?.props.columns, tips }
+  }
+
+  test('/cat <coat>, coat, asturias, manousos, band, small, dock and hints write their /config rows', async ($, on) => {
+    const { writes } = setUp(on)
+    await run($, 'ginger')
+    await run($, 'coat tuxedo')
+    await run($, 'asturias')
+    await run($, 'manousos')
+    await run($, 'reset')
+    await run($, 'small')
+    await run($, 'dock')
+    await run($, 'band')
+    await run($, 'hints off')
+    await run($, 'hints on')
+    expect(writes).toEqual([
+      ['cretan-cat.coat', 'ginger'],
+      ['cretan-cat.coat', 'tuxedo'],
+      ['cretan-cat.coat', 'ginger'],
+      ['cretan-cat.coat', 'manousos'],
+      ['cretan-cat.coat', 'manousos'],
+      ['cretan-cat.place', 'small'],
+      ['cretan-cat.place', 'dock'],
+      ['cretan-cat.place', 'band'],
+      ['cretan-cat.hints', 'off'],
+      ['cretan-cat.hints', 'on'],
+    ])
+  })
+
+  test('the coat from /config: he wears it', { options: { coat: 'ginger' } }, async ($, on) => {
+    setUp(on)
+    expect(await tintOf($)).toBe('#e88c3e')
+    expect(await run($, 'config')).toMatch(/^ {2}coat +ginger$/m)
+  })
+
+  test('place small and hints off from /config: a small square, no tips', { options: { place: 'small', hints: 'off' } }, async ($, on) => {
+    setUp(on)
+    expect(await columns($)).toEqual({ columns: 30, tips: false })
+    const config = await run($, 'config')
+    expect(config).toMatch(/^ {2}place +small$/m)
+    expect(config).toMatch(/^ {2}hints +off$/m)
+    expect(await run($, 'hints')).toMatch(/Hints are off/)
+  })
+
+  test('place dock from /config: his pane opens at the start of a session', { options: { place: 'dock' } }, async ($, on) => {
+    setUp(on)
+    const opened: string[] = []
+    on('ui.open', async (_$: unknown, e: { id: string }) => {
+      opened.push(e.id)
+      return { value: { isPlaced: true } } as never
+    })
+    await start($)
+    expect(opened).toEqual(['cat'])
+  })
+
+  test('kept in the store by 1.10: the coat, the place and the hints move to their settings, once', async ($, on) => {
+    const { saved, writes } = setUp(on, { coat: 'ginger', place: 'small', hints: false })
+    await start($)
+    expect(writes).toEqual([
+      ['cretan-cat.coat', 'ginger'],
+      ['cretan-cat.place', 'small'],
+      ['cretan-cat.hints', 'off'],
+    ])
+    expect(saved.coat).toBeUndefined()
+    expect(saved.place).toBeUndefined()
+    expect(saved.hints).toBeUndefined()
+    // Until the plugin reloads with the new /config values, the store holds them.
+    expect(await run($, 'config')).toMatch(/^ {2}coat +ginger$/m)
+    expect(await columns($)).toEqual({ columns: 30, tips: false })
+    await start($)
+    expect(writes.length).toBe(3)
+  })
+
+  test('kept in the store by 1.10, with no /config rows to write: kept as the setting, the same', async ($, on) => {
+    const { saved } = setUp(on, { coat: 'tuxedo', hints: true }, [], [])
+    await start($)
+    expect(saved.settings).toEqual({ coat: { value: 'tuxedo', over: 'manousos' } })
+    expect(saved.coat).toBeUndefined()
+    expect(saved.hints).toBeUndefined()
+    expect(await run($, 'config')).toMatch(/^ {2}coat +tuxedo$/m)
+  })
+
+  test('kept in the store by 1.10, as /config has it already: nothing to write', { options: { coat: 'ginger' } }, async ($, on) => {
+    const { saved, writes } = setUp(on, { coat: 'ginger', place: 'band' })
+    await start($)
+    expect(writes).toEqual([])
+    expect(saved.coat).toBeUndefined()
+    expect(saved.place).toBeUndefined()
+  })
+
+  test('locked rows: neither the old store nor /cat changes them', async ($, on) => {
+    const { saved, writes } = setUp(on, { coat: 'ginger', place: 'dock', hints: false }, ['coat', 'place', 'hints'])
+    await start($)
+    expect(writes).toEqual([])
+    expect(saved.coat).toBeUndefined()
+    expect(await tintOf($)).toBe('#967a6a')
+    expect(await run($, 'tuxedo')).toMatch(/Couldn't change the coat is locked in \/config/)
+    expect(await run($, 'small')).toMatch(/Couldn't change the place is locked in \/config/)
+    expect(await run($, 'hints off')).toMatch(/Couldn't change the hints is locked in \/config/)
+    expect(await run($, 'asturias')).toMatch(/Couldn't change the coat is locked in \/config/)
+    expect(writes.map(([key]) => key)).not.toContain('cretan-cat.coat')
+    const config = await run($, 'config')
+    expect(config).toMatch(/^ {2}coat +manousos$/m)
+    expect(config).toMatch(/^ {2}place +band$/m)
+    expect(config).toMatch(/^ {2}hints +on$/m)
+    expect(await columns($)).toEqual({ columns: 120, tips: true })
+  })
+
+  test('/cat band, small and dock bring him out from under the sofa, and say so', async ($, on) => {
+    const { saved } = setUp(on)
+    on('ui.render', () => ({ type: 'Text', children: ['engine'] }) as never)
+    expect(await run($, '')).toMatch(/under the sofa/)
+    expect(await columns($)).toEqual({ columns: undefined, tips: false })
+    expect(await run($, 'band')).toBe('Manousos came out from under the sofa and has the whole yard again.')
+    expect(saved.isHidden).toBe(false)
+    expect((await columns($)).columns).toBe(120)
+    expect(await run($, 'band')).toBe('Manousos already has the whole yard.')
+    await run($, 'hide')
+    expect(await run($, 'small')).toMatch(/^Manousos came out from under the sofa and curled up in a small square/)
+    expect((await columns($)).columns).toBe(30)
+    await run($, 'hide')
+    expect(await run($, 'dock')).toMatch(/^Manousos came out from under the sofa and moved into a pane of its own/)
+    expect(saved.isHidden).toBe(false)
+    expect(await run($, 'small')).toMatch(/^Manousos curled up in a small square/)
+  })
+
+  test('/cat config lists every setting; /cat help every command', async ($, on) => {
+    setUp(on)
+    const config = await run($, 'config')
+    for (const field of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'place', 'hints']) expect(config).toMatch(new RegExp(`^ {2}${field} +\\S`, 'm'))
+    const help = await run($, 'help')
+    for (const command of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'asturias', 'manousos', 'pet', 'treat', 'play', 'stats', 'config', 'hide', 'hints', 'small', 'dock', 'band', 'help'])
+      expect(help).toMatch(new RegExp(`^ {2}/cat ${command}\\b`, 'm'))
+  })
+
+  test('a typo: the command it is closest to, and a pointer to /cat help, not the whole list', async ($, on) => {
+    setUp(on)
+    const doc = await run($, 'doc')
+    expect(doc).toBe('Manousos doesn\'t know "/cat doc". Did you mean /cat dock?\n\n/cat help lists everything Manousos does.')
+    expect(await run($, 'banned')).toMatch(/Did you mean \/cat band\?/)
+    expect(await run($, 'tempr on')).toMatch(/Did you mean \/cat temper on\?/)
+    expect(await run($, 'resoluton high')).toMatch(/Did you mean \/cat resolution high\?/)
+    expect(await run($, 'band now')).toMatch(/Did you mean \/cat band\?/)
+    // Nothing close: the whole help, as before.
+    const far = await run($, 'xyzzy')
+    expect(far).toMatch(/^Manousos doesn't know "\/cat xyzzy"\.\n\nManousos, the cat above the prompt/)
+    expect(far).not.toMatch(/Did you mean/)
+    expect(far).toMatch(/^ {2}\/cat pet/m)
+    expect(await run($, 'ok')).not.toMatch(/Did you mean/)
+  })
+})
