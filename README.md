@@ -39,10 +39,9 @@ A few more things:
 
 - **Helpers.** While Claude has subagents running, a kitten runs across the
   lawn for each one (up to four).
-- **Time of day.** Dawn, day, dusk and night follow your local clock: the sun
-  rises and sets behind Psiloritis; from dusk the window is lit, and at night
-  there are stars and a moon. From December to March there is snow on the
-  peak.
+- **Time of day.** The yard follows your local clock, so it changes a few
+  times a day rather than from moment to moment (see the table below). From
+  December to March there is snow on the peak.
 - **Petting.** Click `pet` under the yard (or press `p` while the band has
   the focus) and he closes his eyes and purrs. Outside the terminal the
   caption purrs instead.
@@ -55,6 +54,18 @@ A few more things:
 - **Waiting.** He sits up when Claude Code shows you a permission prompt, asks
   you a question, or wants a plan approved. There is no signal for the moment
   you answer a permission prompt, so he stays up until that tool call ends.
+
+### The yard through the day
+
+| Local time | Sky behind Psiloritis | The window |
+|---|---|---|
+| 06:00–08:00 | Dawn: a purple sky, the sun low behind the mountains | Glass |
+| 08:00–18:00 | Day: the sun high | Glass |
+| 18:00–21:00 | Dusk: an orange-purple sky, the sun setting | The lamp is lit |
+| 21:00–06:00 | Night: a dark blue sky, stars and a moon | The lamp is lit |
+
+What moves all the time is Manousos and Clawd themselves, the bubbles, and
+the kittens while helpers run.
 
 ## Install
 
