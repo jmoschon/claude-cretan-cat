@@ -4,6 +4,10 @@
 // long tool runs; slapping Clawd for a nudge, or snubbing him.
 export type Mood = 'nap' | 'think' | 'tool' | 'happy' | 'oops' | 'wait' | 'dance' | 'hiss' | 'feast' | 'bored' | 'slap' | 'snub'
 export type Coat = 'manousos' | 'ginger' | 'tuxedo'
+// Where the cat lives: the wide yard in the band above the prompt, a small
+// square of it there, or a square in a pane of its own, docked beside the
+// transcript in the fullscreen layout.
+export type Place = 'band' | 'small' | 'dock'
 export type Cat = {
   mood: Mood
   frame: number
@@ -26,6 +30,6 @@ export type Cat = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'cretan-cat': { cat: Cat; isHidden: boolean; coat: Coat }
+    'cretan-cat': { cat: Cat; isHidden: boolean; coat: Coat; place: Place }
   }
 }

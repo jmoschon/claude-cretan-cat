@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderNode } from 'claude-code'
 
-import type { Cat, Coat, Mood } from '../types'
+import type { Cat, Coat, Mood, Place } from '../types'
 import { bashKind, isLanguage, LANGUAGES, LINES, NAME_MOST, catNameOf, saysFailed, shortTool, topicOf, type Language, type Name } from './lines'
-import { COATS, drawCat, drawCells, fit, PETTING_S, replyFits, skyAt } from './manousos'
+import { COATS, drawCat, drawCells, fit, PETTING_S, replyFits, skyAt, soloFit, type Scene } from './manousos'
 import { cellsToSvg, SVG_MOST } from './svg'
 import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
 
@@ -60,6 +60,15 @@ const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
 const isHidden = atom({ plugin: 'cretan-cat', key: 'isHidden' } as const, false)
 const coat = atom({ plugin: 'cretan-cat', key: 'coat' } as const, 'manousos' as Coat)
 const isCoat = (v: unknown): v is Coat => typeof v === 'string' && v in COATS
+const place = atom({ plugin: 'cretan-cat', key: 'place' } as const, 'band' as Place)
+const isPlace = (v: unknown): v is Place => v === 'band' || v === 'small' || v === 'dock'
+// The cat's own pane (/cat dock), and the columns it asks the dock for.
+const PANE = 'cat'
+const DOCK_COLS = 34
+// The small square in the band: as wide as his widest pose allows, about as
+// tall as the wide yard.
+const SMALL_COLS = 30
+const SMALL_ROWS = 12
 
 // While Claude thinks, Clawd nudges the cat about the topic, a new line
 // every NUDGE_TICKS ticks (~8s). What he says is in the "language" setting.
@@ -99,6 +108,8 @@ type Stage = {
   isSwatted: boolean
   isOnKeys: boolean
   kittens: number
+  // The cat alone in his square (/cat small, /cat dock).
+  isSolo: boolean
 }
 const STAGE_START: Stage = {
   requestId: undefined,
@@ -113,6 +124,7 @@ const STAGE_START: Stage = {
   isSwatted: false,
   isOnKeys: false,
   kittens: 0,
+  isSolo: false,
 }
 const stage: Stage = { ...STAGE_START }
 // Seconds, as the frame loop last read the clock; a redraw draws that moment.
@@ -608,6 +620,70 @@ function saidOf(c: Cat): string | undefined {
   return lines.nudges[c.nudge % lines.nudges.length]!(c.asked)
 }
 
+// Opens the cat's pane: docked beside the transcript in the fullscreen
+// layout, above the prompt otherwise. Where nothing draws panes (headless),
+// opening and closing it do nothing.
+const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: name(), columns: DOCK_COLS }).catch(() => undefined)
+const closePane = ($: EngineInterface) => $.ui.close({ id: PANE }).catch(() => {})
+// The pane's Raster, while it draws one, for the frame loop to let go of on close.
+let paneRequestId: string | undefined
+const isDocked = async ($: EngineInterface) => (await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)
+
+// Out from under the sofa, into the place he lives.
+async function reveal($: EngineInterface) {
+  await update($, isHidden, () => false)
+  await $.store.set('isHidden', false)
+  if ((await read($, place)) === 'dock') await openPane($)
+}
+
+// What the caption under the cat says now: petted, on your keyboard, or his
+// mood, and the helpers; and the clock it was read at.
+async function captionOf($: EngineInterface, c: Cat) {
+  const kittens = c.helpers > 0 ? ` · ${c.helpers} helper${c.helpers === 1 ? '' : 's'} ${'=^.^= '.repeat(Math.min(c.helpers, 4))}` : ''
+  // The clock now (the frame loop's last reading, if the clock won't say).
+  const now = await $.clock.now().catch(() => seconds * 1000)
+  const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000
+  const petted = c.isSwatted ? `${name()} swatted your hand: ${linesOf().swat}` : `${name()} purrs <3`
+  const onKeys = `${name()} is on your keyboard: pet (p) to get it back`
+  return { caption: (isPetted ? petted : showsKeys(c.isOnKeys, c.mood) ? onKeys : CAPTION[c.mood](c)) + kittens, now }
+}
+
+// Points the frame loop at the Raster just drawn (none for an SVG) and
+// returns the scene to draw now.
+async function stageUp($: EngineInterface, c: Cat, now: number, requestId: string | undefined, cols: number, rows: number, isSolo: boolean): Promise<Scene> {
+  Object.assign(stage, {
+    requestId,
+    mood: c.mood,
+    coat: await read($, coat),
+    said: saidOf(c),
+    reply: replyOf(c),
+    cols,
+    rows,
+    kittens: c.helpers,
+    pettedAt: c.pettedAt / 1000,
+    isSwatted: c.isSwatted,
+    isOnKeys: c.isOnKeys,
+    isSolo,
+  })
+  return sceneAt(now)
+}
+
+// The yard as the surface draws it: a Raster in the terminal, repainted by
+// blit; elsewhere the same cells as an SVG, redrawn as the cat's state
+// changes; undefined where a surface draws neither.
+function yardOf(table: ReturnType<EngineInterface['ui']['resolve']>, isTerminal: boolean, scene: Scene, alt: string): RenderNode | undefined {
+  if (isTerminal && 'Raster' in table) {
+    const { Raster } = table
+    return <Raster key="manousos" columns={scene.cols} rows={scene.rows} cells={drawCat(scene)} />
+  }
+  if ('Svg' in table) {
+    const { Svg } = table
+    const source = cellsToSvg(drawCells(scene), scene.cols, scene.rows, skyAt(scene.hour ?? 12))
+    if (source.length <= SVG_MOST) return <Svg key="manousos" source={source} alt={alt} />
+  }
+  return undefined
+}
+
 export const register: Register = (on, options) => {
   isSoundOn = options.sound === 'on'
   soundAt = -Infinity
@@ -649,6 +725,10 @@ export const register: Register = (on, options) => {
       await $.store.set('settings', overrides)
       // Hidden stays hidden across sessions, as the coat does.
       if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
+      // So does where he lives; docked, his pane opens again.
+      const where = await $.store.get('place')
+      if (isPlace(where)) await update($, place, () => where)
+      if (where === 'dock' && !(await read($, isHidden))) void openPane($)
       const { today: sardines } = await tally($)
       // A new session, or this module reloaded: no turn is known to be under
       // way, so he starts asleep rather than stuck in a mood from before, and
@@ -764,8 +844,7 @@ export const register: Register = (on, options) => {
     const becomes = async (look: Coat, settings: Record<Field, string>, done: string) => {
       const refused = await change(settings)
       await update($, coat, () => look)
-      await update($, isHidden, () => false)
-      await $.store.set('isHidden', false)
+      await reveal($)
       await $.store.set('coat', look)
       return { text: refused.length === 0 ? done : `${done} Couldn't change ${refused.join('; ')}` }
     }
@@ -775,10 +854,23 @@ export const register: Register = (on, options) => {
     if (arg === 'reset' && value === '') {
       return becomes('manousos', { name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
     }
+    if ((arg === 'band' || arg === 'small' || arg === 'dock') && value === '') {
+      const to: Place = arg
+      await update($, place, () => to)
+      await $.store.set('place', to)
+      if (to !== 'dock') await closePane($)
+      await reveal($)
+      if (to === 'band') return { text: `${name()} has the whole yard again.` }
+      if (to === 'small') return { text: `${name()} curled up in a small square. /cat dock moves it into a pane on the side; /cat band gives back the whole yard.` }
+      const where = e.presentation.isFullscreen ? 'docked on the right; drag its edge to resize it' : 'above the prompt (it docks on the right in the fullscreen layout)'
+      return { text: `${name()} moved into a pane of its own, ${where}. Closing the pane, or /cat band, brings it back to the yard.` }
+    }
     if (arg === '' || arg === 'hide' || arg === 'show') {
       if (value !== '') return { text: `/cat ${arg} takes nothing after it.` }
       const hidden = await update($, isHidden, h => (arg === '' ? !h : arg === 'hide'))
       await $.store.set('isHidden', hidden)
+      if (hidden) await closePane($)
+      else if ((await read($, place)) === 'dock') await openPane($)
       return { text: hidden ? `${name()} went to hide under the sofa, until /cat show.` : `${name()} is back.` }
     }
     if (arg === 'pet') {
@@ -823,8 +915,7 @@ export const register: Register = (on, options) => {
     }
     if (isCoat(arg) && value === '') {
       await update($, coat, () => arg)
-      await update($, isHidden, () => false)
-      await $.store.set('isHidden', false)
+      await reveal($)
       await $.store.set('coat', arg)
       return { text: `${name()} is wearing the ${arg} coat now.` }
     }
@@ -843,6 +934,9 @@ export const register: Register = (on, options) => {
         ['/cat stats', 'sardines and pets'],
         ['/cat config', 'every setting and what it is now'],
         ['/cat hide|show', 'hide the cat, or bring it back (/cat alone toggles)'],
+        ['/cat small', 'the cat alone in a small square at the right, above the prompt'],
+        ['/cat dock', 'the cat in a pane of its own, docked on the right'],
+        ['/cat band', 'the whole yard above the prompt again'],
       ]),
       '',
       'The same settings, and sound, are under /config, "Cretan cat".',
@@ -1021,63 +1115,66 @@ export const register: Register = (on, options) => {
 
   // The band above the prompt. In the terminal: the pixel-art yard, where Clawd
   // tells Manousos what to do and he answers in a bubble, and a caption
-  // under it. Elsewhere: the ASCII cat with its caption beside it.
+  // under it; /cat small, the cat alone in a square, the caption beside it.
+  // Elsewhere: the same as SVG, or the ASCII cat with its caption beside it.
+  // Docked in his own pane, the band is left empty, unless the pane waits
+  // undrawn (a terminal too narrow): then he stays in the band, small.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) {
       stage.requestId = undefined
       return next(e)
     }
+    const where = await read($, place)
+    if (where === 'dock' && (await isDocked($).catch(() => false))) return next(e)
 
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const table = $.ui.resolve(e)
+    const { Box, Text, Button } = table
     const c = await read($, cat)
     const reply = replyOf(c)
-    const kittens = c.helpers > 0 ? ` · ${c.helpers} helper${c.helpers === 1 ? '' : 's'} ${'=^.^= '.repeat(Math.min(c.helpers, 4))}` : ''
-    // The clock now (the frame loop's last reading, if the clock won't say).
-    const now = await $.clock.now().catch(() => seconds * 1000)
-    const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000
-    const petted = c.isSwatted ? `${name()} swatted your hand: ${linesOf().swat}` : `${name()} purrs <3`
-    const onKeys = `${name()} is on your keyboard: pet (p) to get it back`
-    const caption = (isPetted ? petted : showsKeys(c.isOnKeys, c.mood) ? onKeys : CAPTION[c.mood](c)) + kittens
+    const { caption, now } = await captionOf($, c)
     // Petting: a click on it, or p while the band has the focus.
     const petting = (
       <Button key="pet" plain hotkey="p" dimColor onPress={() => void pet($).catch(() => {})}>
         pet
       </Button>
     )
-
-    // The yard, where it fits: a Raster in the terminal, repainted by blit;
-    // elsewhere the same cells as an SVG, redrawn as the cat's state changes.
-    // Where it doesn't fit (or a surface draws neither), the ASCII cat below.
-    const table = $.ui.resolve(e)
     const isTerminal = e.surface === 'terminal'
-    const Svg = 'Svg' in table ? table.Svg : undefined
-    const cols = stageCols(e.props.bodyColumns)
-    const layout = isTerminal || Svg ? fit(cols, e.props.maxRows) : undefined
-    let yard: RenderNode | undefined
-    if (layout) {
-      const said = saidOf(c)
-      Object.assign(stage, {
-        requestId: isTerminal ? e.requestId : undefined,
-        mood: c.mood,
-        coat: await read($, coat),
-        said,
-        reply,
-        cols,
-        rows: layout.rows,
-        kittens: c.helpers,
-        pettedAt: c.pettedAt / 1000,
-        isSwatted: c.isSwatted,
-        isOnKeys: c.isOnKeys,
-      })
-      const scene = sceneAt(now)
-      if (isTerminal && 'Raster' in table) {
-        const { Raster } = table
-        yard = <Raster key="manousos" columns={stage.cols} rows={stage.rows} cells={drawCat(scene)} />
-      } else if (Svg) {
-        const source = cellsToSvg(drawCells(scene), stage.cols, stage.rows, skyAt(scene.hour))
-        if (source.length <= SVG_MOST) yard = <Svg key="manousos" source={source} alt={`Clawd and ${name()} in the yard: ${caption}`} />
+    const requestId = isTerminal ? e.requestId : undefined
+    const verse = isSinging(c.mood) ? reply : undefined
+
+    // The small square at the right, its caption and couplet beside it.
+    const solo = where === 'band' ? undefined : soloFit(Math.min(SMALL_COLS, e.props.bodyColumns), Math.min(SMALL_ROWS, e.props.maxRows))
+    if (solo) {
+      const scene = await stageUp($, c, now, requestId, solo.cols, solo.rows, true)
+      const yard = yardOf(table, isTerminal, scene, `${name()} in the yard: ${caption}`)
+      if (yard !== undefined) {
+        return (
+          <Box flexDirection="row" justifyContent="flex-end">
+            <Box key="beside" flexDirection="column" justifyContent="flex-end" alignItems="flex-end" flexShrink={1} marginRight={1}>
+              <Box key="under" flexDirection="row">
+                {petting}
+                <Text key="caption" dimColor wrap="truncate">
+                  {`  ${caption}`}
+                </Text>
+              </Box>
+              {verse?.map((line, i) => (
+                <Text key={`v${i}`} color="magenta" italic wrap="truncate">
+                  {line}
+                </Text>
+              ))}
+            </Box>
+            {yard}
+          </Box>
+        )
       }
     }
+
+    // The yard, where it fits; where it doesn't (or a surface draws neither),
+    // the ASCII cat below.
+    const cols = stageCols(e.props.bodyColumns)
+    const layout = where === 'band' && (isTerminal || 'Svg' in table) ? fit(cols, e.props.maxRows) : undefined
+    const scene = layout ? await stageUp($, c, now, requestId, cols, layout.rows, false) : undefined
+    const yard = scene ? yardOf(table, isTerminal, scene, `Clawd and ${name()} in the yard: ${caption}`) : undefined
     if (layout && yard !== undefined) {
       const said = stage.said
       return (
@@ -1111,7 +1208,6 @@ export const register: Register = (on, options) => {
     const frames = FRAMES[c.mood]
     const lines = frames[c.frame % frames.length] ?? frames[0] ?? []
     const pad = ' '.repeat(offset(c.mood, c.frame, e.props.bodyColumns))
-    const verse = isSinging(c.mood) ? reply : undefined
     return (
       <Box flexDirection="row">
         <Box flexDirection="column">
@@ -1136,5 +1232,64 @@ export const register: Register = (on, options) => {
         </Box>
       </Box>
     )
+  })
+
+  // His own pane (/cat dock): the square of yard on top, and under it, with
+  // the room a side column has, Clawd's words, the caption and the couplet.
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const table = $.ui.resolve(e)
+    const { Box, Text, Button } = table
+    const c = await read($, cat)
+    const reply = replyOf(c)
+    const { caption, now } = await captionOf($, c)
+    const isTerminal = e.surface === 'terminal'
+    // Leave rows under the square for the words, where the pane is short.
+    const solo = soloFit(e.props.bodyColumns, Math.max(0, e.props.scroll.bodyRows - 6))
+    paneRequestId = isTerminal ? e.requestId : undefined
+    const scene = solo ? await stageUp($, c, now, paneRequestId, solo.cols, solo.rows, true) : undefined
+    const yard = scene ? yardOf(table, isTerminal, scene, `${name()} in the yard: ${caption}`) : undefined
+    if (yard === undefined && stage.requestId === e.requestId) stage.requestId = undefined
+    const said = saidOf(c)
+    const verse = isSinging(c.mood) ? reply : undefined
+    return (
+      <Box flexDirection="column">
+        {yard ?? (
+          <Text key="ascii" color={isCalm(c.mood) ? COAT_TINT[await read($, coat)] : COLOR[c.mood]}>
+            {(FRAMES[c.mood][c.frame % FRAMES[c.mood].length] ?? []).join('\n')}
+          </Text>
+        )}
+        <Box key="under" flexDirection="row">
+          <Button key="pet" plain hotkey="p" dimColor onPress={() => void pet($).catch(() => {})}>
+            pet
+          </Button>
+          <Text key="caption" dimColor wrap="wrap">
+            {`  ${caption}`}
+          </Text>
+        </Box>
+        {said !== undefined && (
+          <Text key="said" wrap="wrap">
+            {`Clawd: ${said}`}
+          </Text>
+        )}
+        {verse?.map((line, i) => (
+          <Text key={`v${i}`} color="magenta" italic wrap="wrap">
+            {line}
+          </Text>
+        ))}
+      </Box>
+    )
+  })
+
+  // Closed by hand, the pane gives him back to the band he came from.
+  on('ui.close', async ($, e, next) => {
+    if (e.id !== PANE) return next(e)
+    if (paneRequestId !== undefined && stage.requestId === paneRequestId) stage.requestId = undefined
+    if (e.origin.kind === 'person') {
+      await quietly(async () => {
+        await update($, place, () => 'band' as Place)
+        await $.store.set('place', 'band')
+      })
+    }
+    return next(e)
   })
 }

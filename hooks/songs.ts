@@ -30,6 +30,12 @@ const MANTINADES: [string, string][] = [
   ['Απ’ τον μπακάλη ζήτησα ρακή και παξιμάδι,', 'κι ήρθε πιο γρήγορα απ’ το build που τρέχει απ’ το βράδυ.'],
   ['Δυο πράγματα ’ναι δύσκολα σε τούτη τη ζωή μας:', 'το cache και τα ονόματα, κι off-by-one η ντροπή μας.'],
   ['DELETE χωρίς WHERE έτρεξα μες στην production βάση,', 'backup γυρεύω τώρα πια, μα κάπου θα ’χει σπάσει.'],
+  // Beef with the Argentine across the sea, never by name.
+  ['Η Αργεντινή μου φωνάζει πως τ’ ασάδο της νικάει,', 'μα έναν ντάκο κρητικό ποτέ της δεν ξεχνάει.'],
+  ['Μου λέει «che» και «boludo», κι εγώ δεν καταλαβαίνω,', 'της λέω «άντε στο καλό», και στη ρακή μου πηαίνω.'],
+  ['Χορεύει τάνγκο η Αργεντινή στο πληκτρολόγιο πάνω,', 'κι εγώ χορεύω πεντοζάλη, και τα bugs της πιάνω.'],
+  ['Το μάτε της το ρουφά, λες κι είναι γιατρικό της,', 'μα μια ρακή απ’ τον Ψηλορείτη θα ’κοβε το λαλητό της.'],
+  ['Μου λέει πως έχει Άνδεις, κι ο Ψηλορείτης μας μικρός,', 'μα εκεί που ’χει τ’ Ακονκάγκουα, δεν έχει τόσο φως.'],
 ]
 
 // Payador coplas, four eight-syllable lines sung two to a line, the
@@ -52,6 +58,15 @@ const COPLAS: [string, string][] = [
   ['Que el legacy fue y será una porquería, ya lo sé,', 'en el commit quinientos seis y en el dos mil también.'],
   ['Volver, con la frente marchita, al ticket que dejé en Review;', 'sentir que es un soplo la vida, que veinte commits no es nada.'],
   ['Che, Clawd, no me apurés, que yo laburo a mi modo:', 'un ratito con el código, y una siesta para todo.'],
+  // Beef with the Greek across the sea, never by name.
+  ['Dice el griego que es filósofo porque duerme todo el día;', 'yo también duermo la siesta, y no la llamo sabiduría.'],
+  ['El gato de Creta canta con la lira desafinada;', 'le saco el bandoneón, y se le apaga la mantinada.'],
+  ['El griego se cree Zeus porque nació en una montaña;', 'yo nací en un conventillo, y le gano con la maña.'],
+  ['Me jura que su aceite es el mejor de todo el mundo;', 'le serví un chimichurri, y quedó meditabundo.'],
+  ['El griego come sardinas y dice que es un manjar;', 'que pruebe una milanesa, y después vuelva a hablar.'],
+  ['Me dijo «καλημέρα», y yo le dije «¿qué decís?»;', 'si querés hablar conmigo, hablame en criollo, aprendiz.'],
+  ['Dice que inventó la lógica, la democracia y el teatro;', 'pero el dulce de leche es nuestro, y eso no lo empata ningún gato.'],
+  ['Él rompe platos en las fiestas, y se cree muy bailarín;', 'yo le bailo una milonga, y se queda sin violín.'],
 ]
 
 // English rhyming couplets, in the same spirit.

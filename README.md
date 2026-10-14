@@ -136,6 +136,9 @@ the kittens while helpers run.
 | -------------------------- | ---------------------------------------------------------------- |
 | `/cat`                     | Hide him, or bring him back (toggles)                            |
 | `/cat hide`, `/cat show`   | Hide him, or bring him back; hidden stays hidden across sessions |
+| `/cat small`               | Just the cat, in a small square at the right above the prompt    |
+| `/cat dock`                | Just the cat, in a pane docked on the right (fullscreen layout)  |
+| `/cat band`                | The whole yard above the prompt again                            |
 | `/cat pet`                 | Pet him: he closes his eyes and purrs                            |
 | `/cat manousos`            | The original coat: dark brown, white bib and mittens             |
 | `/cat ginger`              | An orange tabby                                                  |
@@ -183,6 +186,9 @@ Manousos, the cat above the prompt
   /cat stats                sardines and pets
   /cat config               every setting and what it is now
   /cat hide|show            hide the cat, or bring it back (/cat alone toggles)
+  /cat small                the cat alone in a small square at the right, above the prompt
+  /cat dock                 the cat in a pane of its own, docked on the right
+  /cat band                 the whole yard above the prompt again
 
 The same settings, and sound, are under /config, "Cretan cat".
 ```

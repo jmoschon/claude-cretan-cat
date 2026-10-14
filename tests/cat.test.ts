@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { topicOf } from '../hooks/lines'
-import { drawCat, drawCells, skyAt } from '../hooks/manousos'
+import { drawCat, drawCells, skyAt, type Scene } from '../hooks/manousos'
 import { cellsToSvg, SVG_MOST } from '../hooks/svg'
 
 const BAND = { component: 'AbovePrompt' } as const
@@ -97,6 +97,78 @@ describe('cretan-cat', () => {
     expect((await run('ginger')).text).toMatch(/Manousos is wearing the ginger coat/)
     expect(saved.coat).toBe('ginger')
     expect((await run('zebra')).text).toMatch(/manousos, ginger, tuxedo/)
+  })
+
+  test('alone in his square, the cat has the yard to himself: no Clawd, no bubbles', () => {
+    const scene: Scene = { mood: 'think', coat: 'ginger', t: 3, cols: 34, rows: 17, said: 'go on', reply: ['a song'], hour: 12, isSolo: true }
+    const cells = drawCells(scene)
+    const orange = (217 << 16) | (119 << 8) | 87
+    const colors = new Set<number>()
+    for (let i = 0; i < cells.length; i += 3) colors.add(cells[i + 1]!).add(cells[i + 2]!)
+    expect(colors.has(orange)).toBe(false)
+    expect(cellsText(drawCat(scene))).not.toMatch(/go on|a song|╭/)
+    // The same scene in the wide yard has Clawd in it.
+    const wide = drawCells({ ...scene, cols: 120, rows: 11, isSolo: false })
+    const wideColors = new Set<number>()
+    for (let i = 0; i < wide.length; i += 3) wideColors.add(wide[i + 1]!).add(wide[i + 2]!)
+    expect(wideColors.has(orange)).toBe(true)
+  })
+
+  test('/cat small puts him in a small square in the band; /cat band gives back the yard', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    expect(await run('small')).toMatch(/small square/)
+    expect(saved.place).toBe('small')
+    const small = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    const raster = (await small.find({ type: 'Raster' })) as { props: { columns: number; rows: number } } | undefined
+    expect(raster?.props.columns).toBe(30)
+    expect(raster?.props.rows).toBe(12)
+    expect(await small.find({ type: 'Text', text: /napping/ })).toBeDefined()
+    await small.unmount()
+    expect(await run('band')).toMatch(/whole yard/)
+    expect(saved.place).toBe('band')
+    const wide = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(((await wide.find({ type: 'Raster' })) as { props: { columns: number } } | undefined)?.props.columns).toBe(120)
+    await wide.unmount()
+  })
+
+  test('/cat dock opens his own pane and leaves the band; /cat band brings him back', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    // The surface's panes: open ids, placed at once.
+    const panes = new Set<string>()
+    on('ui.open', async (_$, e) => {
+      panes.add(e.id)
+      return { value: { isPlaced: true } } as never
+    })
+    on('ui.close', async (_$, e) => {
+      panes.delete(e.id)
+      return { value: undefined } as never
+    })
+    on('ui.panes', async () => ({ value: [...panes].map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })) }) as never)
+    on('ui.render', () => ({ type: 'Text', children: ['engine'] }) as never)
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } } as never)).text
+    expect(await run('dock')).toMatch(/pane of its own, docked on the right/)
+    expect(saved.place).toBe('dock')
+    expect(panes.has('cat')).toBe(true)
+    // Docked and placed, the band is left to the engine.
+    const band = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    expect(await band.find({ type: 'Raster' })).toBeUndefined()
+    await band.unmount()
+    // /cat band closes the pane and brings him back.
+    expect(await run('band')).toMatch(/whole yard/)
+    expect(panes.has('cat')).toBe(false)
   })
 
   test('/cat help lists what he does; anything else says it is unknown, then helps', async ($, on) => {
