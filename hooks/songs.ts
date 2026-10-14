@@ -66,7 +66,7 @@ const COPLAS: [string, string][] = [
   ['El griego come sardinas y dice que es un manjar;', 'que pruebe una milanesa, y después vuelva a hablar.'],
   ['Me dijo «καλημέρα», y yo le dije «¿qué decís?»;', 'si querés hablar conmigo, hablame en castellano, aprendiz.'],
   ['Dice que inventó la lógica, la democracia y el teatro;', 'pero el dulce de leche es nuestro, y eso no lo empata ningún gato.'],
-  ['Él dice que el sirtaki es el baile más bonito;', 'que venga a una milonga, y se lo bailo despacito.'],
+  ['Dice que en su paniguiri se baila hasta que sale el sol;', 'a esa hora, en Buenos Aires, recién abre el boliche, mi amor.'],
 ]
 
 // English rhyming couplets, in the same spirit.
