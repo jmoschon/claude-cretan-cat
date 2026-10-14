@@ -51,7 +51,7 @@
     "sound": {
       "type": "string",
       "title": "Cretan cat: sound",
-      "description": "A soft meow when the work is done or Claude is waiting for you. Plays on macOS only.",
+      "description": "The cat's voice: a happy trill when the work is done or he gets a sardine, a questioning mew when Claude waits for you, a purr when petted, a hiss at failing tests or a swat. At most one sound every 2 seconds. Plays on macOS only.",
       "default": "off",
       "options": [
         "off",

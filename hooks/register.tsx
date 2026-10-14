@@ -65,9 +65,16 @@ const isCoat = (v: unknown): v is Coat => typeof v === 'string' && v in COATS
 // every NUDGE_TICKS ticks (~8s). What he says is in the "language" setting.
 const NUDGE_TICKS = 20
 let language: Language = 'greek'
-// The meow when the work is done or Claude waits for you ("sound" setting).
+// His voice ("sound" setting): a happy "mrrp!" when the work is done or a
+// sardine comes, a "mew?" when Claude waits for you, a purr when petted, a
+// hiss at red tests or with a swat (scripts/sounds.py makes them).
 let isSoundOn = false
-const MEOW = 'sounds/meow.wav'
+type Sound = 'happy' | 'mew' | 'purr' | 'hiss'
+// At most one sound in SOUND_GAP_MS, the first of a burst: done and a
+// sardine back to back make one sound.
+const SOUND_GAP_MS = 2_000
+let soundAt = -Infinity
+let isSounding = false
 // A tool running this long bores him to sleep.
 const BORED_MS = 20_000
 // How long a short reaction lasts: dancing, hissing, eating a sardine.
@@ -439,8 +446,19 @@ const ASKS_YOU = new Set(['AskUserQuestion', 'ExitPlanMode'])
 const NEVER_BORING = new Set([...ASKS_YOU, 'Agent', 'Task', 'Workflow'])
 const PROMPT_DELAY_MS = 300
 
-function meow($: EngineInterface) {
-  if (isSoundOn) void $.audio.play({ asset: MEOW }).catch(() => {})
+function sound($: EngineInterface, which: Sound) {
+  if (!isSoundOn || isSounding) return
+  isSounding = true
+  void (async () => {
+    const now = await $.clock.now()
+    if (now - soundAt < SOUND_GAP_MS) return
+    soundAt = now
+    void $.audio.play({ asset: `sounds/${which}.wav` }).catch(() => {})
+  })()
+    .catch(() => {})
+    .finally(() => {
+      isSounding = false
+    })
 }
 
 // The day's sardines, one per commit or per finished turn that did some
@@ -549,6 +567,7 @@ async function pet($: EngineInterface): Promise<boolean> {
   // your keyboard asking for exactly that: then it purrs and gets off it.
   const wasOnKeys = (await read($, cat)).isOnKeys
   const isSwatted = !wasOnKeys && isTempered && random() < TEMPER.slap
+  sound($, isSwatted ? 'hiss' : 'purr')
   Object.assign(stage, { pettedAt: ms / 1000, isSwatted, isOnKeys: false })
   await update($, cat, c => ({ ...c, pettedAt: ms, isSwatted, isOnKeys: false }))
   // Redraw once the purring is over, so the caption lets go of it.
@@ -589,6 +608,8 @@ function saidOf(c: Cat): string | undefined {
 
 export const register: Register = (on, options) => {
   isSoundOn = options.sound === 'on'
+  soundAt = -Infinity
+  isSounding = false
   Object.assign(stage, STAGE_START)
   inTurn = false
   calls = []
@@ -864,7 +885,7 @@ export const register: Register = (on, options) => {
     calls.push(call)
     didWork = true
     void resume($).catch(() => {})
-    if (call.isWaiting) meow($)
+    if (call.isWaiting) sound($, 'mew')
     const bore = NEVER_BORING.has(e.tool)
       ? undefined
       : $.clock.after(BORED_MS, () => {
@@ -899,6 +920,7 @@ export const register: Register = (on, options) => {
               // The exit code tells, when it is the command's own; piped on
               // or followed by more (`| tail`, `|| true`), the output has to.
               const hasFailed = result.isError === true || (!kind.isExitTold && saysFailed(text))
+              if (hasFailed) sound($, 'hiss')
               return react($, hasFailed ? 'hiss' : 'dance')
             }
             // A commit went in if git says so ("[main abc1234] ..."), or if
@@ -906,6 +928,7 @@ export const register: Register = (on, options) => {
             if (COMMITTED.test(text) || (kind.isExitTold && result.isError !== true)) {
               isFed = true
               fedFor = 'commit'
+              sound($, 'happy')
               await eatSardine($)
               return react($, 'feast')
             }
@@ -945,7 +968,7 @@ export const register: Register = (on, options) => {
       call.isWaiting = true
       stopFlash()
       void resume($).catch(() => {})
-      meow($)
+      sound($, 'mew')
     })
     return answer
   })
@@ -972,7 +995,7 @@ export const register: Register = (on, options) => {
       const wrapUp = async () => {
         // If that can't be shown, he goes back to sleep rather than stay at work.
         await setMood($, isDone ? 'happy' : 'oops').catch(() => setMood($, 'nap'))
-        if (isDone) meow($)
+        if (isDone) sound($, 'happy')
         // Long enough to read the couplet before he curls up again, unless a
         // new turn has begun by then.
         if (inTurn || turn !== ended) return
