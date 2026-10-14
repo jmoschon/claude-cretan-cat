@@ -232,8 +232,9 @@ function isTests(words: string[]): boolean {
       else if (!w.startsWith('-')) words2.push(w)
     }
     const at = words2[0] === 'workspace' ? 2 : 0
-    const script = words2[at] === 'run' ? words2[at + 1] : words2[at]
-    const after = words2[words2.indexOf(script ?? '') + 1] ?? ''
+    const scriptAt = words2[at] === 'run' ? at + 1 : at
+    const script = words2[scriptAt]
+    const after = words2[scriptAt + 1] ?? ''
     if (script !== undefined && (['test', 't', 'tests'].includes(script) || script.startsWith('test:') || (RUNNERS.has(script) && !SETUP.has(after)))) return true
   }
   if (name === 'cargo' && rest[0] === 'nextest') return true
