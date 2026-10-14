@@ -1,6 +1,6 @@
 {
   "name": "cretan-cat",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "A pixel-art Cretan cat above the prompt, Manousos unless you name it. Clawd tells the cat what to do while Claude works, and it answers in song: Cretan mantinades, coplas and tangos, or English couplets.",
   "author": {
     "name": "Yiannis Moschonas"
@@ -51,7 +51,7 @@
     "sound": {
       "type": "string",
       "title": "Cretan cat: sound",
-      "description": "A soft meow when the work is done or Claude is waiting for you. Plays on macOS only.",
+      "description": "The cat's voice: a happy trill when the work is done or he gets a sardine, a questioning mew when Claude waits for you, a purr when petted, a hiss at failing tests or a swat. At most one sound every 2 seconds. Plays on macOS only.",
       "default": "off",
       "options": [
         "off",

@@ -68,7 +68,7 @@ describe('cretan-cat', () => {
     const busy: Parameters<typeof drawCells>[0] = {
       mood: 'think', t: 3, since: 3, cols: 160, rows: 11, coat: 'manousos', hour: 12, month: 0, kittens: 4,
       said: 'Πώς πάει το «a & b <c>», Μανούσο;',
-      reply: ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.'],
+      reply: ['Στο πληκτρολόγιο κάθομαι, τα bugs τα κυνηγάω,', 'κι όποιο ποντίκι βρω μπροστά, με μια πατιά το φάω.'],
     }
     const svg = cellsToSvg(drawCells(busy), 160, 11, skyAt(12))
     expect(svg.length).toBeLessThan(SVG_MOST / 4)
@@ -519,30 +519,147 @@ describe('cretan-cat', () => {
     await ui.unmount()
   })
 
-  test('sound off (the default): no meow', async ($, on) => {
-    const { clock } = setUp(on)
-    const played: unknown[] = []
-    on('audio.play', async (_$, e) => {
-      played.push(e.clip)
-      return { value: undefined } as never
+  // What $.audio.play was asked to play, asset by asset.
+  const listen = (on: any) => {
+    const played: string[] = []
+    on('audio.play', async (_$: unknown, e: { clip: { asset?: string } }) => {
+      played.push(e.clip.asset ?? '?')
+      return { value: undefined }
     })
+    return played
+  }
+  const done = { reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false }
+
+  test('sound off (the default): no sound, whatever happens', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    const played = listen(on)
     await $.turn.start({ turnId: 't1' } as never)
-    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    const ask = $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)
     await clock.settle()
+    await finish('AskUserQuestion')
+    await ask
+    await clock.advance(3_000)
+    const red = $.tool.call({ tool: 'Bash', command: 'pytest -q' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'FAILED', isError: true })
+    await red
+    await clock.advance(3_000)
+    await cmd($, 'pet')
+    await clock.advance(3_000)
+    await $.turn.complete({ turnId: 't1', ...done } as never)
+    await clock.advance(20_000)
     expect(played).toEqual([])
   })
 
-  test('sound on: a meow when the work is done', { options: { sound: 'on' } }, async ($, on) => {
+  test('sound on: a happy trill when the work is done', { options: { sound: 'on' } }, async ($, on) => {
     const { clock } = setUp(on)
-    const played: unknown[] = []
-    on('audio.play', async (_$, e) => {
-      played.push(e.clip)
-      return { value: undefined } as never
-    })
+    const played = listen(on)
     await $.turn.start({ turnId: 't1' } as never)
-    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await $.turn.complete({ turnId: 't1', ...done } as never)
     await clock.settle()
-    expect(played).toEqual([{ asset: 'sounds/meow.wav' }])
+    expect(played).toEqual(['sounds/happy.wav'])
+  })
+
+  test('sound on: a mew when Claude waits for you, a question or a permission prompt', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock, finish } = setUp(on)
+    const played = listen(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const ask = $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)
+    await clock.settle()
+    expect(played).toEqual(['sounds/mew.wav'])
+    await finish('AskUserQuestion')
+    await ask
+    await clock.advance(3_000)
+    const bash = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } } as never)
+    await clock.advance(400)
+    expect(played).toEqual(['sounds/mew.wav', 'sounds/mew.wav'])
+    await finish('Bash')
+    await bash
+  })
+
+  test('sound on: red tests make him hiss, green ones make no sound', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock, finish } = setUp(on)
+    const played = listen(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const green = $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+    await clock.settle()
+    await finish('Bash')
+    await green
+    expect(played).toEqual([])
+    await clock.advance(4_000)
+    const red = $.tool.call({ tool: 'Bash', command: 'pytest -q' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'FAILED', isError: true })
+    await red
+    expect(played).toEqual(['sounds/hiss.wav'])
+  })
+
+  test('sound on: petted, he purrs, from /cat pet and the pet button', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    const played = listen(on)
+    expect(await cmd($, 'pet')).toMatch(/purrs/)
+    await clock.settle()
+    expect(played).toEqual(['sounds/purr.wav'])
+    await clock.advance(3_000)
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'pet' })
+    await clock.settle()
+    await ui.unmount()
+    expect(played).toEqual(['sounds/purr.wav', 'sounds/purr.wav'])
+  })
+
+  test('sound on, with a temper: a swat comes with a hiss, a purr with a purr', { options: { sound: 'on', temper: 'on' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    const played = listen(on)
+    const heard = new Set<string>()
+    for (let i = 0; i < 30 && heard.size < 2; i++) {
+      const text = await cmd($, 'pet')
+      await clock.settle()
+      const last = played[played.length - 1]
+      expect(last).toBe(/swats your hand/.test(text) ? 'sounds/hiss.wav' : 'sounds/purr.wav')
+      heard.add(last!)
+      await clock.advance(3_000)
+    }
+    expect([...heard].sort()).toEqual(['sounds/hiss.wav', 'sounds/purr.wav'])
+  })
+
+  test('sound on: a sardine for a commit, then done: one sound, not two; never two at once', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock, finish } = setUp(on)
+    const played = listen(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const commit = $.tool.call({ tool: 'Bash', command: 'git commit -m x' } as never)
+    await clock.settle()
+    await finish('Bash')
+    await commit
+    await $.turn.complete({ turnId: 't1', ...done } as never)
+    await clock.settle()
+    expect(played).toEqual(['sounds/happy.wav'])
+    // A burst of pets: one purr. Two seconds later he can purr again.
+    await Promise.all([cmd($, 'pet'), cmd($, 'pet'), cmd($, 'pet')])
+    await clock.settle()
+    expect(played).toEqual(['sounds/happy.wav'])
+    await clock.advance(2_000)
+    await Promise.all([cmd($, 'pet'), cmd($, 'pet')])
+    await clock.settle()
+    expect(played).toEqual(['sounds/happy.wav', 'sounds/purr.wav'])
+  })
+
+  test('sound on: the mew that calls you is never held back by a sound just before', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock, finish } = setUp(on)
+    const played = listen(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const commit = $.tool.call({ tool: 'Bash', command: 'git commit -m x' } as never)
+    await clock.settle()
+    await finish('Bash')
+    await commit
+    // Under a second later, a question for you: the mew still plays.
+    const ask = $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)
+    await clock.settle()
+    expect(played).toEqual(['sounds/happy.wav', 'sounds/mew.wav'])
+    await finish('AskUserQuestion')
+    await ask
   })
 
   test('waiting on you holds while another tool finishes, and boredom waits too', async ($, on) => {
@@ -1077,3 +1194,4 @@ function cellsText(b64: string) {
   for (let i = 0; i + 11 < bytes.length; i += 12) out += String.fromCodePoint(bytes[i]! | (bytes[i + 1]! << 8) | (bytes[i + 2]! << 16))
   return out
 }
+
