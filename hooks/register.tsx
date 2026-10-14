@@ -38,7 +38,7 @@ const wear = (c: Coat) => {
   who = CATS[c]
 }
 
-// While Claude thinks, Clawd nudges Manousos about the topic, a new line
+// While Claude thinks, Clawd nudges the cat about the topic, a new line
 // every NUDGE_TICKS ticks (~8s). What he says is in the "language" setting.
 const NUDGE_TICKS = 20
 let language: Language = 'greek'
@@ -90,10 +90,16 @@ let seconds = 0
 const stageCols = (bodyColumns: number) => Math.min(STAGE_MOST_COLS, bodyColumns)
 // He sings while Claude works and again, a fresh couplet, when it is done.
 const isSinging = (mood: Mood) => mood === 'think' || mood === 'tool' || mood === 'happy'
+// She shows on your keyboard only while nothing needs you: napping,
+// thinking, on a tool or dozing. Waiting on you, a failure, tests, a sardine
+// or the work being done always show over her.
+const KEYS_SHOW = new Set<Mood>(['nap', 'think', 'tool', 'bored'])
+const showsKeys = (isOnKeys: boolean, mood: Mood) => isOnKeys && who.says !== undefined && KEYS_SHOW.has(mood)
+
 // What the cat answers, by mood: a song while singing, otherwise a short
 // line, in the cat's own words if it has them.
 function replyOf(c: Cat): string[] | undefined {
-  if (c.isOnKeys && who.says) return [who.says.asks]
+  if (showsKeys(c.isOnKeys, c.mood)) return [who.says!.asks]
   if (isSinging(c.mood)) return who.songs[c.verse % who.songs.length]
   const lines = linesOf()
   const own = who.says
@@ -115,7 +121,8 @@ function sceneAt(ms: number) {
   const t = ms / 1000
   const local = new Date(ms)
   const petted = stage.pettedAt > 0 ? t - stage.pettedAt : undefined
-  return { ...stage, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
+  const isOnKeys = showsKeys(stage.isOnKeys, stage.mood)
+  return { ...stage, isOnKeys, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
 }
 
 // Each pose is drawn as a raw block (no backticks inside), cut into its 4 lines.
@@ -464,7 +471,7 @@ const COMMITTED = /^\[[^\]\n]+ [0-9a-f]{7,}\]/m
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
   const lines = linesOf()
-  if (c.isOnKeys && who.says) return who.says.typed[c.nudge % who.says.typed.length]
+  if (showsKeys(c.isOnKeys, c.mood)) return who.says!.typed[c.nudge % who.says!.typed.length]
   if (c.mood === 'slap') return lines.slapped
   if (c.mood === 'snub') return lines.snubbed
   if (c.mood === 'tool') return lines.tool(c.tool ?? '?')
@@ -496,6 +503,11 @@ export const register: Register = (on, options) => {
   who = CATS.manousos
 
   on('session.start', async ($, e, next) => {
+    // Seed the dice now, not at the first song: unseeded, they roll the same
+    // way every session (her first pets were always swats).
+    await quietly(async () => {
+      seed ^= (await $.clock.now()) | 0
+    })
     await $.command.register({ name: 'cat', description: 'Show or hide the cat (/cat hide, /cat show), /cat pet; /cat manousos, tuxedo, or ginger (Asturias) changes the cat' })
     await quietly(async () => {
       const saved = await $.store.get('coat')
@@ -784,7 +796,7 @@ export const register: Register = (on, options) => {
     const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000
     const petted = c.isSwatted ? `${name()} swatted your hand: ${who.says?.swat ?? ''}` : `${name()} purrs <3`
     const onKeys = `${name()} is on your keyboard: pet ${who.him} (p) to get it back`
-    const caption = (isPetted ? petted : c.isOnKeys ? onKeys : CAPTION[c.mood](c)) + kittens
+    const caption = (isPetted ? petted : showsKeys(c.isOnKeys, c.mood) ? onKeys : CAPTION[c.mood](c)) + kittens
     // Petting: a click on it, or p while the band has the focus.
     const petting = (
       <Button key="pet" plain hotkey="p" dimColor onPress={() => void pet($).catch(() => {})}>

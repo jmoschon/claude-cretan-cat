@@ -109,7 +109,7 @@ To update, run `git pull` in the folder.
 | Command | What it does |
 |---|---|
 | `/cat hide`, `/cat show` | Hide him, or bring him back. A bare `/cat` toggles. He stays hidden in new sessions until you bring him back. |
-| `/cat pet` | Pet him: he closes his eyes and purrs. |
+| `/cat pet` | Pet him: he closes his eyes and purrs (Asturias may swat you instead). |
 | `/cat manousos` | The original coat: dark brown with a white bib and mittens. |
 | `/cat ginger` (or `/cat asturias`) | Asturias, his Argentine ginger sister. See below. |
 | `/cat tuxedo` | Black and white. |
@@ -147,7 +147,8 @@ his, and she grew up in Buenos Aires, so she doesn't sing mantinades:
 - **Your keyboard.** Some turns she gets there before Claude does, lies down
   on it and types into Clawd's bubble (*asdfjjjjj;;;;*, *ñññññ*), asking
   *¿Y mis mimos?*. She stays, through any number of turns, until you pet
-  her. Nothing is held up: it's only her side of the yard.
+  her. Nothing is held up: it's only her side of the yard, and she gets up
+  whenever Claude needs you, something fails or the tests finish.
 
 ## Room it needs
 

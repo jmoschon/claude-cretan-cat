@@ -776,6 +776,43 @@ describe('cretan-cat', () => {
     expect(await onKeys()).toBe(false)
   })
 
+  test('on your keyboard, she still gets up when Claude needs you', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    const onKeys = () => caption($, /on your keyboard/)
+    await asAsturias($)
+    for (let i = 0; i < 40 && !(await onKeys()); i++) {
+      await $.turn.start({ turnId: `k${i}` } as never)
+      await $.turn.complete({ turnId: `k${i}`, reason: 'answer', answer: '', durationMs: 1, isAborted: false } as never)
+      await clock.advance(13_000)
+    }
+    expect(await onKeys()).toBe(true)
+    await $.turn.start({ turnId: 'w' } as never)
+    const bash = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } } as never)
+    await clock.advance(400)
+    expect(await caption($, /waiting for you: answer the Bash prompt/)).toBe(true)
+    expect(await yardText($)).not.toContain('¿Y mis mimos?')
+    await finish('Bash')
+    await bash
+    // The prompt answered, she is back on the keys: nobody petted her.
+    expect(await onKeys()).toBe(true)
+  })
+
+  test('her first pets of a session are not always swats', async ($, on) => {
+    mock.clock(on, { now: 1_700_000_000_000 })
+    on('store.get', async () => ({ value: undefined }))
+    on('store.set', async () => ({ value: undefined }))
+    on('command.register', async () => ({ value: undefined }) as never)
+    on('session.start', async (_$, e) => ({ cwd: e.cwd }) as never)
+    await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true } as never)
+    const run = async (args: string) =>
+      (await $.command.run({ command: 'cat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text
+    await run('ginger')
+    const pets = [await run('pet'), await run('pet'), await run('pet')]
+    expect(pets.some(t => /purrs/.test(t ?? ''))).toBe(true)
+  })
+
   test('the yard draws her slap, her snub and her keyboard', () => {
     const keys = { coat: 'ginger', mood: 'think', t: 3, since: 3, cols: 110, rows: 11, hour: 12, month: 6 } as const
     expect(drawCat({ ...keys, isOnKeys: true })).not.toBe(drawCat(keys))
