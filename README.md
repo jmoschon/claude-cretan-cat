@@ -144,7 +144,7 @@ With the temper on, the cat has opinions:
   (*Nope.*).
 - **Petting him** sometimes gets you a swat instead of a purr.
 - **Your keyboard.** Some turns he gets there before Claude does and lies
-  down on it, typing (*asdfjjjj;;;;*) and asking for cuddles, while Clawd
+  down on it and asks for cuddles, while Clawd
   tells him to get off. Pet him and he gets off; otherwise he stays until
   the turn ends, so when you're idle he naps as usual. Nothing is held up:
   it's only his side of the yard, and he gets up whenever Claude needs you,

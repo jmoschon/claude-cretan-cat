@@ -946,10 +946,10 @@ describe('cretan-cat', () => {
     const { clock } = setUp(on)
     const turn = await untilOnKeys($, clock)
     expect(turn).toBeDefined()
-    // Clawd tells it to get off; the cat types, and asks for cuddles.
+    // Clawd tells it to get off; the cat asks for cuddles, no gibberish.
     const yard = await yardText($)
     expect(yard).toContain('Μανούσο, κατέβα από το πληκτρολόγιο!')
-    expect(yard).toMatch(/asdfj|ñññ|qwww|gggg/)
+    expect(yard).not.toMatch(/asdfj|ñññ|qwww|gggg/)
     expect(yard).toContain('Και τα χάδια μου;')
     const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     await ui.press({ key: 'pet' })

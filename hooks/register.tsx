@@ -18,7 +18,6 @@ let isTempered = false
 // a pet earns a swat; and that a turn starts with the cat on your keyboard.
 const TEMPER = { slap: 0.3, snub: 0.3, keys: 0.2 }
 // What it types, lying on your keyboard, into Clawd's bubble.
-const TYPED = ['asdfjjjjjjj;;;;', 'ñññññññññññ', 'qwwwwwwwwwww', 'ggggggg hhhh']
 // What Clawd says, and the cat's short replies, in the "language" setting.
 const linesOf = () => LINES[language](catName)
 
@@ -124,8 +123,8 @@ const showsKeys = (isOnKeys: boolean, mood: Mood) => isOnKeys && isTempered && K
 // line in the "language" setting.
 function replyOf(c: Cat): string[] | undefined {
   const lines = linesOf()
-  // On your keyboard: what it's typing, and what it wants to get off it.
-  if (showsKeys(c.isOnKeys, c.mood)) return [TYPED[c.nudge % TYPED.length]!, lines.asks]
+  // On your keyboard: what it wants to get off it.
+  if (showsKeys(c.isOnKeys, c.mood)) return [lines.asks]
   if (isSinging(c.mood)) return songs()[c.verse % songs().length]
   if (c.mood === 'slap') return [lines.retort[c.nudge % lines.retort.length]!]
   if (c.mood === 'snub') return [lines.shrug[c.nudge % lines.shrug.length]!]
