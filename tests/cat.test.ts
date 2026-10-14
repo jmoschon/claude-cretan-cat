@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { topicOf } from '../hooks/lines'
-import { DAILY_CAP, FACT_WORDS, factsOf, greekSongProblem, isNearCopy, MARKED_MANTINADES, MARKED_REWRITE, NEAR_COPY, parseReply, rhymeOf, sanitiseTopic, syllableMarks, syllables, systemPrompt, unmarked, type AiSetup } from '../hooks/ai'
+import { DAILY_CAP, displayWidth, FACT_WORDS, factsOf, topicToSend, unsafe, withoutSecrets, greekSongProblem, isNearCopy, MARKED_MANTINADES, MARKED_REWRITE, NEAR_COPY, parseReply, rhymeOf, sanitiseTopic, syllableMarks, syllables, systemPrompt, unmarked, type AiSetup } from '../hooks/ai'
 import { SONGS } from '../hooks/songs'
 import { drawHd } from '../hooks/hd'
 import { HD_SCALE } from '../hooks/hd-sprites'
@@ -1770,15 +1770,22 @@ describe('cretan-cat AI songs and lines', () => {
       const answered = (await answer(e)) as { deny?: string }
       return answered.deny !== undefined ? answered : { value: answered }
     })
-    on('ui.log', async () => ({ value: undefined }))
-    return { clock, saved, requests }
+    // What the plugin writes to the debug log, as the events carried it.
+    const logged: string[] = []
+    on('ui.log', async (_$: unknown, e: unknown) => {
+      logged.push(JSON.stringify(e))
+      return { value: undefined }
+    })
+    return { clock, saved, requests, logged }
   }
   const start = async ($: any, clock: any) => {
     await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true } as never)
     await clock.settle()
   }
+  // Typed at the prompt, between turns, as the engine stamps it.
+  const typed = { kind: 'composer' } as const
   const prompt = async ($: any, clock: any, text: string, turnId: string) => {
-    await $.prompt.submit({ text } as never)
+    await $.prompt.submit({ text, origin: typed } as never)
     await $.turn.start({ turnId } as never)
     await clock.settle()
   }
@@ -1826,7 +1833,7 @@ describe('cretan-cat AI songs and lines', () => {
     expect(requests.length).toBe(1)
     await finish($, clock, 't1')
     // A slash command, and a turn no prompt started: no call.
-    await $.prompt.submit({ text: '/cat stats' } as never)
+    await $.prompt.submit({ text: '/cat stats', origin: typed } as never)
     await $.turn.start({ turnId: 't2' } as never)
     await clock.settle()
     await finish($, clock, 't2')
@@ -1863,7 +1870,7 @@ describe('cretan-cat AI songs and lines', () => {
     // What the topic picker took, cleaned: the prompt as typed never goes.
     for (const r of requests) expect(prompts.some(p => r.prompt.includes(p))).toBe(false)
     // Each secret is dropped whole, leaving no fragment ("com", "txt") behind.
-    expect(requests.map(r => /«(.*)»/.exec(r.prompt)?.[1])).toEqual(['checkout tests', 'email api tests', 'rotate payments job', 'ping gateway', 'aws billing', 'token billing'])
+    expect(requests.map(r => /«(.*)»/.exec(r.prompt)?.[1])).toEqual(['checkout tests', 'email api tests', 'rotate payments job', 'ping gateway', 'aws billing', 'billing'])
   })
 
   test('the topic sanitiser drops keys, tokens, emails, URLs, IPs, paths and long numbers, and caps the length', () => {
@@ -2108,6 +2115,106 @@ describe('cretan-cat AI songs and lines', () => {
     }
     await finish($, clock, 't2')
     expect((await yard($)).text).not.toContain(SUNG)
+  })
+
+  // The reviewer's probes: none of the secret part may be sent.
+  const PROBES: [string, string[]][] = [
+    ['the db password: SuperSecret99', ['SuperSecret99', 'Super']],
+    ['the api key is abcdefghijklmnopqrst', ['abcdefghijklmnopqrst']],
+    ['auth Bearer abcDEF123xyz', ['abcDEF123xyz', 'Bearer']],
+    ['fix token%3Dhunter2xyz now', ['hunter2', '%3D', 'token']],
+    ['base64 dXNlcjpwYXNz', ['dXNlcjpwYXNz']],
+    ['key is sk live abcdef12 34567890', ['abcdef12', '34567890', 'sk']],
+    ['export DB_PASS hunter2', ['hunter2', 'DB_PASS']],
+    ['call +30 6912345678 about billing', ['+30', '6912345678']],
+    ['ring (210) 555-0199 about billing', ['555', '0199', '210']],
+  ]
+
+  test('the topic sanitiser: passwords after a keyword, encoded, mixed, base64-looking and phone-number words never go', () => {
+    for (const [text, secrets] of PROBES) {
+      const sent = topicToSend(text)
+      for (const secret of secrets) expect([text, sent, sent.includes(secret)]).toEqual([text, sent, false])
+    }
+    // What is left is the plain words.
+    expect(topicToSend('the api key is abcdefghijklmnopqrst')).toBe('api')
+    expect(topicToSend('call +30 6912345678 about billing')).toBe('call billing')
+  })
+
+  test('the probes through a session: the request never carries their secret parts', AI, async ($, on) => {
+    const { clock, requests } = setUp(on)
+    await start($, clock)
+    for (const [i, [text]] of PROBES.entries()) {
+      await prompt($, clock, `${text} for the checkout service`, `p${i}`)
+      await finish($, clock, `p${i}`)
+      await clock.advance(13_000)
+    }
+    expect(requests.length).toBe(PROBES.length)
+    for (const r of requests) for (const [, secrets] of PROBES) for (const secret of secrets) expect([r.prompt, r.prompt.includes(secret)]).toEqual([r.prompt, false])
+  })
+
+  test('hidden characters leave the topic before it is sent', () => {
+    const hidden = [0xad, 0xfe0f, 0x3164, 0xe0041, 0xe0042, 0x200b, 0x2066].map(c => String.fromCodePoint(c)).join('')
+    const sent = topicToSend(`fix the check${hidden}out tests`)
+    expect([...sent].every(c => /[\p{L}\p{N} ]/u.test(c))).toBe(true)
+    expect(withoutSecrets(`a${String.fromCodePoint(0xe0041)}b`)).toBe('a b')
+  })
+
+  test('lines that show nothing they seem to, or more than they seem, never show', () => {
+    const tags = 'hi' + [0xe0001, 0xe0068, 0xe0069].map(c => String.fromCodePoint(c)).join('')
+    const shy = 'check' + String.fromCodePoint(0xad) + 'out'
+    const selector = 'cat' + String.fromCodePoint(0xfe0f)
+    const filler = 'Μανούσο' + String.fromCodePoint(0x3164)
+    const zalgo = 'Μα' + [0x301, 0x302, 0x303, 0x304].map(c => String.fromCodePoint(c)).join('') + 'νούσο'
+    for (const line of [tags, shy, selector, filler, zalgo, 'ｈｔｔｐｓ：／／ｅｖｉｌ．ｃｏｍ', 'δες το evil.tk τώρα', 'πάτα [click](evil)', 'πάτα [εδώ](x)']) {
+      expect([line, unsafe(line) !== undefined]).toEqual([line, true])
+    }
+    // Greek with its accents (two marks at most) is fine.
+    expect(unsafe('Μανούσο, κι ό,τι βρω το φάω.')).toBe(undefined)
+    expect(unsafe('ΐ'.normalize('NFD'))).toBe(undefined)
+    // Width, not code points: forty wide characters take eighty cells.
+    const wide = '猫'.repeat(40)
+    expect([...wide].length).toBe(40)
+    expect(displayWidth(wide)).toBe(80)
+    const greek: AiSetup = { name: { latin: 'Manousos', greek: 'Μανούσο' }, language: 'greek', songs: 'greek', isTempered: false }
+    const tooWide = parseReply(JSON.stringify({ songs: [SONG], nudges: [NUDGES[0], '猫'.repeat(30), NUDGES[2]] }), greek)
+    expect('lines' in tooWide && tooWide.lines.nudges).toEqual([NUDGES[0], NUDGES[2]])
+  })
+
+  test('only a prompt the person typed between turns makes a call: not a channel, a peer, another plugin, or a delivery mid-turn', AI, async ($, on) => {
+    const { clock, requests } = setUp(on)
+    await start($, clock)
+    for (const [i, origin] of [{ kind: 'channel', server: 'slack' }, { kind: 'peer' }, { kind: 'plugin', name: 'other-plugin' }, { kind: 'sdk' }, { kind: 'task-notification' }].entries()) {
+      await $.prompt.submit({ text: 'fix the failing checkout tests', origin } as never)
+      await $.turn.start({ turnId: `o${i}` } as never)
+      await clock.settle()
+      await finish($, clock, `o${i}`)
+    }
+    expect(requests.length).toBe(0)
+    // Typed, between turns: one call. Typed into the running turn: no topic for the next.
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    expect(requests.length).toBe(1)
+    await $.prompt.submit({ text: 'and tidy the billing exporter', origin: typed, turnId: 't1' } as never)
+    await clock.settle()
+    await finish($, clock, 't1')
+    await $.turn.start({ turnId: 't2' } as never)
+    await clock.advance(20_000)
+    expect(requests.length).toBe(1)
+  })
+
+  test('the debug log never holds the topic: its length, the facts and how the call went', AI, async ($, on) => {
+    const { clock, logged } = setUp(on)
+    await start($, clock)
+    await prompt($, clock, 'fix the failing checkout tests', 't1')
+    const mine = logged.filter(l => l.includes('cretan-cat ai'))
+    expect(mine.length).toBeGreaterThanOrEqual(2)
+    for (const line of mine) {
+      expect(line).not.toContain('checkout')
+      expect(line).not.toContain('failing')
+      expect(line).not.toContain(SUNG)
+      for (const n of NUDGES) expect(line).not.toContain(n)
+    }
+    expect(mine.join('\n')).toMatch(/a topic of 22 characters/)
+    expect(mine.join('\n')).toMatch(/answered, 880 tokens/)
   })
 
   test('session facts: exactly these keys, each a number or one of the fixed words', async () => {
@@ -2435,6 +2542,9 @@ describe('cretan-cat settings: coat, place and hints', () => {
     expect(await run($, 'tempr on')).toMatch(/Did you mean \/cat temper on\?/)
     expect(await run($, 'resoluton high')).toMatch(/Did you mean \/cat resolution high\?/)
     expect(await run($, 'aii on')).toMatch(/Did you mean \/cat ai on\?/)
+    // A command that takes nothing is suggested bare.
+    expect(await run($, 'hied now')).toMatch(/Did you mean \/cat hide\?/)
+    expect(await run($, 'stast please')).toMatch(/Did you mean \/cat stats\?/)
     expect(await run($, 'band now')).toMatch(/Did you mean \/cat band\?/)
     // Nothing close: the whole help, as before.
     const far = await run($, 'xyzzy')

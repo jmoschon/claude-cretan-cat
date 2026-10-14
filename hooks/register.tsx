@@ -863,6 +863,8 @@ const COMMANDS = [
   ...['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai'],
   ...['band', 'small', 'dock', 'asturias', 'reset', ...Object.keys(COATS)],
 ]
+// The commands that take something after them (/cat name Luna).
+const TAKES_VALUE = new Set(['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai', 'hints'])
 // How many letters to add, drop or change to turn a into b.
 function editDistance(a: string, b: string) {
   let row = Array.from({ length: b.length + 1 }, (_, j) => j)
@@ -1283,7 +1285,8 @@ export const register: Register = (on, options) => {
     // A slip of the keys: the command it is closest to, if one is close.
     const meant = closest(arg)
     if (meant === undefined) return { text: `${name()} doesn't know "/cat ${raw}".\n\n${help}` }
-    const after = meant === arg ? '' : raw.slice(arg.length).trimEnd()
+    // What came after it, only for a command that takes something.
+    const after = meant === arg || !TAKES_VALUE.has(meant) ? '' : raw.slice(arg.length).trimEnd()
     return { text: `${name()} doesn't know "/cat ${raw}". Did you mean /cat ${meant}${after}?\n\n/cat help lists everything ${name()} does.` }
   })
 
@@ -1293,7 +1296,10 @@ export const register: Register = (on, options) => {
       const asked = topicOf(e.text) || null
       await update($, cat, c => ({ ...c, asked, nudge: c.nudge + 1 })).catch(() => {})
       // A real prompt: its turn may have its words written (ai.ts).
-      if (e.command === undefined && e.isMeta !== true) aiPrompt(e.text)
+      // Only what the person typed at the prompt, between turns: never a
+      // channel, a peer, another plugin, a notification or a delivery into
+      // a running turn.
+      if (e.command === undefined && e.isMeta !== true && e.origin?.kind === 'composer' && e.turnId === undefined) aiPrompt(e.text)
     }
     return next(e)
   })

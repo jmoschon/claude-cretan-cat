@@ -178,11 +178,16 @@ built-in lines and songs take over whenever there is nothing written.
 
 **What is sent.** Only:
 
-- the topic: the few words the cat already picks from your prompt for
-  Clawd's nudges (*checkout tests*), at most 60 characters, with every word
-  that looks like a key or token (an OpenAI-style, GitHub or AWS key, a JWT, a long
-  hex or base64 run), an email address, a URL or host name, an IP address,
-  a file path or file name, or a long number taken out first;
+- the topic: a few words from *your* prompt, the ones the cat already picks
+  for Clawd's nudges (*checkout tests*), at most 60 characters. They are
+  your own words, so they can include a file, command or project name you
+  typed. Before they are picked, these are taken out: anything that looks
+  like a key or token (an OpenAI-style, GitHub or AWS key, a JWT, a hex or
+  base64-looking run, a word mixing letters and digits), the word after
+  *password*, *token*, *key*, *secret*, *auth* and the like, percent-encoded
+  text, email addresses, URLs and host names, IP addresses, file paths and
+  file names, phone numbers and long numbers, and invisible characters.
+  This is a filter, not a guarantee: don't paste secrets into prompts;
 - the settings: the cat's name (and what Clawd calls it in Greek), Clawd's
   language, which songs, whether the temper is on, and whether it is
   Asturias;
@@ -196,15 +201,24 @@ built-in lines and songs take over whenever there is nothing written.
   The model may mention one of them, playfully, and is told never to
   invent any.
 
-Never a file name, a command, a test name, tool output, a branch or repo
-name, your prompt as you typed it, your files, Claude's answers or the
-transcript. A prompt whose topic is empty once cleaned (*hi*) makes no call.
+The session facts never carry a name, a command, a test name, tool output
+or a branch or repo name, and nothing is taken from your files, Claude's
+answers or the transcript; the whole prompt is never sent, only the topic
+words above. A prompt whose topic is empty once cleaned (*hi*) makes no
+call. Only a prompt you typed at the prompt between turns makes a call:
+not a message from a channel, another session, another plugin, a scheduled
+task or a notification, and not one typed into a turn that is running.
+
+The debug log records the topic's length, the session facts and how the
+call went (answered or why not, tokens), never the topic or the words
+written.
 
 **What it costs.** At most one call per prompt, never from the animation or
 a timer, never for a slash command: about 1,000 to 4,500 tokens of Haiku
 (Greek songs cost the most), capped at 1,000 output tokens and 15 seconds. At
 most 100 calls a day (by your local date), then the built-in lines until
-tomorrow. `/cat stats` shows the day's count, for example
+tomorrow. The count is kept per machine, and with several sessions running
+at once it can go a few calls over. `/cat stats` shows the day's count, for example
 `AI: 12 calls, 4.1k tokens today`.
 
 **Greek songs.** Haiku doesn't compose a mantinada from nothing: it gets
@@ -219,13 +233,15 @@ vowel, and more than five words changed, added or taken out from any
 built-in song, so a near copy is not sung.
 
 **What can show.** The reply must be JSON of the right shape. Anything
-unsafe anywhere (control characters or terminal escapes, invisible or
-right-to-left marks, line breaks, links or email addresses, emoji, or one of
-a short list of rude words in Greek, English and Spanish) and that turn
-uses the built-in lines and songs. Otherwise each part stands alone: a song
-that doesn't scan or is over 70 characters a line gives way to a built-in
-song, and a nudge or comeback over 45 characters (what fits Clawd's bubble)
-is left out, while the rest is used. A timeout or an error, and the turn
+unsafe anywhere (control characters or terminal escapes, invisible,
+format or right-to-left characters, more than two marks piled on a letter,
+line breaks, links or email addresses, any *word.word*, markdown links,
+full-width look-alikes of any of these, emoji, or one of a short list of
+rude words in Greek, English and Spanish) and that turn uses the built-in
+lines and songs. Otherwise each part stands alone: a song that doesn't
+scan or is wider than 70 cells a line gives way to a built-in song, and a
+nudge or comeback wider than 45 cells (what fits Clawd's bubble; a wide
+East Asian character takes two) is left out, while the rest is used. A timeout or an error, and the turn
 is all built-in.
 
 **After the turn.** The call isn't cut when the turn ends: a reply that
@@ -233,6 +249,7 @@ lands while the cat is still singing at the end is sung then, and its
 nudges and comebacks carry over to a turn that no prompt started. A new
 prompt cuts a call still running and drops what the last one wrote; so do
 a change to the name, either language, the temper or this setting, and the
-session ending. Only one call is ever in flight.
+session ending. Pressing Esc on a turn cancels its call too. Only one call
+is ever in flight.
 
 `/cat reset`, `/cat manousos` and `/cat asturias` leave this setting as it is.

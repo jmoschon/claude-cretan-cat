@@ -94,10 +94,11 @@ The GIF above is `resolution: high`; [this one](docs/demo-low.gif) is how
 ### AI songs
 
 `/cat ai on` lets one small Haiku call a turn write his song and Clawd's
-nudges about your task; `/cat ai off` goes back to the built-ins. Only the
-prompt's topic words (keys, emails, URLs and paths taken out), the settings
-and a few session counts are sent, at most 100 calls a day. The details are
-in [settings](docs/settings.md#ai-songs-and-lines).
+nudges about your task; `/cat ai off` goes back to the built-ins. What is
+sent is a few topic words from the prompt you typed (keys, passwords,
+addresses, URLs, paths and long numbers taken out, so don't count on it for
+secrets), the settings and a few session counts, at most 100 calls a day.
+The details are in [settings](docs/settings.md#ai-songs-and-lines).
 
 ## Meet Asturias
 

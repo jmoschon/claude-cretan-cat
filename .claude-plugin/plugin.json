@@ -102,7 +102,7 @@
     "ai": {
       "type": "string",
       "title": "Cretan cat: AI songs",
-      "description": "On: one small Haiku call a turn writes his song and Clawd's nudges about your task, using only the topic words and session counts; at most 100 calls a day, then the built-ins. /cat ai on|off.",
+      "description": "On: one small Haiku call a turn writes his song and Clawd's nudges about your task, sending a few topic words from the prompt you typed (secret-looking words taken out: a filter, not a guarantee) and session counts; at most 100 calls a day, then the built-ins. /cat ai on|off.",
       "default": "off",
       "options": [
         "off",

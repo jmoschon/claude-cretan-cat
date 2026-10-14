@@ -2,11 +2,15 @@
 // model call a turn, through the session's own client. Opt-in, off unless
 // turned on.
 //
-// What is sent: the topic the topic picker took from the prompt (a few
-// words), with anything that looks like a secret or personal data taken
-// out, and the cat's settings. Never the prompt itself, a file or the
-// transcript. What comes back is checked line by line before it can show;
-// anything off, and the built-in lines and songs carry on as ever.
+// What is sent: the topic, a few words the topic picker takes from the
+// prompt the person typed, so it can hold a file, command or project name
+// they typed; words that look like keys or tokens, the word after a
+// password or token keyword, addresses, URLs, paths, phone numbers and long
+// numbers are taken out first. That is a filter, not a guarantee. Also the
+// cat's settings and a few session facts (counts and coarse time, no
+// names). Never the whole prompt, a file, tool output or the transcript.
+// What comes back is checked line by line before it can show; anything
+// off, and the built-in lines and songs carry on as ever.
 
 import type { EngineInterface } from 'claude-code'
 
@@ -61,8 +65,19 @@ const SECRET_WORD: RegExp[] = [
   /[\\/]|^~/,
   /\.[A-Za-z0-9]{1,6}$/,
   /\w\.\w/,
-  // Six or more digits anywhere: a phone, a card, an account number.
+  // Six or more digits anywhere: a phone, a card, an account number; a
+  // phone number however it is written (+30 ..., (210) 555-...).
   /\d{6,}/,
+  /^\+\d/,
+  /^\(?\d{2,4}\)?[-.]\d{2,4}/,
+  // Percent-encoded text (token%3D...).
+  /%[0-9a-f]{2}/i,
+  // Letters and digits mixed, 8 or more long: a password, a key, an id.
+  /^(?=.*\d)(?=.*\p{L})\S{8,}$/u,
+  // Base64-looking, 12 or more long, with a digit or both cases.
+  /^(?=[A-Za-z0-9+/=_-]{12,}$)(?:.*\d|(?=.*[a-z])(?=.*[A-Z]))/,
+  // A key's prefix standing alone ("sk live ...").
+  /^(?:sk|pk|rk|gh[pos]|xox[abposr]|glpat|A[KS]IA|AIza)$/i,
   // key=value, key:value.
   /[=:]/,
 ]
@@ -73,13 +88,63 @@ const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
 const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/
 const INVISIBLE = /[\u200b-\u200d\u2028\u2029\u2060\ufeff]/
 const ANSI_LOOKALIKE = /\[\d{1,3}(?:;\d{1,3})*[A-Za-z]/
-const ANY_BAD = new RegExp(`${CONTROL.source}|${BIDI.source}|${INVISIBLE.source}`, 'gu')
+// Format characters (soft hyphens, tags, joiners), anything Unicode says to
+// draw as nothing (variation selectors, fillers).
+const HIDDEN = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/u
+const ANY_BAD = new RegExp(`${CONTROL.source}|${BIDI.source}|${INVISIBLE.source}|${HIDDEN.source}`, 'gu')
+
+// Words after which the next word is a secret: the keyword goes, and so
+// does what follows it (past "is", "=", ":" and the like). Matched on the
+// word and on its parts (DB_PASS, api-key).
+const SECRET_KEYWORDS = new Set([
+  'password', 'passwd', 'pwd', 'pw', 'pass', 'passphrase', 'token', 'secret', 'key', 'apikey', 'api_key',
+  'bearer', 'auth', 'authorization', 'credential', 'credentials', 'cookie', 'session',
+])
+const FILLERS = new Set(['is', 'are', 'was', 'be', 'to', 'of', 'for', 'as', '=', ':', '-', 'της', 'είναι', 'es'])
+const bare = (word: string) => word.replace(/^[("'«“<[]+|[)"'»”>\].,;:!?]+$/g, '')
+const isSecretKeyword = (word: string) => {
+  const low = bare(word).toLowerCase().replace(/[:=]+$/, '')
+  return SECRET_KEYWORDS.has(low) || low.split(/[_\-.:=]+/).some(part => SECRET_KEYWORDS.has(part))
+}
+// A word with its percent-encoding undone, where it has any.
+const decoded = (word: string) => {
+  try {
+    return decodeURIComponent(word)
+  } catch {
+    return word
+  }
+}
+const isSecretWord = (word: string) => {
+  const w = bare(word)
+  return [w, decoded(w)].some(v => SECRET_WORD.some(re => re.test(v)) || isSecretKeyword(v))
+}
+
+// The words of a text with every secret-looking one taken out, and the word
+// after a secret keyword with it. Hidden characters go first, then
+// compatibility forms are folded (ｈｔｔｐｓ is https).
+export function withoutSecrets(text: string): string {
+  const words = text.replace(ANY_BAD, ' ').normalize('NFKC').replace(ANY_BAD, ' ').split(/\s+/).filter(w => w !== '')
+  const kept: string[] = []
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]!
+    if (isSecretKeyword(word) || /[=:]\S/.test(word) && isSecretKeyword(word.split(/[=:]/)[0]!)) {
+      // The keyword, the fillers after it, and the word they lead to.
+      let j = i + 1
+      while (j < words.length && FILLERS.has(bare(words[j]!).toLowerCase())) j++
+      i = j
+      continue
+    }
+    if (!isSecretWord(word)) kept.push(word)
+  }
+  return kept.join(' ')
+}
+
+// What is sent of a prompt: the topic the picker takes from it, once its
+// secret-looking words are gone, then cleaned again, at most 60 characters.
+export const topicToSend = (text: string) => sanitiseTopic(topicOf(withoutSecrets(text)))
 
 export function sanitiseTopic(topic: string): string {
-  const words = topic
-    .replace(ANY_BAD, ' ')
-    .split(/\s+/)
-    .filter(w => w !== '' && !SECRET_WORD.some(re => re.test(w)))
+  const words = withoutSecrets(topic).split(' ').filter(w => w !== '')
   let out = ''
   for (const word of words) {
     const next = out === '' ? word : `${out} ${word}`
@@ -198,18 +263,40 @@ const BLOCKED: Record<'english' | 'spanish' | 'greek', string[]> = {
 }
 const plain = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 const BLOCKED_RE = new RegExp(`(?<!\\p{L})(?:${Object.values(BLOCKED).flat().join('|')})`, 'u')
-const LINK = /https?:|:\/\/|www\.|@|\b[a-z0-9-]+\.(?:com|net|org|io|dev|ai|app|gr|es|ar|co|uk|de|me|xyz|ly|sh)\b/i
+// A link or an address: a scheme, //, www., @, any word.word (evil.tk), a
+// markdown link.
+const LINK = /https?:|:\/\/|www\.|@|[\p{L}\p{N}]\.\p{L}{2,}|\[[^\]]*\]\([^)]*\)/iu
+// Marks piled on one letter (Zalgo).
+const PILED_MARKS = /\p{M}{3,}/u
 const PICTOGRAPH = /\p{Extended_Pictographic}/u
 
 // Why a line must never show, whatever it is (unsafe), or undefined.
 export function unsafe(line: string): string | undefined {
   if (CONTROL.test(line)) return 'control character'
-  if (BIDI.test(line) || INVISIBLE.test(line)) return 'invisible or bidi character'
+  if (BIDI.test(line) || INVISIBLE.test(line) || HIDDEN.test(line)) return 'invisible or bidi character'
+  if (PILED_MARKS.test(line)) return 'piled-up marks'
   if (ANSI_LOOKALIKE.test(line)) return 'escape sequence'
-  if (LINK.test(line)) return 'link or address'
+  // Full-width and other compatibility forms read as what they look like.
+  if (LINK.test(line) || LINK.test(line.normalize('NFKC'))) return 'link or address'
   if (PICTOGRAPH.test(line)) return 'emoji'
   if (BLOCKED_RE.test(plain(line))) return 'blocked word'
   return undefined
+}
+
+// How many terminal cells a line takes: wide (East Asian) characters two,
+// marks none, everything else one.
+const WIDE: [number, number][] = [
+  [0x1100, 0x115f], [0x2e80, 0x303e], [0x3041, 0x33ff], [0x3400, 0x4dbf], [0x4e00, 0x9fff], [0xa000, 0xa4cf],
+  [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe30, 0xfe4f], [0xff00, 0xff60], [0xffe0, 0xffe6], [0x1f300, 0x1faff], [0x20000, 0x3fffd],
+]
+export function displayWidth(line: string): number {
+  let width = 0
+  for (const c of line) {
+    if (/\p{M}/u.test(c)) continue
+    const code = c.codePointAt(0)!
+    width += WIDE.some(([from, to]) => code >= from && code <= to) ? 2 : 1
+  }
+  return width
 }
 
 // Why a line can't be shown, or undefined when it can.
@@ -217,7 +304,7 @@ export function lineProblem(line: string, most = LINE_MOST): string | undefined 
   const bad = unsafe(line)
   if (bad) return bad
   if (line.trim() === '') return 'empty'
-  if ([...line].length > most) return 'too long'
+  if (displayWidth(line) > most) return 'too long'
   return undefined
 }
 
@@ -333,7 +420,7 @@ export function greekSongProblem(song: readonly string[]): string | undefined {
     if (!ends.some(n => n >= CAESURA.least && n <= CAESURA.most)) return 'no caesura near the middle'
   }
   const [a, b] = song.map(rhymeOf)
-  if (a === undefined || a !== b) return `no rhyme (${a ?? '?'} / ${b ?? '?'})`
+  if (a === undefined || a !== b) return 'no rhyme'
   return undefined
 }
 
@@ -603,8 +690,7 @@ export function forgetAi() {
 // no fragment of an address or a key is left behind), then cleaned again.
 // Only this topic is kept; the prompt itself goes nowhere.
 export function aiPrompt(text: string) {
-  const words = text.replace(ANY_BAD, ' ').split(/\s+/)
-  pendingTopic = topicOf(words.filter(w => w !== '' && !SECRET_WORD.some(re => re.test(w.replace(/^[("'«“<[]+|[)"'»”>\].,;:!?]+$/g, '')))).join(' '))
+  pendingTopic = topicOf(withoutSecrets(text))
 }
 
 // The turn begins: one call, if a real prompt started it, the setting is
@@ -653,7 +739,7 @@ export function aiTurnStart(
     const system = systemPrompt(setup, reserved.calls)
     const prompt = userPrompt(topic, await facts().catch(() => undefined))
     Object.assign(aiLast, { system, prompt, outcome: 'pending' })
-    log?.(`cretan-cat ai: asked ${JSON.stringify(prompt)}`)
+    log?.(`cretan-cat ai: asking about a topic of ${[...topic].length} characters; ${prompt.split('\n').slice(1).join(' ') || 'no facts'}`)
     const result = await $.model.complete({ model: MODEL, system, prompt, maxTokens: MAX_TOKENS, effort: 'low', timeoutMs: TIMEOUT_MS }, { signal: stop.signal })
     if (controller === stop) controller = undefined
     const u = result.usage
@@ -667,11 +753,14 @@ export function aiTurnStart(
     const parsed = parseReply(result.text, setup)
     if ('problem' in parsed) {
       aiLast.outcome = `rejected: ${parsed.problem}`
-      log?.(`cretan-cat ai: ${aiLast.outcome} (${tokens} tokens): ${JSON.stringify(result.text.slice(0, 800))}`)
+      log?.(`cretan-cat ai: ${aiLast.outcome} (${tokens} tokens)`)
       return
     }
-    aiLast.outcome = `ok: ${JSON.stringify(parsed.lines)}${parsed.dropped.length > 0 ? ` dropped: ${parsed.dropped.join('; ')}` : ''} reply: ${JSON.stringify(result.text.slice(0, 900))}`
-    log?.(`cretan-cat ai: ${tokens} tokens (in ${u.input_tokens}, out ${u.output_tokens}) ${aiLast.outcome}`)
+    aiLast.outcome = 'answered'
+    log?.(
+      `cretan-cat ai: answered, ${tokens} tokens (in ${u.input_tokens}, out ${u.output_tokens}); song ${parsed.lines.song ? 'used' : 'not used'}, ` +
+        `${parsed.lines.nudges.length} nudges, ${parsed.lines.retorts.length} retorts${parsed.dropped.length > 0 ? `; dropped: ${parsed.dropped.join('; ')}` : ''}`,
+    )
     // Too late: a new prompt has moved on, or the call was cut.
     if (turn !== mine || stop.signal.aborted) return
     mine.lines = parsed.lines
