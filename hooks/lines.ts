@@ -183,7 +183,7 @@ const RUNNERS = new Set(['pytest', 'jest', 'vitest', 'mocha', 'ava', 'tap', 'rsp
 const WITH_TEST = new Set(['go', 'cargo', 'mix', 'dotnet', 'swift', 'deno', 'bun', 'zig', 'flutter', 'dart', 'gradle', 'gradlew', 'mvn', 'mvnw', 'sbt', 'lein', 'stack', 'cabal'])
 const PACKAGE = new Set(['npm', 'pnpm', 'yarn', 'bun'])
 // Ahead of the real command: a variable, a wrapper, a runner of runners.
-const PREFIX = /^(?:\w+=\S*\s+|(?:sudo|time|nice|env|command|exec)\s+|(?:npx|bunx|pnpx)\s+(?:-y\s+|--yes\s+)?|(?:pnpm|yarn)\s+(?:exec|dlx)\s+|(?:uv|poetry|pipenv|hatch|pdm|rye)\s+run\s+|python3?\s+-m\s+)/
+const PREFIX = /^(?:\w+=\S*\s+|(?:sudo|time|nice|env|command|exec|if|then|else|do|while|until)\s+|!\s*|timeout\s+(?:-\S+\s+)*\S+\s+|(?:npx|bunx|pnpx)\s+(?:-y\s+|--yes\s+)?|(?:pnpm|yarn)\s+(?:exec|dlx)\s+|(?:uv|poetry|pipenv|hatch|pdm|rye)\s+run\s+|python3?\s+-m\s+)/
 
 export type BashKind = 'tests' | 'commit'
 
@@ -191,7 +191,9 @@ export type BashKind = 'tests' | 'commit'
 // only `&&` may follow it (a failure stops the line there), never a pipe,
 // `||`, `;` or `&`, which hand the line's exit code to someone else.
 function commandsOf(line: string): { words: string[]; isExitTold: boolean }[] {
-  const bare = line.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""')
+  // A heredoc's body is text, not commands: `cat > run.sh <<'EOF'` ... `EOF`.
+  const noHeredocs = line.replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, '<<HEREDOC')
+  const bare = noHeredocs.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""')
   const parts = bare.split(/(\|\||&&|[;|&\n])/)
   const out: { words: string[]; isExitTold: boolean }[] = []
   for (let i = 0; i < parts.length; i += 2) {
@@ -212,15 +214,26 @@ function isTests(words: string[]): boolean {
   if (RUNNERS.has(name)) return true
   if (name === 'node' && words.includes('--test')) return true
   if (PACKAGE.has(name)) {
-    const script = rest[0] === 'run' ? rest[1] : rest[0]
-    if (script === 'test' || script === 't' || script === 'tests') return true
+    // Past a workspace and the values of --filter, --prefix and the like.
+    const words2: string[] = []
+    for (let i = 1; i < words.length; i++) {
+      const w = words[i]!
+      if (/^--?(filter|prefix|dir|cwd|workspace|C|F)$/.test(w)) i++
+      else if (!w.startsWith('-')) words2.push(w)
+    }
+    const at = words2[0] === 'workspace' ? 2 : 0
+    const script = words2[at] === 'run' ? words2[at + 1] : words2[at]
+    if (script !== undefined && (['test', 't', 'tests'].includes(script) || script.startsWith('test:'))) return true
   }
+  if (name === 'cargo' && rest[0] === 'nextest') return true
   if (name === 'make') return rest.some(w => ['test', 'tests', 'check'].includes(w))
   if (WITH_TEST.has(name)) return rest.some(w => w === 'test' || w === 'verify')
   return false
 }
 
 function isCommit(words: string[]): boolean {
+  // (A commit's exit code, like a test run's, is its own only if nothing but
+  // `&&` follows it: `git commit || true` always succeeds.)
   if (nameOf(words[0]) !== 'git') return false
   // Past git's own options (-C dir, -c key=value, --git-dir=...) to its command.
   let i = 1
@@ -233,7 +246,8 @@ function isCommit(words: string[]): boolean {
 // someone else's, so its output has to be read instead.
 export function bashKind(command: string): { kind: BashKind; isExitTold: boolean } | undefined {
   const commands = commandsOf(command)
-  if (commands.some(c => isCommit(c.words))) return { kind: 'commit', isExitTold: true }
+  const commit = commands.find(c => isCommit(c.words))
+  if (commit) return { kind: 'commit', isExitTold: commit.isExitTold }
   const tests = commands.find(c => isTests(c.words))
   if (tests) return { kind: 'tests', isExitTold: tests.isExitTold }
   return undefined

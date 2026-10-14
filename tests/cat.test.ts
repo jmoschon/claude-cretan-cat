@@ -184,7 +184,9 @@ describe('cretan-cat', () => {
   })
 
   // A turn under way whose tool calls wait for the test to finish them.
-  const setUp = (on: any) => {
+  // `prompt`: what settings hooks answer a permission prompt with (nothing:
+  // it is shown to you).
+  const setUp = (on: any, prompt: object = {}) => {
     const clock = mock.clock(on, { now: 1_700_000_000_000 })
     const saved: Record<string, unknown> = {}
     on('store.get', async (_$: unknown, e: { key: string }) => ({ value: saved[e.key] }))
@@ -194,8 +196,7 @@ describe('cretan-cat', () => {
     })
     on('turn.start', async (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
     on('turn.complete', async (_$: unknown, e: { answer: string }) => ({ text: e.answer }))
-    // No settings hook answers the dialog: it is shown to the person.
-    on('classic.PermissionRequest', async () => ({}))
+    on('classic.PermissionRequest', async () => prompt)
     const pending: Record<string, ((result: object) => void)[]> = {}
     on('tool.call', (_$: unknown, e: { tool: string }) => new Promise(resolve => (pending[e.tool] ??= []).push(resolve)))
     const finish = async (tool: string, result: object = { result: 'ok' }) => {
@@ -217,6 +218,7 @@ describe('cretan-cat', () => {
     const bash = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as never)
     await clock.settle()
     await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } } as never)
+    await clock.advance(400)
     expect(await caption($, /waiting for you: answer the Bash prompt/)).toBe(true)
     await finish('Bash')
     await bash
@@ -324,7 +326,7 @@ describe('cretan-cat', () => {
     const read = $.tool.call({ tool: 'Read', file_path: '/tmp/x' } as never)
     await clock.settle()
     await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} } as never)
-    await clock.settle()
+    await clock.advance(400)
     await finish('Read')
     await read
     expect(await caption($, /waiting for you: answer the Bash prompt/)).toBe(true)
@@ -414,6 +416,105 @@ describe('cretan-cat', () => {
     const after = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
     expect(await after.find({ type: 'Text', text: /purrs <3/ })).toBeUndefined()
     await after.unmount()
+  })
+
+  test('a plan approved through a permission prompt ends the wait', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const plan = $.tool.call({ tool: 'ExitPlanMode', plan: 'x' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'ExitPlanMode', tool_input: { plan: 'x' } } as never)
+    await clock.advance(400)
+    expect(await caption($, /waiting for you: review Claude's plan/)).toBe(true)
+    await finish('ExitPlanMode')
+    await plan
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test('two calls of one tool: the one at a prompt keeps him waiting when the other ends', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const allowed = $.tool.call({ tool: 'WebFetch', url: 'https://a.example' } as never)
+    const asked = $.tool.call({ tool: 'WebFetch', url: 'https://b.example' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'WebFetch', tool_input: { url: 'https://b.example' } } as never)
+    await clock.advance(400)
+    await finish('WebFetch')
+    await allowed
+    expect(await caption($, /waiting for you: answer the WebFetch prompt/)).toBe(true)
+    await finish('WebFetch')
+    await asked
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test('a prompt a settings hook answers never shows: no wait', async ($, on) => {
+    const { clock, finish } = setUp(on, { decision: { behavior: 'allow' } })
+    await $.turn.start({ turnId: 't1' } as never)
+    const bash = $.tool.call({ tool: 'Bash', command: 'ls' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'ls' } } as never)
+    await clock.advance(400)
+    expect(await caption($, /on it: Bash/)).toBe(true)
+    await finish('Bash')
+    await bash
+  })
+
+  test('a reaction and another tool ending in the same moment: the reaction still plays', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const tests = $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+    const read = $.tool.call({ tool: 'Read', file_path: '/tmp/x' } as never)
+    await clock.settle()
+    await Promise.all([finish('Bash'), finish('Read')])
+    await Promise.all([tests, read])
+    await clock.settle()
+    expect(await caption($, /dances: the tests passed/)).toBe(true)
+  })
+
+  test('dozing off survives other tools coming and going', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const build = $.tool.call({ tool: 'Bash', command: 'make build' } as never)
+    await clock.settle()
+    await clock.advance(21_000)
+    const read = $.tool.call({ tool: 'Read', file_path: '/tmp/x' } as never)
+    await clock.settle()
+    await finish('Read')
+    await read
+    expect(await caption($, /dozed off: Bash is still running/)).toBe(true)
+    await finish('Bash')
+    await build
+  })
+
+  test('a call left over from an aborted turn does nothing in the next', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const old = $.tool.call({ tool: 'Bash', command: 'pytest' } as never)
+    await clock.settle()
+    await $.turn.complete({ turnId: 't1', reason: 'aborted', answer: '', durationMs: 1, isAborted: true } as never)
+    await $.turn.start({ turnId: 't2' } as never)
+    const fresh = $.tool.call({ tool: 'Bash', command: 'make build' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'x', isError: true, text: '3 failed' })
+    await old
+    expect(await caption($, /on it: Bash/)).toBe(true)
+    await finish('Bash')
+    await fresh
+  })
+
+  test("a commit's own exit code: `|| true` needs git's word; a failed push keeps the sardine", async ($, on) => {
+    const { clock, saved, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const failed = $.tool.call({ tool: 'Bash', command: 'git commit -m x || true' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'x', text: 'nothing to commit, working tree clean' })
+    await failed
+    expect(saved.sardines).toBeUndefined()
+    const pushed = $.tool.call({ tool: 'Bash', command: 'git add -A && git commit -m x && git push' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'x', isError: true, text: '[main 1a2b3c4] x\n 1 file changed\nerror: failed to push some refs' })
+    await pushed
+    expect((saved.sardines as { today: number }).today).toBe(1)
   })
 
   test('the yard follows the clock and the helpers', () => {

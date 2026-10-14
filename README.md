@@ -27,7 +27,7 @@ An independent project, not affiliated with or endorsed by Anthropic.
 | Tests pass | Dances | Cheers |
 | Tests fail | Hisses | *Tests are red...* |
 | A commit goes in | Catches the sardine Clawd tosses him, and eats it | Tosses it |
-| A tool runs for over 20 seconds | Yawns, then dozes off until it's done | *Don't fall asleep, it's still running!* |
+| A tool runs for over 20 seconds | Yawns, then dozes off until it's done (not for questions or helpers) | *Don't fall asleep, it's still running!* |
 | The work is done | Sits, wags his tail, sings one more couplet | Cheers |
 | Something failed | Jumps, tail puffed up | Asks what happened |
 | You pressed Esc | Goes back to sleep | Dozes |
@@ -48,10 +48,10 @@ A few more things:
   caption purrs instead.
 - **What counts as tests and commits.** A command in a Bash call that runs a
   test runner (`npm test`, `pytest`, `go test`, `cargo test`, `make test`,
-  `npx vitest` and the like), and `git commit`. Quoted text doesn't count, and
-  neither does a run you denied or one sent to the background. A failing exit
-  code is a failing run; where a pipe or `|| true` hides the exit code
-  (`npm test 2>&1 | tail`), the output is read for failures instead.
+  `npx vitest` and the like), and a `git commit` that went in. Quoted text and
+  heredocs don't count, and neither does a run you denied or one sent to the
+  background. A failing exit code is a failing run; where a pipe or `|| true`
+  hides the exit code (`npm test 2>&1 | tail`), the output is read instead.
 - **Waiting.** He sits up when Claude Code shows you a permission prompt, asks
   you a question, or wants a plan approved. There is no signal for the moment
   you answer a permission prompt, so he stays up until that tool call ends.

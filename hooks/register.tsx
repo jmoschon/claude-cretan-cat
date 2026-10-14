@@ -285,31 +285,68 @@ const quietly = async (work: () => Promise<unknown>) => {
   }
 }
 
+// Sets the mood, and moves the frame loop's bubbles with it (not a redraw
+// later). It ends the wait for the nap after a turn; a short reaction is
+// ended by its callers (stopFlash), so that a reaction can set its own mood.
+// Setting the mood he is already in changes nothing (a yawn plays once).
 async function setMood($: EngineInterface, mood: Mood, tool: string | null = null) {
   settle?.cancel()
   settle = null
-  flash?.cancel()
-  flash = null
+  if (current === mood && currentTool === tool) return
   current = mood
+  currentTool = tool
   const moodAt = (await $.clock.now()) / 1000
   const c = await update($, cat, cur => ({ ...cur, mood, tool }))
-  // The frame loop draws from `stage`: move its bubbles with the mood, not a
-  // redraw later.
   Object.assign(stage, { mood, moodAt, said: saidOf(c), reply: replyOf(c) })
 }
 
-// The mood now, and the timer ending a short reaction, if one is on.
+// The mood now, and what it's about; the timer ending a short reaction.
 let current: Mood = 'nap'
+let currentTool: string | null = null
 let flash: { cancel: () => void } | null = null
-
-// A short reaction, then back to what Claude is doing.
-async function react($: EngineInterface, mood: Mood) {
-  if (!inTurn) return
-  await setMood($, mood)
-  // A reaction that came in meanwhile, or the turn ending, wins.
-  if (!inTurn || current !== mood) return
+const stopFlash = () => {
   flash?.cancel()
-  const mine = $.clock.after(FLASH_MS, () => {
+  flash = null
+}
+
+// The main thread's tool calls under way in this turn, each with its
+// arguments, whether it waits on you (a question, a plan, an open
+// permission prompt) and whether it has run long enough to bore him.
+type Call = { tool: string; input: Record<string, unknown>; turn: number; isWaiting: boolean; isBored: boolean }
+let calls: Call[] = []
+let turn = 0
+let inTurn = false
+const lastOf = (list: Call[], test: (c: Call) => boolean) => {
+  for (let i = list.length - 1; i >= 0; i--) if (test(list[i]!)) return list[i]
+  return undefined
+}
+const isLive = (call: Call) => call.turn === turn && calls.includes(call)
+
+// What he does follows from the calls: waiting on you while anything waits
+// on you; else on the latest call (asleep, if it bored him); else thinking.
+// Outside a turn, or while a short reaction plays, nothing changes.
+function resume($: EngineInterface) {
+  if (!inTurn || flash !== null) return Promise.resolve()
+  const asking = lastOf(calls, c => c.isWaiting)
+  if (asking) return setMood($, 'wait', asking.tool)
+  const latest = calls[calls.length - 1]
+  if (!latest) return setMood($, 'think')
+  return setMood($, latest.isBored ? 'bored' : 'tool', latest.tool)
+}
+
+// A short reaction, then back to what Claude is doing. While something
+// waits on you, waiting wins and the reaction is skipped. The reaction is
+// claimed before its mood is set, so nothing resumes over it meanwhile.
+async function react($: EngineInterface, mood: Mood) {
+  if (!inTurn || calls.some(c => c.isWaiting)) return resume($)
+  stopFlash()
+  const claim = { cancel: () => {} }
+  flash = claim
+  await setMood($, mood)
+  if (flash !== claim) return
+  let timer: { cancel: () => void } | null = null
+  const mine = { cancel: () => timer?.cancel() }
+  timer = $.clock.after(FLASH_MS, () => {
     if (flash !== mine) return
     flash = null
     void resume($).catch(() => {})
@@ -317,26 +354,12 @@ async function react($: EngineInterface, mood: Mood) {
   flash = mine
 }
 
-// Back to waiting on you while a question or permission prompt is open,
-// else to the tool still running, else to thinking; outside a turn, nothing.
-function resume($: EngineInterface) {
-  if (!inTurn) return Promise.resolve()
-  const asking = waiting[waiting.length - 1]
-  if (asking !== undefined) return setMood($, 'wait', asking)
-  const still = running[running.length - 1]
-  return still === undefined ? setMood($, 'think') : setMood($, 'tool', still)
-}
-
-// What is waiting on you: the tools whose permission prompt is open, and
-// the questions and plans Claude has put to you, by tool name.
-let waiting: string[] = []
+// Questions and plans put to you; tools that wait on you or on helpers, not
+// on work, which never bore him. A permission prompt shows a moment after
+// it is asked for, unless a settings hook answers it first.
 const ASKS_YOU = new Set(['AskUserQuestion', 'ExitPlanMode'])
-// Tools that wait on you or on helpers, not on work: never boring.
 const NEVER_BORING = new Set([...ASKS_YOU, 'Agent', 'Task', 'Workflow'])
-const drop = (list: string[], tool: string) => {
-  const at = list.lastIndexOf(tool)
-  if (at >= 0) list.splice(at, 1)
-}
+const PROMPT_DELAY_MS = 300
 
 function meow($: EngineInterface) {
   if (isSoundOn) void $.audio.play({ asset: MEOW }).catch(() => {})
@@ -354,11 +377,18 @@ async function tally($: EngineInterface): Promise<Tally> {
   const total = typeof saved?.total === 'number' ? saved.total : 0
   return { day: today(), today: saved?.day === today() && typeof saved.today === 'number' ? saved.today : 0, total }
 }
-async function eatSardine($: EngineInterface) {
-  const was = await tally($)
-  const now = { ...was, today: was.today + 1, total: was.total + 1 }
-  await $.store.set('sardines', now)
-  await update($, cat, c => ({ ...c, sardines: now.today }))
+// One at a time, so two commits finishing together both count.
+let eating: Promise<unknown> = Promise.resolve()
+function eatSardine($: EngineInterface) {
+  eating = eating
+    .then(async () => {
+      const was = await tally($)
+      const now = { ...was, today: was.today + 1, total: was.total + 1 }
+      await $.store.set('sardines', now)
+      await update($, cat, c => ({ ...c, sardines: now.today }))
+    })
+    .catch(() => {})
+  return eating
 }
 
 async function pet($: EngineInterface) {
@@ -371,12 +401,11 @@ async function pet($: EngineInterface) {
   await $.store.set('pets', (typeof pets === 'number' ? pets : 0) + 1)
 }
 
-// Whether a main-thread turn is under way, and the tools it has running now
-// (by name, the latest last): parallel tools finish in any order.
-let inTurn = false
-let running: string[] = []
-// The calls of each tool still running, so a timer knows its own call.
-let live: Record<string, Set<object>> = {}
+// What a finished Bash call's output says: you rejected it at the prompt;
+// it went to the background (it has not finished); a commit went in.
+const REJECTED = /^\s*(?:The user doesn't want to proceed|User rejected|.{0,60}tool use was rejected)/i
+const BACKGROUND = /running in (?:the )?background|moved to (?:the )?background|backgrounded/i
+const COMMITTED = /^\[[^\]\n]+ [0-9a-f]{7,}\]/m
 
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
@@ -399,10 +428,9 @@ export const register: Register = (on, options) => {
   isSoundOn = options.sound === 'on'
   Object.assign(stage, STAGE_START)
   inTurn = false
-  running = []
-  waiting = []
-  live = {}
+  calls = []
   current = 'nap'
+  currentTool = null
   flash = null
   settle = null
   deck = []
@@ -415,6 +443,12 @@ export const register: Register = (on, options) => {
       const { today: sardines } = await tally($)
       // A new session, or this module reloaded: no turn is known to be under
       // way, so he starts asleep rather than stuck in a mood from before.
+      inTurn = false
+      calls = []
+      stopFlash()
+      current = 'nap'
+      currentTool = null
+      stage.mood = 'nap'
       await update($, cat, c => ({ ...c, sardines, mood: 'nap' as Mood, tool: null }))
     })
 
@@ -490,10 +524,10 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.start', async ($, e, next) => {
+    turn += 1
     inTurn = true
-    running = []
-    waiting = []
-    live = {}
+    calls = []
+    stopFlash()
     await quietly(async () => {
       const verse = await nextVerse($, (await read($, cat)).verse)
       await update($, cat, c => ({ ...c, verse }))
@@ -504,80 +538,103 @@ export const register: Register = (on, options) => {
 
   // Cosmetic only: never await or throw here, so the cat can't block a tool call.
   // He reacts only to the main thread's own turn: not a subagent's tools, nor
-  // a tool some plugin calls between turns. Tests make him dance or hiss, a
-  // commit earns a sardine, and a long tool bores him to sleep.
+  // a tool some plugin calls between turns, nor a call left over from a turn
+  // that ended. Tests make him dance or hiss, a commit earns a sardine, and a
+  // long tool bores him to sleep.
   on('tool.call', ($, e, next) => {
     if (e.agentId !== undefined || !inTurn) return next(e)
-    running.push(e.tool)
-    // A question or a plan for you: he waits on you until it's answered.
-    if (ASKS_YOU.has(e.tool)) waiting.push(e.tool)
-    if (flash === null) void resume($).catch(() => {})
-    // Boredom only for real work, and only while he is on it: not while he
-    // waits on you, or for the same tool started again since.
-    const call = {}
-    const calls = (live[e.tool] ??= new Set())
-    calls.add(call)
+    const call: Call = { tool: e.tool, input: e as unknown as Record<string, unknown>, turn, isWaiting: ASKS_YOU.has(e.tool), isBored: false }
+    calls.push(call)
+    void resume($).catch(() => {})
+    if (call.isWaiting) meow($)
     const bore = NEVER_BORING.has(e.tool)
       ? undefined
       : $.clock.after(BORED_MS, () => {
-          if (current === 'tool' && calls.has(call)) void setMood($, 'bored', e.tool).catch(() => {})
+          if (!isLive(call) || call.isWaiting) return
+          call.isBored = true
+          void resume($).catch(() => {})
         })
-    const done = () => {
-      bore?.cancel()
-      calls.delete(call)
-      drop(running, e.tool)
-      drop(waiting, e.tool)
-    }
     // A run in the background reports at once, before any test has run.
-    const kind = e.tool === 'Bash' && e.run_in_background !== true ? bashKind(e.command) : undefined
+    let kind: ReturnType<typeof bashKind>
+    try {
+      kind = e.tool === 'Bash' && e.run_in_background !== true ? bashKind(e.command) : undefined
+    } catch {
+      kind = undefined
+    }
+    const settled = () => {
+      bore?.cancel()
+      const isMine = isLive(call)
+      if (isMine) calls = calls.filter(c => c !== call)
+      return isMine
+    }
     const ran = next(e)
     void ran
       .then(
         async result => {
-          done()
-          if (!inTurn) return
-          // Denied, or rejected at the prompt: nothing ran, nothing to react to.
-          const didRun = result.deny === undefined && !/doesn't want to proceed|was rejected/i.test(result.text ?? '')
-          if (kind && didRun) {
-            // The exit code tells, when it is the command's own; piped on or
-            // followed by more (`| tail`, `|| true`), the output has to.
-            const hasFailed = result.isError === true || (!kind.isExitTold && saysFailed(result.text ?? ''))
-            if (kind.kind === 'tests') return react($, hasFailed ? 'hiss' : 'dance')
-            if (!hasFailed) {
-              await quietly(() => eatSardine($))
+          if (!settled()) return
+          const text = result.text ?? ''
+          // Denied, rejected at the prompt, or sent to the background: no
+          // test has run and nothing went in yet.
+          const didFinish = result.deny === undefined && !REJECTED.test(text) && !BACKGROUND.test(text.slice(0, 300))
+          if (kind && didFinish) {
+            if (kind.kind === 'tests') {
+              // The exit code tells, when it is the command's own; piped on
+              // or followed by more (`| tail`, `|| true`), the output has to.
+              const hasFailed = result.isError === true || (!kind.isExitTold && saysFailed(text))
+              return react($, hasFailed ? 'hiss' : 'dance')
+            }
+            // A commit went in if git says so ("[main abc1234] ..."), or if
+            // its own exit code says so.
+            if (COMMITTED.test(text) || (kind.isExitTold && result.isError !== true)) {
+              await eatSardine($)
               return react($, 'feast')
             }
           }
-          // A reaction plays out; otherwise, back to what Claude is doing.
-          if (flash === null) return resume($)
+          return resume($)
         },
-        () => {
-          done()
-          if (flash === null) return resume($)
-        },
+        () => (settled() ? resume($) : undefined),
       )
       .catch(() => {})
     return ran
   })
 
-  // Claude stops to ask your permission: he sits up and looks at you, until
-  // the call goes on (resume, above) or the turn ends.
-  // Not awaited: the prompt is shown at once, the cat catches up.
+  // Claude Code asks your permission for a call: a moment later, unless a
+  // settings hook answered it, he sits up and looks at you, until the call
+  // goes on. Not awaited: the prompt is never held up by the cat.
   on('classic.PermissionRequest', ($, e, next) => {
-    if (e.agent_id === undefined && inTurn) {
-      waiting.push(e.tool_name)
-      void setMood($, 'wait', e.tool_name).catch(() => {})
+    const answer = next(e)
+    if (e.agent_id !== undefined || !inTurn) return answer
+    const input = (typeof e.tool_input === 'object' && e.tool_input !== null ? e.tool_input : {}) as Record<string, unknown>
+    const isSame = (c: Call) => c.tool === e.tool_name && Object.keys(input).every(k => JSON.stringify(c.input[k]) === JSON.stringify(input[k]))
+    const call = lastOf(calls, c => isSame(c) && !c.isWaiting) ?? lastOf(calls, c => c.tool === e.tool_name)
+    // Questions and plans already wait on you.
+    if (!call || ASKS_YOU.has(call.tool)) return answer
+    let isAnswered = false
+    void Promise.resolve(answer)
+      .then(result => {
+        if ((result as { decision?: unknown } | undefined)?.decision === undefined) return
+        isAnswered = true
+        if (call.isWaiting) {
+          call.isWaiting = false
+          void resume($).catch(() => {})
+        }
+      })
+      .catch(() => {})
+    $.clock.after(PROMPT_DELAY_MS, () => {
+      if (isAnswered || !isLive(call)) return
+      call.isWaiting = true
+      stopFlash()
+      void resume($).catch(() => {})
       meow($)
-    }
-    return next(e)
+    })
+    return answer
   })
 
   on('turn.complete', async ($, e, next) => {
     if (e.agentId !== undefined) return next(e)
     inTurn = false
-    running = []
-    waiting = []
-    live = {}
+    calls = []
+    stopFlash()
     await quietly(async () => {
       // Stopped by you (Esc): no fuss, he just curls up again.
       if (e.reason === 'aborted') return setMood($, 'nap')
