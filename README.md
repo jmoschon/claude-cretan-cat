@@ -107,7 +107,7 @@ To update, run `git pull` in the folder.
 |---|---|
 | `/cat hide`, `/cat show` | Hide him, or bring him back. A bare `/cat` toggles. |
 | `/cat manousos` | The original coat: dark brown with a white bib and mittens. |
-| `/cat ginger` (or `/cat asturias`) | Asturias, an orange tabby from Buenos Aires. See below. |
+| `/cat ginger` (or `/cat asturias`) | Asturias, his Argentine ginger sister. See below. |
 | `/cat tuxedo` | Black and white. |
 | `/cat stats` | How many sardines he has had today and in all (one per commit, or per finished task that used tools), and how often he has been petted. |
 | `/cat help` | Lists the coats, and where the settings are. |
@@ -123,8 +123,8 @@ Two settings, under `/config`:
 
 ## Asturias
 
-The ginger coat is Asturias, not Manousos. Her temper is spicier than his,
-and she is Argentine, so she doesn't sing mantinades:
+The ginger coat is Asturias, Manousos' sister. Her temper is spicier than
+his, and she grew up in Buenos Aires, so she doesn't sing mantinades:
 
 - **Her songs** are payador coplas (four eight-syllable lines, the gauchos'
   improvised verse and the closest thing to a mantinada) and the odd tango,

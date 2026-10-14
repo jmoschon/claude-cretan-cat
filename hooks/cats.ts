@@ -1,7 +1,7 @@
 // Who lives in the yard, by coat: Manousos, the Cretan, in his own coat or
-// the tuxedo; Asturias, the ginger from Buenos Aires, who sings coplas and
-// tangos instead of mantinades, and answers for herself in rioplatense
-// Spanish whatever the language setting says.
+// the tuxedo; Asturias, his ginger sister from Buenos Aires, who sings
+// coplas and tangos instead of mantinades, and answers for herself in
+// rioplatense Spanish whatever the language setting says.
 
 import type { Coat } from '../types'
 import { RIOPLATENSE, type Language, type Lines, type Name } from './lines'
