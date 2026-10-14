@@ -1,5 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
+import { drawCat } from '../hooks/manousos'
+
 const BAND = { component: 'AbovePrompt' } as const
 const PROPS = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120 } as never
 
@@ -179,6 +181,252 @@ describe('cretan-cat', () => {
     const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
     expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
     await ui.unmount()
+  })
+
+  // A turn under way whose tool calls wait for the test to finish them.
+  const setUp = (on: any) => {
+    const clock = mock.clock(on, { now: 1_700_000_000_000 })
+    const saved: Record<string, unknown> = {}
+    on('store.get', async (_$: unknown, e: { key: string }) => ({ value: saved[e.key] }))
+    on('store.set', async (_$: unknown, e: { key: string; value: unknown }) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    on('turn.start', async (_$: unknown, e: { turnId: string }) => ({ turnId: e.turnId }))
+    on('turn.complete', async (_$: unknown, e: { answer: string }) => ({ text: e.answer }))
+    // No settings hook answers the dialog: it is shown to the person.
+    on('classic.PermissionRequest', async () => ({}))
+    const pending: Record<string, ((result: object) => void)[]> = {}
+    on('tool.call', (_$: unknown, e: { tool: string }) => new Promise(resolve => (pending[e.tool] ??= []).push(resolve)))
+    const finish = async (tool: string, result: object = { result: 'ok' }) => {
+      pending[tool]?.shift()?.(result)
+      await clock.settle()
+    }
+    return { clock, saved, finish }
+  }
+  const caption = async ($: any, text: RegExp) => {
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    const found = await ui.find({ type: 'Text', text })
+    await ui.unmount()
+    return found !== undefined
+  }
+
+  test('a permission prompt: he waits for you, then gets back to it', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const bash = $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } } as never)
+    expect(await caption($, /waiting for you: answer the Bash prompt/)).toBe(true)
+    await finish('Bash')
+    await bash
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test("a subagent's permission prompt does not stop him", async ($, on) => {
+    const { clock } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {}, agent_id: 'a1' } as never)
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test('green tests: he dances; red tests: he hisses; then back to thinking', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const green = $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+    await clock.settle()
+    await finish('Bash')
+    await green
+    expect(await caption($, /dances: the tests passed/)).toBe(true)
+    await clock.advance(4_000)
+    expect(await caption($, /thinking it over/)).toBe(true)
+    const red = $.tool.call({ tool: 'Bash', command: 'pytest -q' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'FAILED', isError: true })
+    await red
+    expect(await caption($, /hisses: the tests failed/)).toBe(true)
+  })
+
+  test('a commit earns a sardine, counted for the day in /cat stats', async ($, on) => {
+    const { clock, saved, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    for (let i = 0; i < 2; i++) {
+      const commit = $.tool.call({ tool: 'Bash', command: 'git commit -m "x"' } as never)
+      await clock.settle()
+      await finish('Bash')
+      await commit
+    }
+    expect(await caption($, /got a sardine for the commit \(2 today\)/)).toBe(true)
+    expect((saved.sardines as { today: number; total: number }).total).toBe(2)
+    const failed = $.tool.call({ tool: 'Bash', command: 'git commit -m "y"' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'nothing to commit', isError: true })
+    await failed
+    const stats = await $.command.run({ command: 'cat', args: 'stats', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
+    expect(stats.text).toMatch(/2 sardines today and 2 in all/)
+  })
+
+  test('a long tool bores him to sleep; it ending wakes him', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const build = $.tool.call({ tool: 'Bash', command: 'make build' } as never)
+    await clock.settle()
+    await clock.advance(19_000)
+    expect(await caption($, /on it: Bash/)).toBe(true)
+    await clock.advance(2_000)
+    expect(await caption($, /dozed off: Bash is still running/)).toBe(true)
+    await finish('Bash')
+    await build
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test('petting: the pet button makes him purr, and counts', async ($, on) => {
+    const { clock, saved } = setUp(on)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'cretan-cat', surface: 'terminal', ...BAND, props: PROPS })
+    await ui.press({ key: 'pet' })
+    await clock.settle()
+    expect(saved.pets).toBe(1)
+    await ui.unmount()
+  })
+
+  test('sound off (the default): no meow', async ($, on) => {
+    const { clock } = setUp(on)
+    const played: unknown[] = []
+    on('audio.play', async (_$, e) => {
+      played.push(e.clip)
+      return { value: undefined } as never
+    })
+    await $.turn.start({ turnId: 't1' } as never)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await clock.settle()
+    expect(played).toEqual([])
+  })
+
+  test('sound on: a meow when the work is done', { options: { sound: 'on' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    const played: unknown[] = []
+    on('audio.play', async (_$, e) => {
+      played.push(e.clip)
+      return { value: undefined } as never
+    })
+    await $.turn.start({ turnId: 't1' } as never)
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await clock.settle()
+    expect(played).toEqual([{ asset: 'sounds/meow.wav' }])
+  })
+
+  test('waiting on you holds while another tool finishes, and boredom waits too', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const bash = $.tool.call({ tool: 'Bash', command: 'make deploy' } as never)
+    const read = $.tool.call({ tool: 'Read', file_path: '/tmp/x' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} } as never)
+    await clock.settle()
+    await finish('Read')
+    await read
+    expect(await caption($, /waiting for you: answer the Bash prompt/)).toBe(true)
+    await clock.advance(25_000)
+    expect(await caption($, /waiting for you/)).toBe(true)
+    await finish('Bash')
+    await bash
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test("a question for you (AskUserQuestion) makes him wait, and doesn't bore him", async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const ask = $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)
+    await clock.settle()
+    await clock.advance(30_000)
+    expect(await caption($, /waiting for you: answer Claude's question/)).toBe(true)
+    await finish('AskUserQuestion')
+    await ask
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test('a denied test run is no failure; a background one no success', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const denied = $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+    await clock.settle()
+    await finish('Bash', { deny: 'not now' })
+    await denied
+    expect(await caption($, /thinking it over/)).toBe(true)
+    const background = $.tool.call({ tool: 'Bash', command: 'npm test', run_in_background: true } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'Command running in background' })
+    await background
+    expect(await caption($, /thinking it over/)).toBe(true)
+  })
+
+  test('failing tests piped to tail still make him hiss; passing ones that mention FAIL do not', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const piped = $.tool.call({ tool: 'Bash', command: 'npm test 2>&1 | tail -20' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'x', text: 'Tests: 2 failed, 40 passed' })
+    await piped
+    expect(await caption($, /hisses: the tests failed/)).toBe(true)
+    await clock.advance(4_000)
+    const green = $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+    await clock.settle()
+    await finish('Bash', { result: 'x', text: '✓ handles the FAIL state\nTests: 41 passed' })
+    await green
+    expect(await caption($, /dances: the tests passed/)).toBe(true)
+  })
+
+  test('two reactions at once, or a turn ending mid-reaction, never leave him stuck', async ($, on) => {
+    const { clock, finish } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    const tests = $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+    const commit = $.tool.call({ tool: 'Bash', command: 'git commit -m x' } as never)
+    await clock.settle()
+    await finish('Bash')
+    await finish('Bash')
+    await Promise.all([tests, commit])
+    await clock.advance(4_000)
+    expect(await caption($, /thinking it over/)).toBe(true)
+    const again = $.tool.call({ tool: 'Bash', command: 'git commit -m y' } as never)
+    await clock.settle()
+    await finish('Bash')
+    await again
+    await $.turn.complete({ turnId: 't1', reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false } as never)
+    await clock.settle()
+    expect(await caption($, /purrs: done/)).toBe(true)
+    await clock.advance(13_000)
+    expect(await caption($, /napping/)).toBe(true)
+  })
+
+  test('petting wears off after a few seconds, off the yard too', async ($, on) => {
+    const { clock } = setUp(on)
+    await clock.settle()
+    const desk = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+    await desk.press({ key: 'pet' })
+    await clock.settle()
+    await desk.unmount()
+    const during = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+    expect(await during.find({ type: 'Text', text: /purrs <3/ })).toBeDefined()
+    await during.unmount()
+    await clock.advance(4_000)
+    const after = await $.ui.mount({ plugin: 'cretan-cat', surface: 'desktop', ...BAND, props: PROPS })
+    expect(await after.find({ type: 'Text', text: /purrs <3/ })).toBeUndefined()
+    await after.unmount()
+  })
+
+  test('the yard follows the clock and the helpers', () => {
+    const base = { mood: 'think', coat: 'manousos', t: 3, since: 3, cols: 110, rows: 11 } as const
+    const day = drawCat({ ...base, hour: 12, month: 6 })
+    expect(drawCat({ ...base, hour: 23, month: 6 })).not.toBe(day)
+    expect(drawCat({ ...base, hour: 12, month: 0 })).not.toBe(day)
+    expect(drawCat({ ...base, hour: 12, month: 6, kittens: 2 })).not.toBe(day)
+    // Snow on the short band too.
+    const short = { ...base, rows: 8 }
+    expect(drawCat({ ...short, hour: 12, month: 0 })).not.toBe(drawCat({ ...short, hour: 12, month: 6 }))
+    // More than four helpers still draws four kittens.
+    expect(drawCat({ ...base, hour: 12, month: 6, kittens: 9 })).toBe(drawCat({ ...base, hour: 12, month: 6, kittens: 4 }))
   })
 })
 

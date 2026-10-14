@@ -2,8 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Cat, Coat, Mood } from '../types'
-import { LINES, isLanguage, shortTool, topicOf, type Language } from './lines'
-import { COATS, drawCat, fit, replyFits } from './manousos'
+import { bashKind, isLanguage, LINES, saysFailed, shortTool, topicOf, type Language } from './lines'
+import { COATS, drawCat, fit, PETTING_S, replyFits } from './manousos'
 
 const NAME = 'Manousos'
 const TICK_MS = 400
@@ -19,6 +19,8 @@ const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
   verse: 0,
   asked: null,
   nudge: 0,
+  sardines: 0,
+  pettedAt: 0,
 } as Cat)
 const isHidden = atom({ plugin: 'cretan-cat', key: 'isHidden' } as const, false)
 const coat = atom({ plugin: 'cretan-cat', key: 'coat' } as const, 'manousos' as Coat)
@@ -28,6 +30,13 @@ const isCoat = (v: unknown): v is Coat => typeof v === 'string' && v in COATS
 // every NUDGE_TICKS ticks (~8s). What he says is in the "language" setting.
 const NUDGE_TICKS = 20
 let language: Language = 'greek'
+// The meow when the work is done or Claude waits for you ("sound" setting).
+let isSoundOn = false
+const MEOW = 'sounds/meow.wav'
+// A tool running this long bores him to sleep.
+const BORED_MS = 20_000
+// How long a short reaction lasts: dancing, hissing, eating a sardine.
+const FLASH_MS = 3_500
 
 // The pixel-art yard (terminal only): a Raster repainted by blit between redraws,
 // about 10 frames a second while he works and 3 while he naps.
@@ -41,15 +50,46 @@ type Stage = {
   coat: Coat
   said: string | undefined
   reply: string[] | undefined
+  // Seconds on the clock when the mood began and when he was last petted
+  // (0: never), and the helpers running.
+  moodAt: number
+  pettedAt: number
+  kittens: number
 }
-const STAGE_START: Stage = { requestId: undefined, cols: 80, rows: 8, mood: 'nap', coat: 'manousos', said: undefined, reply: undefined }
+const STAGE_START: Stage = {
+  requestId: undefined,
+  cols: 80,
+  rows: 8,
+  mood: 'nap',
+  coat: 'manousos',
+  said: undefined,
+  reply: undefined,
+  moodAt: 0,
+  pettedAt: 0,
+  kittens: 0,
+}
 const stage: Stage = { ...STAGE_START }
 // Seconds, as the frame loop last read the clock; a redraw draws that moment.
 let seconds = 0
 const stageCols = (bodyColumns: number) => Math.min(STAGE_MOST_COLS, bodyColumns)
 // He sings while Claude works and again, a fresh couplet, when it is done.
 const isSinging = (mood: Mood) => mood === 'think' || mood === 'tool' || mood === 'happy'
-const replyOf = (c: Cat) => (isSinging(c.mood) ? MANTINADES[c.verse % MANTINADES.length] : c.mood === 'oops' ? [LINES[language].hiss] : undefined)
+// What he answers, by mood: a couplet while he sings, otherwise a short line.
+function replyOf(c: Cat): string[] | undefined {
+  if (isSinging(c.mood)) return MANTINADES[c.verse % MANTINADES.length]
+  const lines = LINES[language]
+  const short = { oops: lines.hiss, wait: lines.wait[1], dance: lines.green[1], hiss: lines.red[1], feast: lines.commit[1], bored: lines.bored[1] }
+  return c.mood in short ? [short[c.mood as keyof typeof short]] : undefined
+}
+
+// The frame to draw at clock time `ms`: the stage, its times, and the local
+// hour and month for the light and the season.
+function sceneAt(ms: number) {
+  const t = ms / 1000
+  const local = new Date(ms)
+  const petted = stage.pettedAt > 0 ? t - stage.pettedAt : undefined
+  return { ...stage, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
+}
 
 // Each pose is drawn as a raw block (no backticks inside), cut into its 4 lines.
 const pose = (block: string) => block.split('\n').slice(1, 5)
@@ -79,7 +119,7 @@ const LOAF = [
  (_____________)`),
 ]
 
-const POSES: Record<Mood, string[][]> = {
+const BASE_POSES = {
   // Napping drifts between sleeping curled up and chilling as a loaf.
   nap: [...ASLEEP, ...ASLEEP, ...ASLEEP, ...LOAF, ...LOAF],
   think: [
@@ -127,6 +167,15 @@ const POSES: Record<Mood, string[][]> = {
    (_/    \_)`),
   ],
 }
+// The newer moods borrow the closest pose.
+const POSES: Record<Mood, string[][]> = {
+  ...BASE_POSES,
+  wait: BASE_POSES.happy,
+  dance: BASE_POSES.happy,
+  hiss: BASE_POSES.oops,
+  feast: BASE_POSES.happy,
+  bored: BASE_POSES.nap,
+}
 
 // Pad every line to the widest pose so the walk offset stays even.
 const CAT_WIDTH = Math.max(...Object.values(POSES).flat(2).map(l => l.length)) + 1
@@ -140,6 +189,14 @@ const CAPTION: Record<Mood, (c: Cat) => string> = {
   tool: c => `${NAME} is on it: ${shortTool(c.tool ?? 'a tool')}`,
   happy: () => `${NAME} purrs: done!`,
   oops: () => `${NAME} got startled: something went wrong`,
+  wait: c =>
+    `${NAME} is waiting for you: ${
+      c.tool === 'AskUserQuestion' ? "answer Claude's question" : c.tool === 'ExitPlanMode' ? "review Claude's plan" : `answer the ${shortTool(c.tool ?? 'permission')} prompt`
+    }`,
+  dance: () => `${NAME} dances: the tests passed`,
+  hiss: () => `${NAME} hisses: the tests failed`,
+  feast: c => `${NAME} got a sardine for the commit (${c.sardines} today)`,
+  bored: c => `${NAME} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
 }
 
 // Cretan mantinades: fifteen-syllable rhyming couplets, sung while the cat works.
@@ -200,6 +257,11 @@ const COLOR: Record<Mood, string> = {
   tool: 'yellow',
   happy: 'green',
   oops: 'red',
+  wait: 'magenta',
+  dance: 'green',
+  hiss: 'red',
+  feast: 'green',
+  bored: 'gray',
 }
 
 // The cat paces back and forth while it works: a triangle wave across the pane.
@@ -226,16 +288,95 @@ const quietly = async (work: () => Promise<unknown>) => {
 async function setMood($: EngineInterface, mood: Mood, tool: string | null = null) {
   settle?.cancel()
   settle = null
+  flash?.cancel()
+  flash = null
+  current = mood
+  const moodAt = (await $.clock.now()) / 1000
   const c = await update($, cat, cur => ({ ...cur, mood, tool }))
   // The frame loop draws from `stage`: move its bubbles with the mood, not a
   // redraw later.
-  Object.assign(stage, { mood, said: saidOf(c), reply: replyOf(c) })
+  Object.assign(stage, { mood, moodAt, said: saidOf(c), reply: replyOf(c) })
+}
+
+// The mood now, and the timer ending a short reaction, if one is on.
+let current: Mood = 'nap'
+let flash: { cancel: () => void } | null = null
+
+// A short reaction, then back to what Claude is doing.
+async function react($: EngineInterface, mood: Mood) {
+  if (!inTurn) return
+  await setMood($, mood)
+  // A reaction that came in meanwhile, or the turn ending, wins.
+  if (!inTurn || current !== mood) return
+  flash?.cancel()
+  const mine = $.clock.after(FLASH_MS, () => {
+    if (flash !== mine) return
+    flash = null
+    void resume($).catch(() => {})
+  })
+  flash = mine
+}
+
+// Back to waiting on you while a question or permission prompt is open,
+// else to the tool still running, else to thinking; outside a turn, nothing.
+function resume($: EngineInterface) {
+  if (!inTurn) return Promise.resolve()
+  const asking = waiting[waiting.length - 1]
+  if (asking !== undefined) return setMood($, 'wait', asking)
+  const still = running[running.length - 1]
+  return still === undefined ? setMood($, 'think') : setMood($, 'tool', still)
+}
+
+// What is waiting on you: the tools whose permission prompt is open, and
+// the questions and plans Claude has put to you, by tool name.
+let waiting: string[] = []
+const ASKS_YOU = new Set(['AskUserQuestion', 'ExitPlanMode'])
+// Tools that wait on you or on helpers, not on work: never boring.
+const NEVER_BORING = new Set([...ASKS_YOU, 'Agent', 'Task', 'Workflow'])
+const drop = (list: string[], tool: string) => {
+  const at = list.lastIndexOf(tool)
+  if (at >= 0) list.splice(at, 1)
+}
+
+function meow($: EngineInterface) {
+  if (isSoundOn) void $.audio.play({ asset: MEOW }).catch(() => {})
+}
+
+// The day's sardines, one per commit, kept across sessions: the count for
+// the local date it was last counted on, and the count of all time.
+type Tally = { day: string; today: number; total: number }
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+async function tally($: EngineInterface): Promise<Tally> {
+  const saved = (await $.store.get('sardines')) as Partial<Tally> | undefined
+  const total = typeof saved?.total === 'number' ? saved.total : 0
+  return { day: today(), today: saved?.day === today() && typeof saved.today === 'number' ? saved.today : 0, total }
+}
+async function eatSardine($: EngineInterface) {
+  const was = await tally($)
+  const now = { ...was, today: was.today + 1, total: was.total + 1 }
+  await $.store.set('sardines', now)
+  await update($, cat, c => ({ ...c, sardines: now.today }))
+}
+
+async function pet($: EngineInterface) {
+  const ms = await $.clock.now()
+  stage.pettedAt = ms / 1000
+  await update($, cat, c => ({ ...c, pettedAt: ms }))
+  // Redraw once the purring is over, so the caption lets go of it.
+  $.clock.after(PETTING_S * 1000 + 50, () => void update($, cat, c => ({ ...c, frame: c.frame + 1 })).catch(() => {}))
+  const pets = await $.store.get('pets')
+  await $.store.set('pets', (typeof pets === 'number' ? pets : 0) + 1)
 }
 
 // Whether a main-thread turn is under way, and the tools it has running now
 // (by name, the latest last): parallel tools finish in any order.
 let inTurn = false
 let running: string[] = []
+// The calls of each tool still running, so a timer knows its own call.
+let live: Record<string, Set<object>> = {}
 
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
@@ -243,6 +384,11 @@ function saidOf(c: Cat): string | undefined {
   if (c.mood === 'tool') return lines.tool(c.tool ?? '?')
   if (c.mood === 'happy') return lines.done
   if (c.mood === 'oops') return lines.oops
+  if (c.mood === 'wait') return lines.wait[0]
+  if (c.mood === 'dance') return lines.green[0]
+  if (c.mood === 'hiss') return lines.red[0]
+  if (c.mood === 'feast') return lines.commit[0]
+  if (c.mood === 'bored') return lines.bored[0]
   if (c.mood !== 'think') return undefined
   if (!c.asked) return lines.vague[c.nudge % lines.vague.length]
   return lines.nudges[c.nudge % lines.nudges.length]!(c.asked)
@@ -250,9 +396,14 @@ function saidOf(c: Cat): string | undefined {
 
 export const register: Register = (on, options) => {
   language = isLanguage(options.language) ? options.language : 'greek'
+  isSoundOn = options.sound === 'on'
   Object.assign(stage, STAGE_START)
   inTurn = false
   running = []
+  waiting = []
+  live = {}
+  current = 'nap'
+  flash = null
   settle = null
   deck = []
 
@@ -261,6 +412,10 @@ export const register: Register = (on, options) => {
     await quietly(async () => {
       const saved = await $.store.get('coat')
       if (isCoat(saved)) await update($, coat, () => saved)
+      const { today: sardines } = await tally($)
+      // A new session, or this module reloaded: no turn is known to be under
+      // way, so he starts asleep rather than stuck in a mood from before.
+      await update($, cat, c => ({ ...c, sardines, mood: 'nap' as Mood, tool: null }))
     })
 
     let ticks = 0
@@ -292,7 +447,7 @@ export const register: Register = (on, options) => {
       if (requestId === undefined || (mood === 'nap' && frames % 3 !== 0)) return
       void (async () => {
         seconds = (await $.clock.now()) / 1000
-        const cells = drawCat({ ...stage, t: seconds })
+        const cells = drawCat(sceneAt(seconds * 1000))
         await $.ui.blit({ requestId, key: 'manousos', columns: cols, rows, cells })
       })().catch(() => {})
     })
@@ -307,6 +462,13 @@ export const register: Register = (on, options) => {
       const hidden = await update($, isHidden, h => !h)
       return { text: hidden ? `${NAME} went to hide under the sofa.` : `${NAME} is back.` }
     }
+    if (arg === 'stats') {
+      const { today: sardines, total } = await tally($)
+      const pets = await $.store.get('pets')
+      const s = (n: number) => (n === 1 ? '' : 's')
+      const petted = typeof pets === 'number' ? pets : 0
+      return { text: `${NAME} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per commit. He has been petted ${petted} time${s(petted)}.` }
+    }
     if (isCoat(arg)) {
       await update($, coat, () => arg)
       await update($, isHidden, () => false)
@@ -314,7 +476,7 @@ export const register: Register = (on, options) => {
       return { text: `${NAME} is wearing his ${arg} coat now.` }
     }
     return {
-      text: `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>). /cat alone hides or shows ${NAME}. Language: /config, "Cretan cat: language".`,
+      text: `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>). /cat stats: his sardines and pets. /cat alone hides or shows ${NAME}. Language and sound: /config, "Cretan cat".`,
     }
   })
 
@@ -330,6 +492,8 @@ export const register: Register = (on, options) => {
   on('turn.start', async ($, e, next) => {
     inTurn = true
     running = []
+    waiting = []
+    live = {}
     await quietly(async () => {
       const verse = await nextVerse($, (await read($, cat)).verse)
       await update($, cat, c => ({ ...c, verse }))
@@ -340,30 +504,80 @@ export const register: Register = (on, options) => {
 
   // Cosmetic only: never await or throw here, so the cat can't block a tool call.
   // He reacts only to the main thread's own turn: not a subagent's tools, nor
-  // a tool some plugin calls between turns.
+  // a tool some plugin calls between turns. Tests make him dance or hiss, a
+  // commit earns a sardine, and a long tool bores him to sleep.
   on('tool.call', ($, e, next) => {
     if (e.agentId !== undefined || !inTurn) return next(e)
     running.push(e.tool)
-    void setMood($, 'tool', e.tool).catch(() => {})
+    // A question or a plan for you: he waits on you until it's answered.
+    if (ASKS_YOU.has(e.tool)) waiting.push(e.tool)
+    if (flash === null) void resume($).catch(() => {})
+    // Boredom only for real work, and only while he is on it: not while he
+    // waits on you, or for the same tool started again since.
+    const call = {}
+    const calls = (live[e.tool] ??= new Set())
+    calls.add(call)
+    const bore = NEVER_BORING.has(e.tool)
+      ? undefined
+      : $.clock.after(BORED_MS, () => {
+          if (current === 'tool' && calls.has(call)) void setMood($, 'bored', e.tool).catch(() => {})
+        })
+    const done = () => {
+      bore?.cancel()
+      calls.delete(call)
+      drop(running, e.tool)
+      drop(waiting, e.tool)
+    }
+    // A run in the background reports at once, before any test has run.
+    const kind = e.tool === 'Bash' && e.run_in_background !== true ? bashKind(e.command) : undefined
     const ran = next(e)
     void ran
-      .finally(() => {
-        const at = running.lastIndexOf(e.tool)
-        if (at >= 0) running.splice(at, 1)
-        // Back to thinking once the last tool is done, while the turn lasts;
-        // otherwise on to the tool still running.
-        if (!inTurn) return
-        const still = running[running.length - 1]
-        return still === undefined ? setMood($, 'think') : setMood($, 'tool', still)
-      })
+      .then(
+        async result => {
+          done()
+          if (!inTurn) return
+          // Denied, or rejected at the prompt: nothing ran, nothing to react to.
+          const didRun = result.deny === undefined && !/doesn't want to proceed|was rejected/i.test(result.text ?? '')
+          if (kind && didRun) {
+            // The exit code tells, when it is the command's own; piped on or
+            // followed by more (`| tail`, `|| true`), the output has to.
+            const hasFailed = result.isError === true || (!kind.isExitTold && saysFailed(result.text ?? ''))
+            if (kind.kind === 'tests') return react($, hasFailed ? 'hiss' : 'dance')
+            if (!hasFailed) {
+              await quietly(() => eatSardine($))
+              return react($, 'feast')
+            }
+          }
+          // A reaction plays out; otherwise, back to what Claude is doing.
+          if (flash === null) return resume($)
+        },
+        () => {
+          done()
+          if (flash === null) return resume($)
+        },
+      )
       .catch(() => {})
     return ran
+  })
+
+  // Claude stops to ask your permission: he sits up and looks at you, until
+  // the call goes on (resume, above) or the turn ends.
+  // Not awaited: the prompt is shown at once, the cat catches up.
+  on('classic.PermissionRequest', ($, e, next) => {
+    if (e.agent_id === undefined && inTurn) {
+      waiting.push(e.tool_name)
+      void setMood($, 'wait', e.tool_name).catch(() => {})
+      meow($)
+    }
+    return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
     if (e.agentId !== undefined) return next(e)
     inTurn = false
     running = []
+    waiting = []
+    live = {}
     await quietly(async () => {
       // Stopped by you (Esc): no fuss, he just curls up again.
       if (e.reason === 'aborted') return setMood($, 'nap')
@@ -373,6 +587,7 @@ export const register: Register = (on, options) => {
         await update($, cat, c => ({ ...c, verse }))
       }
       await setMood($, isDone ? 'happy' : 'oops')
+      if (isDone) meow($)
       // Long enough to read the couplet before he curls up again.
       settle = $.clock.after(isDone ? 12000 : 5000, () => void setMood($, 'nap').catch(() => {}))
     })
@@ -388,10 +603,20 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const c = await read($, cat)
     const reply = replyOf(c)
     const kittens = c.helpers > 0 ? ` · ${c.helpers} helper${c.helpers === 1 ? '' : 's'} ${'=^.^= '.repeat(Math.min(c.helpers, 5))}` : ''
+    // The clock now (the frame loop's last reading, if the clock won't say).
+    const now = await $.clock.now().catch(() => seconds * 1000)
+    const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000
+    const caption = (isPetted ? `${NAME} purrs <3` : CAPTION[c.mood](c)) + kittens
+    // Petting: a click on it, or p while the band has the focus.
+    const petting = (
+      <Button key="pet" plain hotkey="p" dimColor onPress={() => void pet($).catch(() => {})}>
+        pet
+      </Button>
+    )
 
     // The yard, where it fits; on a small terminal, the ASCII cat below.
     const cols = stageCols(e.props.bodyColumns)
@@ -399,19 +624,32 @@ export const register: Register = (on, options) => {
     if (layout && e.surface === 'terminal') {
       const { Raster } = $.ui.resolve(e)
       const said = saidOf(c)
-      Object.assign(stage, { requestId: e.requestId, mood: c.mood, coat: await read($, coat), said, reply, cols, rows: layout.rows })
+      Object.assign(stage, {
+        requestId: e.requestId,
+        mood: c.mood,
+        coat: await read($, coat),
+        said,
+        reply,
+        cols,
+        rows: layout.rows,
+        kittens: c.helpers,
+        pettedAt: c.pettedAt / 1000,
+      })
       return (
         <Box flexDirection="column">
-          <Raster key="manousos" columns={stage.cols} rows={stage.rows} cells={drawCat({ ...stage, t: seconds })} />
+          <Raster key="manousos" columns={stage.cols} rows={stage.rows} cells={drawCat(sceneAt(now))} />
           {/* No room for Clawd's bubble: his words go under the yard. */}
           {layout.isSaidText && said !== undefined && (
             <Text key="said" wrap="truncate">
               {`Clawd: ${said}`}
             </Text>
           )}
-          <Text key="caption" dimColor wrap="truncate">
-            {CAPTION[c.mood](c) + kittens}
-          </Text>
+          <Box key="under" flexDirection="row">
+            {petting}
+            <Text key="caption" dimColor wrap="truncate">
+              {`  ${caption}`}
+            </Text>
+          </Box>
           {/* Too narrow for his bubble: he sings under the yard instead. */}
           {!replyFits(stage.cols) &&
             reply?.map((line, i) => (
@@ -438,9 +676,12 @@ export const register: Register = (on, options) => {
           ))}
         </Box>
         <Box flexDirection="column" justifyContent="flex-end" marginLeft={1}>
-          <Text key="caption" dimColor wrap="truncate">
-            {CAPTION[c.mood](c) + kittens}
-          </Text>
+          <Box key="under" flexDirection="row">
+            {petting}
+            <Text key="caption" dimColor wrap="truncate">
+              {`  ${caption}`}
+            </Text>
+          </Box>
           {verse?.map((line, i) => (
             <Text key={`v${i}`} color="magenta" italic wrap="truncate">
               {line}
