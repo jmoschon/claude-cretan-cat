@@ -83,6 +83,46 @@ describe('cretan-cat', () => {
     expect(svg).not.toMatch(/M1280 /)
   })
 
+  test('his reply follows him as he paces, its tail down to his head, never over Clawd\'s', () => {
+    const song = ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.']
+    const scene = { mood: 'think', coat: 'manousos', cols: 180, rows: 11, hour: 12, month: 6, reply: song } as const
+    // Nobody else talking: the bubble sits on the top row, over him.
+    const at = (t: number) => {
+      const lines = cellRows(drawCells({ ...scene, t, since: t }), 180, 11)
+      const left = lines[0]!.indexOf('╭')
+      const bottom = lines.findIndex(l => l[left] === '╰')
+      return { left, bottom, tail: lines[bottom]!.indexOf('┬'), lines }
+    }
+    const a = at(0)
+    const b = at(4)
+    expect(a.left).toBeGreaterThanOrEqual(0)
+    expect(b.left).not.toBe(a.left)
+    for (const f of [a, b]) {
+      expect(f.bottom).toBe(3)
+      expect(f.tail).toBeGreaterThan(f.left)
+      expect(f.lines[1]).toContain('Στο πληκτρολόγιο')
+    }
+    // Moved by as much as he did.
+    expect(b.tail - a.tail).toBe(b.left - a.left)
+
+    // Clawd talking: both bubbles whole, side by side, two cells apart.
+    const said = 'Πώς πάει το «checkout tests», Μανούσο;'
+    const lefts = new Set<number>()
+    for (let t = 0; t < 8; t += 0.25) {
+      for (const cols of [120, 180]) {
+        const top = cellRows(drawCells({ ...scene, cols, said, t, since: t }), cols, 11)
+        const clawdRight = top[0]!.indexOf('╮')
+        const left = top[0]!.indexOf('╭', clawdRight)
+        expect(top[1]).toContain(said)
+        expect(top[1]).toContain(song[0])
+        expect(left - clawdRight).toBeGreaterThanOrEqual(3)
+        expect(left + [...song[1]!].length + 3).toBeLessThan(cols)
+        if (cols === 180) lefts.add(left)
+      }
+    }
+    expect(lefts.size).toBeGreaterThan(1)
+  })
+
   test('/cat <coat> changes his coat and keeps it; anything else lists the coats', async ($, on) => {
     const saved: Record<string, unknown> = {}
     on('store.get', async (_$, e) => ({ value: saved[e.key] }))
@@ -1076,4 +1116,9 @@ function cellsText(b64: string) {
   let out = ''
   for (let i = 0; i + 11 < bytes.length; i += 12) out += String.fromCodePoint(bytes[i]! | (bytes[i + 1]! << 8) | (bytes[i + 2]! << 16))
   return out
+}
+
+// The characters of cells, one string a row.
+function cellRows(words: Uint32Array, cols: number, rows: number) {
+  return Array.from({ length: rows }, (_, row) => Array.from({ length: cols }, (_, col) => String.fromCodePoint(words[(row * cols + col) * 3]!)).join(''))
 }
