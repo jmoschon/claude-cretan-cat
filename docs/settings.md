@@ -11,21 +11,23 @@ organization has locked keeps its value, and `/cat` says so. Whether he is
 hidden, his sardines and his pets are remembered across sessions too.
 
 Up to 1.10 the coat, where he lives and the hints were kept apart from the
-settings. The first session after the update moves what you picked into
-them: a cat you dressed in the ginger coat stays ginger.
+settings, in the plugin's own store. The first session after the update
+moves what you picked into them, once, writing their `/config` rows where it
+can (a locked row keeps its value): a cat you dressed in the ginger coat
+stays ginger.
 
-| Setting (`/config`)          | Values                                       | Default    |
-| ---------------------------- | -------------------------------------------- | ---------- |
-| Cretan cat: his name           | any name, up to 20 characters              | `Manousos` |
-| Cretan cat: coat               | `manousos`, `ginger`, `tuxedo`             | `manousos` |
-| Cretan cat: what Clawd speaks  | `greek`, `english`, `spanish`              | `greek`    |
-| Cretan cat: what he sings      | `greek`, `english`, `spanish`              | `greek`    |
-| Cretan cat: temper             | `off`, `on`                                | `off`      |
-| Cretan cat: sound              | `off`, `on`                                | `off`      |
-| Cretan cat: resolution         | `low`, `high`                              | `low`      |
-| Cretan cat: where he lives     | `band`, `small`, `dock`                    | `band`     |
-| Cretan cat: hints              | `on`, `off`                                | `on`       |
-| Cretan cat: AI songs           | `off`, `on`                                | `off`      |
+| Setting (`/config`)           | Values                          | Default    | `/cat` command                  |
+| ----------------------------- | ------------------------------- | ---------- | ------------------------------- |
+| Cretan cat: his name          | any name, up to 20 characters   | `Manousos` | `/cat name <name>`              |
+| Cretan cat: coat              | `manousos`, `ginger`, `tuxedo`  | `manousos` | `/cat coat <coat>`, `/cat ginger` |
+| Cretan cat: what Clawd speaks | `greek`, `english`, `spanish`   | `greek`    | `/cat language <language>`      |
+| Cretan cat: what he sings     | `greek`, `english`, `spanish`   | `greek`    | `/cat songs <language>`         |
+| Cretan cat: temper            | `off`, `on`                     | `off`      | `/cat temper on\|off`           |
+| Cretan cat: sound             | `off`, `on`                     | `off`      | `/cat sound on\|off`            |
+| Cretan cat: resolution        | `low`, `high`                   | `low`      | `/cat resolution low\|high`     |
+| Cretan cat: where he lives    | `band`, `small`, `dock`         | `band`     | `/cat band\|small\|dock`         |
+| Cretan cat: hints             | `on`, `off`                     | `on`       | `/cat hints on\|off`            |
+| Cretan cat: AI songs          | `off`, `on`                     | `off`      | `/cat ai on\|off`               |
 
 `/cat config` lists them all with what they are now
 ([example](commands.md#cat-config)).
@@ -36,12 +38,20 @@ What the cat is called, in the caption and by Clawd. In Greek, Clawd calls
 Manousos *Μανούσο* and Asturias *Αστούριας*, and any other name as you wrote
 it.
 
+## Coat
+
+His fur: `manousos` is dark brown long hair with a white bib and white
+mittens, `ginger` an orange tabby, `tuxedo` black and white. `/cat coat
+<coat>`, or just `/cat ginger` or `/cat tuxedo`, changes it and brings him out
+from under the sofa. `/cat manousos` is the whole cat as he came, not just
+the coat; `/cat asturias` puts her in the ginger coat.
+
 ## Clawd's language
 
 What Clawd says, and the cat's short replies. Spanish is the Spanish of
 Buenos Aires (*¡Dale Manousos, arrancamos!*), and the cat answers in it the
-way Asturias does. A `/config` row still set to the old `rioplatense` reads as
-the default, Greek, until you pick `spanish`.
+way Asturias does. A `/config` row still set to `rioplatense`, from an older
+version, reads as `spanish`.
 
 ## Songs
 
@@ -137,6 +147,25 @@ cells for the rest of the session.
 | `high, in cells: this terminal surface has no Image element` | This Claude Code can't place pictures above the prompt.                  |
 | `high, in cells: the desktop draws cells`                  | The desktop app (or any other surface but the terminal) draws its own way. |
 
+## Where he lives
+
+- **`band`** (the default): the whole yard above the prompt, with Clawd and
+  the bubbles.
+- **`small`**: just the cat, no Clawd and no bubbles, in a small square at the
+  right above the prompt.
+- **`dock`**: just the cat, in a pane of his own that the fullscreen layout
+  docks on the right (elsewhere it sits above the prompt). Closing the pane by
+  hand sets it back to `band`.
+
+`/cat band`, `/cat small` and `/cat dock` change it, and bring him out from
+under the sofa if he was hiding.
+
+## Hints
+
+On (the default), the napping caption ends with tips: *Manousos is napping ·
+/cat help · /cat hide · /cat asturias or manousos swaps the cat*. Off, it just
+says he is napping. `/cat hints on` or `off` changes it.
+
 ## AI songs and lines
 
 Off unless you turn it on (`/cat ai on`, or `/config`). On, each prompt you
@@ -186,8 +215,8 @@ and rewrites the rest about your topic. The first candidate that scans is
 sung: 14 to 16 syllables a line counted as the song is sung (αι, ου and the
 like as one, -ιά and μια as one, κι before a vowel sung with it), a word
 ending near the 8th syllable, the two lines rhyming from the stressed
-vowel, and more than three words changed from any built-in song, so a
-near copy is not sung.
+vowel, and more than five words changed, added or taken out from any
+built-in song, so a near copy is not sung.
 
 **What can show.** The reply must be JSON of the right shape. Anything
 unsafe anywhere (control characters or terminal escapes, invisible or
@@ -203,6 +232,7 @@ is all built-in.
 lands while the cat is still singing at the end is sung then, and its
 nudges and comebacks carry over to a turn that no prompt started. A new
 prompt cuts a call still running and drops what the last one wrote; so do
-a settings change and the session ending. Only one call is ever in flight.
+a change to the name, either language, the temper or this setting, and the
+session ending. Only one call is ever in flight.
 
 `/cat reset`, `/cat manousos` and `/cat asturias` leave this setting as it is.

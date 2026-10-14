@@ -21,7 +21,8 @@ Questions and plans still wake him.
 
 ## No sound
 
-Sound is off unless you turn it on in `/config`, and it plays on macOS only.
+Sound is off unless you turn it on (`/cat sound on`, or `/config`), and it
+plays on macOS only.
 See [Sound](settings.md#sound).
 
 ## `resolution: high` looks just like low

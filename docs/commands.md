@@ -6,13 +6,13 @@
 | -------------------------- | --------------------------------------------------------------------- |
 | `/cat`                     | Hide him, or bring him back (toggles)                                 |
 | `/cat hide`, `/cat show`   | Hide him, or bring him back; hidden stays hidden across sessions      |
-| `/cat small`               | Just the cat, in a small square at the right above the prompt          |
+| `/cat small`               | Just the cat, in a small square at the right above the prompt (see [Where he lives](settings.md#where-he-lives)) |
 | `/cat dock`                | Just the cat, in a pane docked on the right (fullscreen layout)        |
 | `/cat band`                | The whole yard above the prompt again                                  |
 | `/cat pet`                 | Pet him: he closes his eyes and purrs (or press `pet`, `p`)            |
 | `/cat treat`               | Toss him a sardine (or press `treat`, `t`)                             |
 | `/cat play`                | Dangle the fishing toy, its bell jingling (or press `play`, `y`)       |
-| `/cat coat <coat>`         | The coat alone: `manousos` (dark brown, white bib and mittens), `ginger`, `tuxedo` |
+| `/cat coat <coat>`         | The coat alone: `manousos` (dark brown, white bib and mittens), `ginger`, `tuxedo` (see [Coat](settings.md#coat)) |
 | `/cat ginger`              | An orange tabby                                                       |
 | `/cat tuxedo`              | Black and white                                                       |
 | `/cat name <name>`         | Call the cat something else, up to 20 characters                      |
@@ -21,7 +21,7 @@
 | `/cat temper on\|off`      | Give the cat a temper, or take it away (see [Temper](settings.md#temper)) |
 | `/cat sound on\|off`       | His voice, on macOS (see [Sound](settings.md#sound))                   |
 | `/cat resolution high\|low` | The yard as a fine picture in kitty and Ghostty, or in cells (see [Resolution](settings.md#resolution)) |
-| `/cat hints on\|off`       | The /cat tips under the napping cat                                   |
+| `/cat hints on\|off`       | The /cat tips under the napping cat (see [Hints](settings.md#hints))   |
 | `/cat ai on\|off`          | Songs and nudges written for each prompt by one small Haiku call a turn; only the topic words are sent (see [AI songs and lines](settings.md#ai-songs-and-lines)) |
 | `/cat asturias`            | Asturias, all at once (see [Meet Asturias](../README.md#meet-asturias)) |
 | `/cat manousos`            | Manousos as he came, coat and settings (`/cat reset` too)              |
@@ -39,14 +39,14 @@ A few details:
   Clawd and no bubbles, in a square: at the right of the band, or in a pane
   of its own that the fullscreen layout docks on the right (elsewhere it sits
   above the prompt). Closing the pane by hand gives him back to the band. The
-  place is remembered across sessions.
+  place is a setting, so it holds across sessions.
 - **Asturias.** `/cat asturias` names the cat Asturias, puts her in the ginger
   coat, has Clawd speak Spanish as they speak it in Buenos Aires, sets the songs to coplas and tangos, and
   turns the temper on. She answers in her own words (*¿Qué querés?*, *Yo no
   fui, che*, *¿Sardina? ¿Y el asado?*).
 - **Manousos.** `/cat manousos` (or `/cat reset`) brings back his name and
   coat, Greek, mantinades and no temper. Neither it nor `/cat asturias`
-  touches the sound or the resolution. To put a coat on whoever the cat is
+  touches the sound, the resolution or AI songs. To put a coat on whoever the cat is
   now, use `/cat coat <coat>`.
 - **Stats.** `/cat stats` draws today's sardines as fish (one per commit, or
   per finished task that used tools), how full his belly is, sardines in all
@@ -56,7 +56,8 @@ A few details:
   under the sofa, as a coat does.
 - **Typos.** A slip of a letter or two is caught: `/cat doc` answers
   *Manousos doesn't know "/cat doc". Did you mean /cat dock?*, and
-  `/cat resoluton high` points at `/cat resolution high`. Anything not close
+  `/cat resoluton high` points at `/cat resolution high` (and `/cat aii on`
+  at `/cat ai on`). Anything not close
   to a command says it is unknown, then shows the help.
 
 ## `/cat help`
@@ -100,10 +101,10 @@ Manousos's settings
   songs       greek
   temper      off
   sound       off
-  ai          off
-  resolution  low
   place       band
   hints       on
+  ai          off
+  resolution  low
 
 /cat help says how to change them; they are under /config, "Cretan cat", too.
 ```

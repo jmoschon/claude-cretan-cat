@@ -13,8 +13,9 @@ under the sun or the moon as your clock says.
 He is drawn after a real cat: dark brown long hair, a white bib and white
 mittens.
 
-- **Free to run.** No model calls and no network requests: everything is drawn
-  locally from what Claude Code is already doing.
+- **Free to run.** Out of the box, no model calls and no network requests:
+  everything is drawn locally from what Claude Code is already doing.
+  [AI songs](#ai-songs) are opt-in.
 - **Independent.** Not affiliated with or endorsed by Anthropic.
 
 ## Quick start
@@ -55,6 +56,7 @@ Kittens, dozing off, petting and the yard through the day are all in
 /cat asturias           his sister; /cat manousos brings him back
 /cat name Kostis        call him something else
 /cat songs spanish      what he sings
+/cat ai on              songs written for your task (/cat ai off: the built-ins)
 /cat stats              sardines, pets and his rank
 /cat config             every setting and what it is now
 /cat help               all of it
@@ -65,21 +67,21 @@ in [commands](docs/commands.md).
 
 ## Settings
 
-All of these are under `/config`, "Cretan cat" (and on the screen that
-installs him), and each has a `/cat` command too.
+All ten are on the screen that installs him, and later under `/config`,
+"Cretan cat"; each has a `/cat` command too.
 
-| Setting          | Values                                                       | Default    |
-| ---------------- | ------------------------------------------------------------ | ---------- |
-| name             | any name, up to 20 characters                                | `Manousos` |
-| coat             | `manousos`, `ginger`, `tuxedo`                               | `manousos` |
-| Clawd's language | `greek`, `english`, `spanish` (as in Buenos Aires)           | `greek`    |
-| songs            | `greek`, `english`, `spanish`                                | `greek`    |
-| temper           | `off`, `on`: he slaps, swats and naps on your keys           | `off`      |
-| sound            | `off`, `on`: a trill, a mew, a purr, a hiss (macOS)          | `off`      |
-| resolution       | `low`, `high`: a sharper yard in kitty and Ghostty terminals | `low`      |
-| where he lives   | `band`, `small`, `dock`                                      | `band`     |
-| hints            | `on`, `off`: the /cat tips under the napping cat             | `on`       |
-| ai               | `off`, `on`: songs and nudges written for each prompt by one small Haiku call a turn (tokens; at most 100 a day; only the topic words are sent, [details](docs/settings.md#ai-songs-and-lines)) | `off` |
+| Setting          | Values                                              | Default    | Change it with           |
+| ---------------- | --------------------------------------------------- | ---------- | ------------------------ |
+| name             | any name, up to 20 characters                       | `Manousos` | `/cat name <name>`       |
+| coat             | `manousos`, `ginger`, `tuxedo`                      | `manousos` | `/cat coat <coat>`       |
+| Clawd's language | `greek`, `english`, `spanish` (as in Buenos Aires)  | `greek`    | `/cat language <lang>`   |
+| songs            | `greek`, `english`, `spanish`                       | `greek`    | `/cat songs <lang>`      |
+| temper           | `off`, `on`: he slaps, swats and naps on your keys  | `off`      | `/cat temper on\|off`    |
+| sound            | `off`, `on`: a trill, a mew, a purr, a hiss (macOS) | `off`      | `/cat sound on\|off`     |
+| resolution       | `low`, `high`: a sharper yard in kitty and Ghostty  | `low`      | `/cat resolution low\|high` |
+| where he lives   | `band`, `small`, `dock`                             | `band`     | `/cat band\|small\|dock`  |
+| hints            | `on`, `off`: the /cat tips under the napping cat    | `on`       | `/cat hints on\|off`     |
+| ai               | `off`, `on`: songs written for your prompt          | `off`      | `/cat ai on\|off`        |
 
 The GIF above is `resolution: high`; [this one](docs/demo-low.gif) is how
 `low` looks. Every setting in detail is in [settings](docs/settings.md).
@@ -88,6 +90,14 @@ The GIF above is `resolution: high`; [this one](docs/demo-low.gif) is how
 > `resolution: high` was built and tested, and where Manousos looks his
 > best. Any kitty or Ghostty terminal works too; everywhere else he keeps
 > his classic look.
+
+### AI songs
+
+`/cat ai on` lets one small Haiku call a turn write his song and Clawd's
+nudges about your task; `/cat ai off` goes back to the built-ins. Only the
+prompt's topic words (keys, emails, URLs and paths taken out), the settings
+and a few session counts are sent, at most 100 calls a day. The details are
+in [settings](docs/settings.md#ai-songs-and-lines).
 
 ## Meet Asturias
 

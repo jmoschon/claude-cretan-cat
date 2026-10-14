@@ -43,7 +43,8 @@ npx -p typescript tsc -p . # types (Claude Code writes .claude-plugin/types/ whe
 | `hooks/lines.ts`        | What Clawd and the cat say; the name; topics; which commands are tests or commits      |
 | `hooks/songs.ts`        | What the cat sings, per song language                                                  |
 | `hooks/clawd.ts`        | Clawd, his sprite and his looks                                                        |
-| `sounds/*.wav`          | His voice (happy, mew, purr, hiss), synthesized by `scripts/sounds.py` (no samples)    |
+| `hooks/ai.ts`           | AI songs and lines: the topic cleaned, the Haiku call, the checks, the daily cap       |
+| `sounds/*.wav`          | His voice (happy, mew, purr, hiss) and the toy's bell, synthesized by `scripts/sounds.py` |
 | `scripts/frames.ts`, `scripts/gif.py`       | The low-resolution demo, `docs/demo-low.gif`                       |
 | `scripts/frames-hd.ts`, `scripts/gif-hd.py` | The high-resolution demo, `docs/demo.gif`                          |
 
@@ -53,11 +54,11 @@ low-resolution sprite, each pixel a 3 by 3 block, so nothing is ever missing.
 
 ## Sounds
 
-The four sounds are synthesized, not sampled (stdlib Python, seeded, so the
+The five sounds are synthesized, not sampled (stdlib Python, seeded, so the
 same bytes every run). To make them again:
 
 ```sh
-python3 scripts/sounds.py          # writes sounds/happy.wav, mew.wav, purr.wav, hiss.wav
+python3 scripts/sounds.py          # writes sounds/happy.wav, mew.wav, purr.wav, hiss.wav, bell.wav
 ```
 
 ## The demo GIFs
