@@ -143,7 +143,7 @@ the kittens while helpers run.
 | `/cat pet`                 | Pet him: he closes his eyes and purrs                            |
 | `/cat treat`               | Toss him a sardine (or press `treat`, `t`, under the yard)       |
 | `/cat play`                | Dangle the fishing toy (or press `play`, `y`): he leaps at it    |
-| `/cat manousos`            | The original coat: dark brown, white bib and mittens             |
+| `/cat coat <coat>`         | `manousos` (dark brown, white bib and mittens), `ginger`, `tuxedo` |
 | `/cat ginger`              | An orange tabby                                                  |
 | `/cat tuxedo`              | Black and white                                                  |
 | `/cat name <name>`         | Call the cat something else, up to 20 characters                 |
@@ -152,7 +152,7 @@ the kittens while helpers run.
 | `/cat temper on\|off`      | Give the cat a temper, or take it away (see [Temper](#temper))   |
 | `/cat sound on\|off`       | Its voice on macOS: mrrp when done, mew when waiting, purr, hiss |
 | `/cat asturias`            | Asturias, all at once (see below)                                |
-| `/cat reset`               | Manousos as he came                                              |
+| `/cat manousos`            | Manousos as he came, coat and settings (`/cat reset` too)        |
 | `/cat stats`               | Sardines, pets and his rank, drawn                               |
 | `/cat config`              | Every setting and what it is now                                 |
 | `/cat help`                | Lists the commands                                               |
@@ -166,7 +166,7 @@ A few details:
   coat, has Clawd speak rioplatense, sets the songs to coplas and tangos, and
   turns the temper on. She answers in her own words (*¿Qué querés?*, *Yo no
   fui, che*, *¿Sardina? ¿Y el asado?*).
-- **Reset.** `/cat reset` brings back his name and coat, Greek, mantinades
+- **Reset.** `/cat manousos` (or `/cat reset`) brings back his name and coat, Greek, mantinades
   and no temper.
 - **Stats.** `/cat stats` draws today's sardines as fish (one per commit, or
   per finished task that used tools), how full his belly is, sardines in all
@@ -180,13 +180,13 @@ A few details:
 Manousos, the cat above the prompt
 
   /cat name <name>          what the cat is called (Manousos now)
-  /cat <coat>               the coat: manousos, ginger, tuxedo (manousos now)
+  /cat coat <coat>          the coat: manousos, ginger, tuxedo (manousos now); /cat ginger or tuxedo too
   /cat language <language>  what Clawd speaks: greek, english, spanish, rioplatense (greek now)
   /cat songs <language>     what Manousos sings: greek, spanish, english (greek now)
   /cat temper on|off        whether Manousos slaps Clawd, swats you, sits on your keyboard (off now)
   /cat sound on|off         whether Manousos mrrps, mews, purrs and hisses, on macOS (off now)
   /cat asturias             Asturias: ginger, rioplatense, coplas and a temper
-  /cat reset                Manousos as he came
+  /cat manousos             Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)
   /cat pet                  pet the cat (or press pet under the yard)
   /cat treat                toss the cat a sardine (or press treat)
   /cat play                 dangle the fishing toy (or press play)
@@ -298,7 +298,7 @@ who came home from across the sea with a big attitude.
   there.
 
 She doesn't take orders from anyone, least of all Clawd. When you've had
-enough, `/cat reset` brings Manousos back, calm and Greek.
+enough, `/cat manousos` brings Manousos back, calm and Greek.
 
 ## Room it needs
 

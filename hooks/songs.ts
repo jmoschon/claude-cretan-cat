@@ -2,7 +2,7 @@
 // mantinades, rioplatense coplas and tangos, or English couplets. Each set
 // stays in its own language, whatever language Clawd speaks.
 
-export const SONG_LANGUAGES = ['greek', 'spanish', 'english'] as const
+export const SONG_LANGUAGES = ['greek', 'english', 'spanish'] as const
 export type SongLanguage = (typeof SONG_LANGUAGES)[number]
 export const isSongLanguage = (v: unknown): v is SongLanguage => typeof v === 'string' && (SONG_LANGUAGES as readonly string[]).includes(v)
 
@@ -88,4 +88,4 @@ const COUPLETS: [string, string][] = [
   ['Like a dancer at a wedding, the pod goes down and up,', "and Kubernetes swears it's healthy, raising high its cup."],
 ]
 
-export const SONGS: Record<SongLanguage, [string, string][]> = { greek: MANTINADES, spanish: COPLAS, english: COUPLETS }
+export const SONGS: Record<SongLanguage, [string, string][]> = { greek: MANTINADES, english: COUPLETS, spanish: COPLAS }

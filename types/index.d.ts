@@ -2,8 +2,9 @@
 // failure; waiting on you at a permission prompt; dancing at green tests,
 // hissing at red ones; eating the sardine a commit earns; dozing off while a
 // long tool runs; slapping Clawd for a nudge, or snubbing him; chasing the
-// fishing toy you dangle for him.
-export type Mood = 'nap' | 'think' | 'tool' | 'happy' | 'oops' | 'wait' | 'dance' | 'hiss' | 'feast' | 'bored' | 'slap' | 'snub' | 'play'
+// fishing toy you dangle for him; with a temper, turning it down: curled up
+// away from it (sulk), or turned around, tail up, showing you the butt.
+export type Mood = 'nap' | 'think' | 'tool' | 'happy' | 'oops' | 'wait' | 'dance' | 'hiss' | 'feast' | 'bored' | 'slap' | 'snub' | 'play' | 'sulk' | 'butt'
 export type Coat = 'manousos' | 'ginger' | 'tuxedo'
 // Where the cat lives: the wide yard in the band above the prompt, a small
 // square of it there, or a square in a pane of its own, docked beside the

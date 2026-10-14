@@ -225,8 +225,12 @@ function catAt(mood: Mood, t: number, since: number, from: number, to: number): 
       return { pose, x: toyX(t - 0.25, from, to) - Math.round(width / 2), lift, isLeft: Math.cos((t - 0.25) * TOY_SWING) < 0 }
     }
     case 'snub':
+    case 'sulk':
       // Off to the far side, eyes shut, as if he weren't there.
       return { pose: 'purr', x: to - SPRITES.purr[0]!.length, lift: 0, isLeft: false }
+    case 'butt':
+      // Turned around where he sits, tail up.
+      return { pose: 'back', x: seated, lift: 0, isLeft: false }
   }
 }
 
@@ -248,6 +252,7 @@ function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { 
     }
     case 'oops':
     case 'hiss':
+    case 'butt':
       return { look: { ...base, eyes: 'wide', arms: { left: 'up', right: 'up' } }, lift: 0 }
     case 'wait':
       // Facing you, both arms waving.

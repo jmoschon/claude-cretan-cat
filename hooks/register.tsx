@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderNode } from 'claude-code'
 
 import type { Cat, Coat, Mood, Place } from '../types'
-import { bashKind, isLanguage, LANGUAGES, LINES, NAME_MOST, catNameOf, saysFailed, shortTool, topicOf, type Language, type Name } from './lines'
+import { bashKind, languageOf, LANGUAGES, LINES, NAME_MOST, catNameOf, saysFailed, shortTool, topicOf, type Language, type Name } from './lines'
 import { COATS, drawCat, drawCells, fit, PETTING_S, replyFits, skyAt, soloFit, type Scene } from './manousos'
 import { cellsToSvg, SVG_MOST } from './svg'
 import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
@@ -16,7 +16,7 @@ const songs = () => SONGS[songLanguage]
 let isTempered = false
 // With a temper: the chance a nudge from Clawd earns a slap, or a snub; that
 // a pet earns a swat; and that a turn starts with the cat on your keyboard.
-const TEMPER = { slap: 0.3, snub: 0.3, keys: 0.2 }
+const TEMPER = { slap: 0.3, snub: 0.3, keys: 0.2, refuse: 0.35 }
 // What it types, lying on your keyboard, into Clawd's bubble.
 // What Clawd says, and the cat's short replies, in the "language" setting.
 const linesOf = () => LINES[language](catName)
@@ -31,7 +31,7 @@ type Override = { value: string; over: unknown }
 let fromConfig: Partial<Record<Field, unknown>> = {}
 function apply(field: Field, value: unknown) {
   if (field === 'name') catName = catNameOf(value)
-  if (field === 'language') language = isLanguage(value) ? value : 'greek'
+  if (field === 'language') language = languageOf(value) ?? 'greek'
   if (field === 'songs') {
     const next = isSongLanguage(value) ? value : 'greek'
     if (next !== songLanguage) deck = []
@@ -147,7 +147,7 @@ function replyOf(c: Cat): string[] | undefined {
   if (showsKeys(c.isOnKeys, c.mood)) return [lines.asks]
   if (isSinging(c.mood)) return songs()[c.verse % songs().length]
   if (c.mood === 'slap') return [lines.retort[c.nudge % lines.retort.length]!]
-  if (c.mood === 'snub') return [lines.shrug[c.nudge % lines.shrug.length]!]
+  if (c.mood === 'snub' || c.mood === 'sulk' || c.mood === 'butt') return [lines.shrug[c.nudge % lines.shrug.length]!]
   const short = {
     oops: lines.hiss,
     wait: lines.wait[1],
@@ -273,6 +273,8 @@ const POSES: Record<Mood, string[][]> = {
   feast: BASE_POSES.happy,
   bored: BASE_POSES.nap,
   play: BASE_POSES.slap,
+  sulk: BASE_POSES.snub,
+  butt: BASE_POSES.snub,
 }
 
 // Pad every line to the widest pose so the walk offset stays even.
@@ -285,7 +287,7 @@ const FRAMES = Object.fromEntries(
 // kept across sessions.
 let hasHints = true
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat ginger, tuxedo or manousos changes the coat' : ''}`,
+  nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat asturias or manousos swaps the cat' : ''}`,
   think: () => `${name()} is thinking it over`,
   tool: c => `${name()} is on it: ${shortTool(c.tool ?? 'a tool')}`,
   happy: () => `${name()} purrs: done!`,
@@ -301,6 +303,8 @@ const CAPTION: Record<Mood, (c: Cat) => string> = {
   slap: () => `${name()} slapped Clawd for nagging`,
   snub: () => `${name()} is ignoring Clawd`,
   play: () => `${name()} is chasing the fishing toy`,
+  sulk: () => `${name()} doesn't feel like playing`,
+  butt: () => `${name()} turned around: all you get is the butt`,
 }
 
 // A shuffled deck: every couplet plays once before any repeats. The deck is
@@ -343,6 +347,8 @@ const COLOR: Record<Mood, string> = {
   slap: 'red',
   snub: 'gray',
   play: 'cyan',
+  sulk: 'gray',
+  butt: 'red',
 }
 
 // Outside the terminal the ASCII cat wears his coat's color while calm; a
@@ -614,13 +620,20 @@ async function treatTo($: EngineInterface, mood: Mood, ms: number) {
 const PLAY_MS = 6_000
 
 // The fishing toy: its bell jingles as it comes out and again mid-chase,
-// and he purrs when he gives up on it.
-async function play($: EngineInterface) {
+// and he purrs when he gives up on it. With a temper, now and then he won't:
+// he curls up away from it, or turns around and shows you the butt.
+async function play($: EngineInterface): Promise<Mood> {
+  if (isTempered && random() < TEMPER.refuse) {
+    const mood: Mood = random() < 0.5 ? 'butt' : 'sulk'
+    await treatTo($, mood, FLASH_MS)
+    return mood
+  }
   sound($, 'bell')
   await treatTo($, 'play', PLAY_MS)
   const ms = inTurn ? FLASH_MS : PLAY_MS
   if (!inTurn) $.clock.after(ms / 2, () => sound($, 'bell'))
   $.clock.after(ms, () => sound($, 'purr'))
+  return 'play'
 }
 
 // A treat from you: the sardine toss. It isn't one of the day's sardines,
@@ -879,17 +892,19 @@ export const register: Register = (on, options) => {
       return { text: refused.length === 0 ? done : `Couldn't change ${refused.join('; ')}` }
     }
     // A whole cat at once: its settings and its coat.
+    // The coat goes first: writing the /config rows may reload the plugin
+    // before this command gets any further.
     const becomes = async (look: Coat, settings: Record<Exclude<Field, 'sound'>, string>, done: string) => {
-      const refused = await change(settings)
+      await $.store.set('coat', look)
       await update($, coat, () => look)
       await reveal($)
-      await $.store.set('coat', look)
+      const refused = await change(settings)
       return { text: refused.length === 0 ? done : `${done} Couldn't change ${refused.join('; ')}` }
     }
     if (arg === 'asturias' && value === '') {
-      return becomes('ginger', { name: 'Asturias', language: 'rioplatense', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat reset brings Manousos back)')
+      return becomes('ginger', { name: 'Asturias', language: 'spanish', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat manousos brings Manousos back)')
     }
-    if (arg === 'reset' && value === '') {
+    if ((arg === 'manousos' || arg === 'reset') && value === '') {
       return becomes('manousos', { name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
     }
     if ((arg === 'band' || arg === 'small' || arg === 'dock') && value === '') {
@@ -929,7 +944,9 @@ export const register: Register = (on, options) => {
         await treat($)
         return { text: `${name()} catches the sardine and eats it whole.` }
       }
-      await play($)
+      const did = await play($)
+      if (did === 'butt') return { text: `You dangle the fishing toy. ${name()} turns around and shows you the butt.` }
+      if (did === 'sulk') return { text: `You dangle the fishing toy. ${name()} curls up and looks the other way.` }
       return { text: `You dangle the fishing toy, and ${name()} goes after it.` }
     }
     if (arg === 'stats') {
@@ -945,12 +962,14 @@ export const register: Register = (on, options) => {
       return setting('name', to, `The cat is called ${to} now.`)
     }
     if (arg === 'language' || arg === 'lang') {
-      if (!isLanguage(value)) return { text: `Clawd speaks ${language}. /cat language ${LANGUAGES.join(', ')} changes it.` }
-      return setting('language', value, `Clawd speaks ${value} now.`)
+      const to = languageOf(value)
+      if (!to) return { text: `Clawd speaks ${language}. /cat language ${LANGUAGES.join(', ')} changes it.` }
+      return setting('language', to, `Clawd speaks ${to} now.`)
     }
     if (arg === 'songs') {
-      if (!isSongLanguage(value)) return { text: `${name()} sings in ${songLanguage}. /cat songs ${SONG_LANGUAGES.join(', ')} changes it.` }
-      return setting('songs', value, `${name()} sings in ${value} now.`)
+      const to = isSongLanguage(value) ? value : undefined
+      if (!to) return { text: `${name()} sings in ${songLanguage}. /cat songs ${SONG_LANGUAGES.join(', ')} changes it.` }
+      return setting('songs', to, `${name()} sings in ${to} now.`)
     }
     if (arg === 'temper') {
       if (value !== 'on' && value !== 'off') return { text: `Temper is ${isTempered ? 'on' : 'off'}. /cat temper on or off changes it.` }
@@ -974,24 +993,27 @@ export const register: Register = (on, options) => {
       ]
       return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; they are under /config, "Cretan cat", too.` }
     }
-    if (isCoat(arg) && value === '') {
-      await update($, coat, () => arg)
+    // /cat coat <coat>, or a coat alone, ginger or tuxedo (/cat manousos is the whole cat).
+    const look = arg === 'coat' ? value : value === '' ? arg : ''
+    if (arg === 'coat' || isCoat(look)) {
+      if (!isCoat(look)) return { text: `${name()} is wearing the ${await read($, coat)} coat. /cat coat ${Object.keys(COATS).join(', ')} changes it.` }
+      await $.store.set('coat', look)
+      await update($, coat, () => look)
       await reveal($)
-      await $.store.set('coat', arg)
-      return { text: `${name()} is wearing the ${arg} coat now.` }
+      return { text: `${name()} is wearing the ${look} coat now.` }
     }
     const help = [
       `${name()}, the cat above the prompt`,
       '',
       table([
         ['/cat name <name>', `what the cat is called (${name()} now)`],
-        ['/cat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${await read($, coat)} now)`],
+        ['/cat coat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${await read($, coat)} now); /cat ginger or tuxedo too`],
         ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now)`],
         ['/cat songs <language>', `what ${name()} sings: ${SONG_LANGUAGES.join(', ')} (${songLanguage} now)`],
         ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
         ['/cat sound on|off', `whether ${name()} mrrps, mews, purrs and hisses, on macOS (${isSoundOn ? 'on' : 'off'} now)`],
-        ['/cat asturias', 'Asturias: ginger, rioplatense, coplas and a temper'],
-        ['/cat reset', 'Manousos as he came'],
+        ['/cat asturias', 'Asturias: ginger, rioplatense Spanish, coplas and a temper'],
+        ['/cat manousos', 'Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
         ['/cat treat', 'toss the cat a sardine (or press treat)'],
         ['/cat play', 'dangle the fishing toy (or press play)'],

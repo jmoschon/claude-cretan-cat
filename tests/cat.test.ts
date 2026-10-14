@@ -13,7 +13,7 @@ describe('cretan-cat', () => {
       const ui = await $.ui.mount({ plugin: 'cretan-cat', surface, ...BAND, props: PROPS })
       expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
       // The caption tells you how to hide him and change his coat.
-      expect(await ui.find({ type: 'Text', text: /\/cat ginger, tuxedo or manousos/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /\/cat asturias or manousos swaps the cat/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /γάτος|κώδικα|Μανούσος/ })).toBeUndefined()
       await ui.unmount()
     }
@@ -661,6 +661,28 @@ describe('cretan-cat', () => {
     await ui.unmount()
   })
 
+  for (const temper of ['off', 'on'] as const) {
+    test(`temper ${temper}: play ${temper === 'on' ? 'is turned down now and then, with a sulk or the butt' : 'is always a chase'}`, { options: { temper } }, async ($, on) => {
+      const { clock } = setUp(on)
+      await clock.settle()
+      const seen = new Set<string>()
+      for (let i = 0; i < 30; i++) {
+        const said = (await $.command.run({ command: 'cat', args: 'play', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)).text!
+        seen.add(/shows you the butt/.test(said) ? 'butt' : /looks the other way/.test(said) ? 'sulk' : 'play')
+        await clock.advance(7_000)
+      }
+      expect([...seen].sort()).toEqual(temper === 'on' ? ['butt', 'play', 'sulk'] : ['play'])
+    })
+  }
+
+  test('the butt: drawn from behind, tail up, the pink under it', () => {
+    const pink = (232 << 16) | (120 << 8) | 140
+    const cells = drawCells({ mood: 'butt', coat: 'ginger', t: 1, cols: 120, rows: 11, hour: 12 })
+    let hasPink = false
+    for (let i = 0; i < cells.length; i += 3) if (cells[i + 1] === pink || cells[i + 2] === pink) hasPink = true
+    expect(hasPink).toBe(true)
+  })
+
   test('/cat hints off: just "napping", no tips; on brings them back, kept', async ($, on) => {
     const { saved } = setUp(on)
     const run = async (args: string) =>
@@ -1062,14 +1084,15 @@ describe('cretan-cat', () => {
     expect(await cmd($, 'name')).toMatch(/called Manousos/)
     expect(await cmd($, 'name Luna Bella')).toMatch(/called Luna Bella now/)
     expect(await cmd($, 'name ' + 'x'.repeat(21))).toMatch(/too long/)
-    expect(await cmd($, 'language rioplatense')).toMatch(/speaks rioplatense now/)
-    expect(await cmd($, 'lang klingon')).toMatch(/greek, english, spanish, rioplatense/)
+    // The old name still works, and means spanish.
+    expect(await cmd($, 'language rioplatense')).toMatch(/speaks spanish now/)
+    expect(await cmd($, 'lang klingon')).toMatch(/greek, english, spanish changes it/)
     expect(await cmd($, 'songs english')).toMatch(/sings in english now/)
-    expect(await cmd($, 'songs')).toMatch(/greek, spanish, english/)
+    expect(await cmd($, 'songs')).toMatch(/greek, english, spanish changes it/)
     expect(await cmd($, 'temper on')).toMatch(/has a temper now/)
     expect(writes).toEqual([
       ['cretan-cat.name', 'Luna Bella'],
-      ['cretan-cat.language', 'rioplatense'],
+      ['cretan-cat.language', 'spanish'],
       ['cretan-cat.songs', 'english'],
       ['cretan-cat.temper', 'on'],
     ])
@@ -1126,11 +1149,11 @@ describe('cretan-cat', () => {
   test('/cat asturias brings her back whole; /cat reset brings Manousos back as he came', async ($, on) => {
     const { clock, saved, finish } = setUp(on)
     on('config.list', async () => ({ value: [] }) as never)
-    expect(await cmd($, 'asturias')).toMatch(/^Asturias is here now\. ¿Qué querés\? \(\/cat reset brings Manousos back\)$/)
+    expect(await cmd($, 'asturias')).toMatch(/^Asturias is here now\. ¿Qué querés\? \(\/cat manousos brings Manousos back\)$/)
     expect(saved.coat).toBe('ginger')
     expect(saved.settings).toEqual({
       name: { value: 'Asturias', over: 'Manousos' },
-      language: { value: 'rioplatense', over: 'greek' },
+      language: { value: 'spanish', over: 'greek' },
       songs: { value: 'spanish', over: 'greek' },
       temper: { value: 'on', over: 'off' },
     })
@@ -1160,6 +1183,32 @@ describe('cretan-cat', () => {
     expect(await caption($, /Manousos is napping/)).toBe(true)
   })
 
+  test('/cat asturias saves her coat before any /config write (a write may reload the plugin); /cat manousos is him whole', async ($, on) => {
+    const saved: Record<string, unknown> = {}
+    const coatAtWrite: unknown[] = []
+    const row = (field: string) => ({ key: `cretan-cat.${field}`, label: field, kind: 'text', value: '', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: false })
+    on('config.list', async () => ({ value: ['name', 'language', 'songs', 'temper'].map(row) }) as never)
+    on('config.set', async (_$, e) => {
+      coatAtWrite.push(saved.coat)
+      return { value: e.value } as never
+    })
+    on('store.get', async (_$, e) => ({ value: saved[e.key] }))
+    on('store.set', async (_$, e) => {
+      saved[e.key] = e.value
+      return { value: undefined }
+    })
+    await cmd($, 'asturias')
+    expect(coatAtWrite.length).toBeGreaterThan(0)
+    expect(coatAtWrite.every(c => c === 'ginger')).toBe(true)
+    expect(await cmd($, 'manousos')).toMatch(/Manousos is back/)
+    expect(saved.coat).toBe('manousos')
+    expect(await cmd($, 'temper')).toMatch(/Temper is off/)
+    // A coat alone: /cat coat manousos keeps her Asturias.
+    await cmd($, 'asturias')
+    expect(await cmd($, 'coat manousos')).toMatch(/Asturias is wearing the manousos coat/)
+    expect(await cmd($, 'coat')).toMatch(/\/cat coat manousos, ginger, tuxedo/)
+  })
+
   test('/cat asturias writes the /config rows, and leaves a locked one alone', async ($, on) => {
     const writes: [string, unknown][] = []
     const row = (field: string) => ({ key: `cretan-cat.${field}`, label: field, kind: 'text', value: '', provider: { plugin: 'cretan-cat', tier: 'user' }, isLocked: field === 'temper' })
@@ -1177,7 +1226,7 @@ describe('cretan-cat', () => {
     expect(await cmd($, 'asturias')).toMatch(/Couldn't change the temper is locked in \/config/)
     expect(writes).toEqual([
       ['cretan-cat.name', 'Asturias'],
-      ['cretan-cat.language', 'rioplatense'],
+      ['cretan-cat.language', 'spanish'],
       ['cretan-cat.songs', 'spanish'],
     ])
     expect(await cmd($, 'temper')).toMatch(/Temper is off/)
@@ -1192,11 +1241,21 @@ describe('cretan-cat', () => {
     expect(await caption($, /Asturias is thinking/)).toBe(true)
   })
 
-  test('language rioplatense: Clawd says it the Buenos Aires way', { options: { language: 'rioplatense' } }, async ($, on) => {
+  test('language spanish: Clawd says it the Buenos Aires way', { options: { language: 'spanish' } }, async ($, on) => {
     const { clock } = setUp(on)
     await $.turn.start({ turnId: 't1' } as never)
     await clock.settle()
     expect(await yardText($)).toMatch(/a laburar|Qué hacés ahí|Dale Manousos/)
+  })
+
+  test('kept by /cat under the old name, rioplatense is spanish', async ($, on) => {
+    const { saved } = setUp(on)
+    saved.settings = { language: { value: 'rioplatense', over: 'greek' } }
+    on('session.start', async (_$: unknown, e: { cwd: string }) => ({ cwd: e.cwd }) as never)
+    on('command.register', async () => ({ value: undefined }) as never)
+    on('agent.list', async () => ({ value: [] }) as never)
+    await $.session.start({ cwd: '/tmp' } as never)
+    expect(await cmd($, 'language')).toMatch(/Clawd speaks spanish/)
   })
 
   // Nudges come while Claude thinks; with a temper, some earn a slap or a snub.

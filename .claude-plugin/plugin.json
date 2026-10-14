@@ -18,24 +18,23 @@
     "language": {
       "type": "string",
       "title": "Cretan cat: Clawd's language",
-      "description": "What Clawd says to the cat, and the cat's short replies. /cat language sets it too.",
+      "description": "What Clawd says to the cat, and the cat's short replies: Greek, English, or Spanish as they speak it in Buenos Aires. /cat language sets it too.",
       "default": "greek",
       "options": [
         "greek",
         "english",
-        "spanish",
-        "rioplatense"
+        "spanish"
       ]
     },
     "songs": {
       "type": "string",
       "title": "Cretan cat: songs",
-      "description": "What the cat sings while Claude works: Cretan mantinades (greek), coplas and tangos (spanish) or English couplets. /cat songs sets it too.",
+      "description": "What the cat sings while Claude works: Cretan mantinades (greek), English couplets, or payador coplas and tangos (spanish). /cat songs sets it too.",
       "default": "greek",
       "options": [
         "greek",
-        "spanish",
-        "english"
+        "english",
+        "spanish"
       ]
     },
     "temper": {
