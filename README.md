@@ -24,6 +24,7 @@ mittens.
 - [Commands](#commands)
 - [Settings](#settings)
 - [Temper](#temper)
+- [Meet Asturias](#meet-asturias)
 - [Room it needs](#room-it-needs)
 - [Desktop app](#desktop-app)
 - [Troubleshooting](#troubleshooting)
@@ -67,24 +68,24 @@ To update, run `git pull` in the folder.
 
 ## What he does
 
-| When                        | Manousos                               | Clawd                                    |
-| --------------------------- | -------------------------------------- | ---------------------------------------- |
-| Nothing is running          | Sleeps curled up on his cushion        | Dozes                                    |
-| Claude is thinking          | Paces the lawn, singing                | Nudges him about your task               |
-| Claude runs a tool          | Crouches, wiggles, pounces             | Gives the order for it                   |
-| Claude needs you            | Sits up and looks at you, `?` overhead | Waves at you                             |
-| Tests pass                  | Dances                                 | Cheers                                   |
-| Tests fail                  | Hisses                                 | *Tests are red...*                       |
-| A commit goes in            | Catches a sardine and eats it          | Tosses the sardine                       |
-| A tool runs over 20 seconds | Yawns, then dozes off until it's done  | *Don't fall asleep, it's still running!* |
-| The work is done            | Eats a sardine, then purrs and sings   | Tosses a sardine, cheers                 |
-| Something failed            | Jumps, tail puffed up                  | Asks what happened                       |
-| You pressed Esc             | Goes back to sleep                     | Dozes                                    |
+| When                        | Manousos                                    | Clawd                                    |
+| --------------------------- | ------------------------------------------- | ---------------------------------------- |
+| Nothing is running          | Sleeps curled up on his cushion             | Dozes                                    |
+| Claude is thinking          | Paces the lawn, singing                     | Nudges him about your task               |
+| Claude runs a tool          | Crouches, wiggles, pounces                  | Gives the order for it                   |
+| Claude needs you            | Sits up and looks at you, `?` overhead      | Waves at you                             |
+| Tests pass                  | Dances                                      | Cheers                                   |
+| Tests fail                  | Hisses                                      | *Tests are red...*                       |
+| A commit goes in            | Catches a sardine and eats it               | Tosses the sardine                       |
+| A tool runs over 20 seconds | Yawns, then dozes off until it's done       | *Don't fall asleep, it's still running!* |
+| The work is done            | Purrs and sings; a sardine if Claude worked | Tosses the sardine, cheers               |
+| Something failed            | Jumps, tail puffed up                       | Asks what happened                       |
+| You pressed Esc             | Goes back to sleep                          | Dozes                                    |
 
 The finer points:
 
 - **Nudges.** While Claude thinks, Clawd nudges him about your task every few
-  seconds: *How's "checkout tests" going, Manousos?* The topic is picked from
+  seconds (examples here are in English; Clawd speaks Greek by default): *How's "checkout tests" going, Manousos?* The topic is picked from
   the last meaningful words of your prompt, as you wrote them: "refactor the
   BigQuery cost report for October" becomes "BigQuery cost report", leaving
   out the verb and when it is due. Slash commands are never picked up.
@@ -96,7 +97,8 @@ The finer points:
   stays up until that tool call ends.
 - **Dozing off.** Only a tool that runs on by itself bores him. Questions,
   helpers and calls that asked your permission never do: he stays up for
-  those.
+  those (except where permission prompts reach no plugin; see
+  [Troubleshooting](#troubleshooting)).
 - **Sardines.** One per commit that goes in. When the work is done and Claude
   ran any tools, he gets one for the work too, unless a commit already fed
   him that turn. `/cat stats` keeps the count.
@@ -162,7 +164,7 @@ A few details:
 - **Stats.** `/cat stats` draws today's sardines as fish (one per commit, or
   per finished task that used tools), how full his belly is, sardines in all
   and his best day, pets and swats, the last seven days as bars, and his
-  rank, from *Village kitten* to *Lord of Psiloritis*.
+  rank, from *Kitten, no sardine yet* to *Lord of Psiloritis*.
 - **Typos.** Anything `/cat` doesn't know says so, then shows the help.
 
 `/cat help`:
@@ -232,7 +234,8 @@ the same rows you find under `/config`, so the two never disagree.
 | Cretan cat: sound            | `off`, `on`                                  | `off`      |
 
 - **Name.** What the cat is called, in the caption and by Clawd. In Greek,
-  Clawd calls Manousos *Μανούσο*, and any other name as you wrote it.
+  Clawd calls Manousos *Μανούσο* and Asturias *Αστούριας*, and any other name
+  as you wrote it.
 - **Clawd's language.** What Clawd says, and the cat's short replies.
   Rioplatense is the Spanish of Buenos Aires (*¡Dale Manousos, arrancamos!*),
   and the cat answers in it the way Asturias does.
@@ -240,9 +243,13 @@ the same rows you find under `/config`, so the two never disagree.
   payador coplas and the odd tango, or English rhyming couplets, all bent to
   the work. Each set stays in its own language, whatever Clawd speaks.
 - **Temper.** See [Temper](#temper).
-- **Sound.** A soft meow when the work is done or Claude is waiting for you.
-  It plays through `afplay`, so on macOS only. Sound has no `/cat` command;
-  change it in `/config`.
+- **Sound.** Turned on, the cat has a voice: a happy *mrrp!* when the work is
+  done or a sardine lands, a questioning *mew?* when Claude is waiting for you
+  (a permission prompt, a question, a plan to approve), a purr when you pet
+  him, and a short hiss when the tests fail or he swats your hand. Never more
+  than one sound every two seconds, so a burst of events is one sound, not a
+  chorus. It plays through `afplay`, so on macOS only. Sound has no `/cat`
+  command; change it in `/config`.
 
 ## Temper
 
@@ -257,6 +264,27 @@ With the temper on, the cat has opinions:
   he gets off; otherwise he stays until the turn ends, so when you're idle he
   naps as usual. Nothing is held up: it's only his side of the yard, and he
   gets up whenever Claude needs you, something fails or the tests finish.
+
+## Meet Asturias
+
+Want the full ginger-cat experience? Meet **Asturias**, Manousos's sister,
+who came home from across the sea with a big attitude.
+
+```text
+/cat asturias
+```
+
+- **Ginger,** from whiskers to tail.
+- **Sings coplas and tangos,** not mantinades: payador verses bent to the
+  work, and the odd *Volver* about the ticket left in Review.
+- **Clawd talks to her in rioplatense,** and she answers in it: *¿Qué
+  querés?*, *Yo no fui, che*, *¿Sardina? ¿Y el asado?*
+- **Temper always on.** Nag her and she slaps Clawd. Pet her and you may
+  get swatted. Some turns she's asleep on your keyboard before Claude gets
+  there.
+
+She doesn't take orders from anyone, least of all Clawd. When you've had
+enough, `/cat reset` brings Manousos back, calm and Greek.
 
 ## Room it needs
 
@@ -290,9 +318,10 @@ instead of terminal cells. Two differences:
   one: type `/cat show`.
 - **He doesn't sit up for permission prompts.** Where an organization manages
   Claude Code, permission-request hooks run only for plugins it lists in its
-  managed settings, so he misses those prompts. Questions and plans still
+  managed settings, so he misses those prompts: no sitting up, no *mew?*,
+  and a long prompt may even bore him to sleep. Questions and plans still
   wake him.
-- **No meow.** Sound is off unless you turn it on in `/config`, and it plays
+- **No sound.** Sound is off unless you turn it on in `/config`, and it plays
   on macOS only.
 
 ## Development
@@ -312,7 +341,7 @@ npx -p typescript tsc -p . # types (Claude Code writes .claude-plugin/types/ whe
 | `hooks/lines.ts`     | What Clawd and the cat say; the name; topics; which commands are tests or commits   |
 | `hooks/songs.ts`     | What the cat sings, per song language                                               |
 | `hooks/clawd.ts`     | Clawd, from claude-toons                                                            |
-| `sounds/meow.wav`    | The meow, synthesized by `scripts/meow.py` (no samples)                             |
+| `sounds/*.wav`       | His voice (happy, mew, purr, hiss), synthesized by `scripts/sounds.py` (no samples) |
 
 To redraw `docs/demo.gif` (needs Pillow):
 
