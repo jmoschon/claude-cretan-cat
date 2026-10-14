@@ -1,8 +1,8 @@
 // What the cat is doing: asleep, thinking, on a tool, done, startled by a
 // failure; waiting on you at a permission prompt; dancing at green tests,
 // hissing at red ones; eating the sardine a commit earns; dozing off while a
-// long tool runs.
-export type Mood = 'nap' | 'think' | 'tool' | 'happy' | 'oops' | 'wait' | 'dance' | 'hiss' | 'feast' | 'bored'
+// long tool runs; slapping Clawd for a nudge, or snubbing him.
+export type Mood = 'nap' | 'think' | 'tool' | 'happy' | 'oops' | 'wait' | 'dance' | 'hiss' | 'feast' | 'bored' | 'slap' | 'snub'
 export type Coat = 'manousos' | 'ginger' | 'tuxedo'
 export type Cat = {
   mood: Mood
@@ -18,6 +18,10 @@ export type Cat = {
   sardines: number
   // When he was last petted, in clock milliseconds (0: never).
   pettedAt: number
+  // Whether that pet earned you a swat instead of a purr.
+  isSwatted: boolean
+  // Lying on your keyboard until someone pets her.
+  isOnKeys: boolean
 }
 
 declare module 'claude-code' {

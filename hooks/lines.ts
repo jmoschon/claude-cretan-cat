@@ -1,8 +1,8 @@
-// What Clawd tells Manousos, and what Manousos says when he isn't singing,
-// in each language the "language" setting offers. The mantinades are not
-// here: they are Cretan, and stay in Greek whatever the setting.
+// What Clawd tells the cat, and what the cat says when not singing, in each
+// language the "language" setting offers. The songs are in songs.ts, under
+// a setting of their own.
 
-export const LANGUAGES = ['greek', 'english', 'spanish'] as const
+export const LANGUAGES = ['greek', 'english', 'spanish', 'rioplatense'] as const
 export type Language = (typeof LANGUAGES)[number]
 
 export const isLanguage = (v: unknown): v is Language => typeof v === 'string' && (LANGUAGES as readonly string[]).includes(v)
@@ -28,6 +28,16 @@ export type Lines = {
   commit: [string, string]
   // A tool has run long enough to bore him to sleep.
   bored: [string, string]
+  // Clawd, slapped for a nudge; and his nudge, ignored.
+  slapped: string
+  snubbed: string
+  // With the "temper" setting on, the cat's side of it: what it says as it
+  // slaps Clawd, or ignores him; a pet it didn't ask for; and, lying on your
+  // keyboard, what it wants to get off it.
+  retort: string[]
+  shrug: string[]
+  swat: string
+  asks: string
 }
 
 const kind = (tool: string) =>
@@ -50,101 +60,168 @@ const kind = (tool: string) =>
 // An MCP tool by its own name (`mcp__server__tool` -> `tool`).
 export const shortTool = (tool: string) => tool.split('__').pop() ?? tool
 
-const N_GR = 'Μανούσο'
-const N = 'Manousos'
+// The cat's name as Clawd calls it: as written, and in Greek (the
+// vocative). A name of your own is called as you wrote it, in Greek too.
+export type Name = { latin: string; greek: string }
+export const DEFAULT_NAME = 'Manousos'
+export const NAME_MOST = 20
+export function catNameOf(raw: unknown): Name {
+  const name = typeof raw === 'string' ? [...raw.replace(/[\u0000-\u001f\u007f]/g, '').trim()].slice(0, NAME_MOST).join('') : ''
+  if (name === '' || name.toLowerCase() === DEFAULT_NAME.toLowerCase()) return { latin: DEFAULT_NAME, greek: 'Μανούσο' }
+  if (name.toLowerCase() === 'asturias') return { latin: 'Asturias', greek: 'Αστούριας' }
+  return { latin: name, greek: name }
+}
 
-export const LINES: Record<Language, Lines> = {
-  greek: {
+export const LINES: Record<Language, (n: Name) => Lines> = {
+  greek: n => ({
     nudges: [
-      t => `${N_GR}, κοίτα λίγο το «${t}»!`,
-      t => `Πώς πάει το «${t}», ${N_GR};`,
+      t => `${n.greek}, κοίτα λίγο το «${t}»!`,
+      t => `Πώς πάει το «${t}», ${n.greek};`,
       t => `Μην κοιμάσαι! Το «${t}» περιμένει.`,
-      t => `${N_GR}, θέλω το «${t}» ως το μεσημέρι!`,
+      t => `${n.greek}, θέλω το «${t}» ως το μεσημέρι!`,
       t => `Αν φτιάξεις το «${t}», έχει σαρδέλα.`,
-      t => `Έλα ${N_GR}, λίγο ακόμα με το «${t}».`,
+      t => `Έλα ${n.greek}, λίγο ακόμα με το «${t}».`,
     ],
-    vague: [`${N_GR}, πιάσε δουλειά!`, `Τι κάνεις εκεί, ${N_GR};`, `Έλα ${N_GR}, ξεκινάμε!`],
+    vague: [`${n.greek}, πιάσε δουλειά!`, `Τι κάνεις εκεί, ${n.greek};`, `Έλα ${n.greek}, ξεκινάμε!`],
     tool: tool =>
       ({
-        run: `${N_GR}, τρέξε την εντολή!`,
-        read: `Διάβασε το αρχείο, ${N_GR}!`,
-        edit: `Φτιάξε τον κώδικα, ${N_GR}!`,
-        search: `Βρες το, ${N_GR}! Ψάξε παντού.`,
-        web: `Ψάξε στο ίντερνετ, ${N_GR}!`,
-        agents: `Φώναξε τα γατάκια να βοηθήσουν, ${N_GR}!`,
-        mcp: `Ρώτα τους φίλους μας, ${N_GR}: ${shortTool(tool)}`,
-        other: `${N_GR}, κάνε ένα ${tool}!`,
+        run: `${n.greek}, τρέξε την εντολή!`,
+        read: `Διάβασε το αρχείο, ${n.greek}!`,
+        edit: `Φτιάξε τον κώδικα, ${n.greek}!`,
+        search: `Βρες το, ${n.greek}! Ψάξε παντού.`,
+        web: `Ψάξε στο ίντερνετ, ${n.greek}!`,
+        agents: `Φώναξε τα γατάκια να βοηθήσουν, ${n.greek}!`,
+        mcp: `Ρώτα τους φίλους μας, ${n.greek}: ${shortTool(tool)}`,
+        other: `${n.greek}, κάνε ένα ${tool}!`,
       })[kind(tool)],
-    done: `Μπράβο ${N_GR}! Πάρε μια λιχουδιά.`,
-    oops: `Ωχ, ${N_GR}... τι έγινε;`,
+    done: `Μπράβο ${n.greek}! Πάρε μια λιχουδιά.`,
+    oops: `Ωχ, ${n.greek}... τι έγινε;`,
     hiss: 'Φφφ! Κάτι στράβωσε.',
     wait: ['Ψιτ! Περιμένουμε εσένα!', 'Μιάου! Περιμένω εσένα.'],
-    green: [`Πράσινα τα tests, ${N_GR}!`, 'Ζήτω! Χορεύω!'],
-    red: [`Κόκκινα τα tests, ${N_GR}...`, 'Φφφ! Κόκκινα!'],
-    commit: [`Ορίστε μια σαρδέλα, ${N_GR}!`, 'Ννιάμ! Ευχαριστώ!'],
-    bored: [`${N_GR}, μην κοιμάσαι, ακόμα τρέχει!`, 'Χααα... ζζζ'],
-  },
-  english: {
+    green: [`Πράσινα τα tests, ${n.greek}!`, 'Ζήτω! Χορεύω!'],
+    red: [`Κόκκινα τα tests, ${n.greek}...`, 'Φφφ! Κόκκινα!'],
+    commit: [`Ορίστε μια σαρδέλα, ${n.greek}!`, 'Ννιάμ! Ευχαριστώ!'],
+    bored: [`${n.greek}, μην κοιμάσαι, ακόμα τρέχει!`, 'Χααα... ζζζ'],
+    slapped: 'Άου! Γιατί με χτυπάς;',
+    snubbed: `${n.greek}; Μ' ακούς;`,
+    retort: ['Τι θες;', 'Φτάνει πια!', 'Πάρ\' τα!', 'Μη με πρήζεις!', 'Φύγε από δω!'],
+    shrug: ['...', 'Όχι τώρα.', 'Μμμ. Όχι.', 'Αργότερα.', 'Δουλεύω.'],
+    swat: 'Εεε! Χωρίς χέρια.',
+    asks: 'Και τα χάδια μου;',
+  }),
+  english: n => ({
     nudges: [
-      t => `${N}, have a look at "${t}"!`,
-      t => `How's "${t}" going, ${N}?`,
+      t => `${n.latin}, have a look at "${t}"!`,
+      t => `How's "${t}" going, ${n.latin}?`,
       t => `No napping! "${t}" is waiting.`,
-      t => `${N}, I need "${t}" by lunch!`,
+      t => `${n.latin}, I need "${t}" by lunch!`,
       t => `Fix "${t}" and there's a sardine in it.`,
-      t => `Come on ${N}, a bit more on "${t}".`,
+      t => `Come on ${n.latin}, a bit more on "${t}".`,
     ],
-    vague: [`${N}, time to work!`, `What are you up to, ${N}?`, `Come on ${N}, let's go!`],
+    vague: [`${n.latin}, time to work!`, `What are you up to, ${n.latin}?`, `Come on ${n.latin}, let's go!`],
     tool: tool =>
       ({
-        run: `${N}, run the command!`,
-        read: `Read the file, ${N}!`,
-        edit: `Fix the code, ${N}!`,
-        search: `Find it, ${N}! Look everywhere.`,
-        web: `Search the web, ${N}!`,
-        agents: `Call the kittens to help, ${N}!`,
-        mcp: `Ask our friends, ${N}: ${shortTool(tool)}`,
-        other: `${N}, do a ${tool}!`,
+        run: `${n.latin}, run the command!`,
+        read: `Read the file, ${n.latin}!`,
+        edit: `Fix the code, ${n.latin}!`,
+        search: `Find it, ${n.latin}! Look everywhere.`,
+        web: `Search the web, ${n.latin}!`,
+        agents: `Call the kittens to help, ${n.latin}!`,
+        mcp: `Ask our friends, ${n.latin}: ${shortTool(tool)}`,
+        other: `${n.latin}, do a ${tool}!`,
       })[kind(tool)],
-    done: `Well done, ${N}! Have a treat.`,
-    oops: `Uh-oh, ${N}... what happened?`,
+    done: `Well done, ${n.latin}! Have a treat.`,
+    oops: `Uh-oh, ${n.latin}... what happened?`,
     hiss: 'Hsss! Something went wrong.',
     wait: ['Psst! We are waiting for you!', 'Meow! Waiting for you.'],
-    green: [`Tests are green, ${N}!`, 'Hooray! Dance time!'],
-    red: [`Tests are red, ${N}...`, 'Hsss! Red!'],
-    commit: [`Here's a sardine, ${N}!`, 'Nom! Thank you!'],
-    bored: [`${N}, don't fall asleep, it's still running!`, 'Yaaawn... zzz'],
-  },
-  spanish: {
+    green: [`Tests are green, ${n.latin}!`, 'Hooray! Dance time!'],
+    red: [`Tests are red, ${n.latin}...`, 'Hsss! Red!'],
+    commit: [`Here's a sardine, ${n.latin}!`, 'Nom! Thank you!'],
+    bored: [`${n.latin}, don't fall asleep, it's still running!`, 'Yaaawn... zzz'],
+    slapped: 'Ow! What was that for?',
+    snubbed: `${n.latin}? Hello?`,
+    retort: ['What now?', 'Enough!', 'Take that!', 'Stop nagging!', 'Shoo!', 'Are you kidding me?'],
+    shrug: ['...', 'Nope.', 'Mmm. No.', 'Busy.', 'Later.'],
+    swat: 'Hey! No touching.',
+    asks: 'Where are my cuddles?',
+  }),
+  spanish: n => ({
     nudges: [
-      t => `${N}, ¡mira «${t}»!`,
-      t => `¿Cómo va «${t}», ${N}?`,
+      t => `${n.latin}, ¡mira «${t}»!`,
+      t => `¿Cómo va «${t}», ${n.latin}?`,
       t => `¡Nada de siestas! «${t}» te espera.`,
-      t => `${N}, ¡quiero «${t}» para el mediodía!`,
+      t => `${n.latin}, ¡quiero «${t}» para el mediodía!`,
       t => `Si arreglas «${t}», hay sardina.`,
-      t => `Venga ${N}, un poco más con «${t}».`,
+      t => `Venga ${n.latin}, un poco más con «${t}».`,
     ],
-    vague: [`${N}, ¡a trabajar!`, `¿Qué haces ahí, ${N}?`, `¡Venga ${N}, empezamos!`],
+    vague: [`${n.latin}, ¡a trabajar!`, `¿Qué haces ahí, ${n.latin}?`, `¡Venga ${n.latin}, empezamos!`],
     tool: tool =>
       ({
-        run: `${N}, ¡ejecuta el comando!`,
-        read: `¡Lee el archivo, ${N}!`,
-        edit: `¡Arregla el código, ${N}!`,
-        search: `¡Encuéntralo, ${N}! Busca por todas partes.`,
-        web: `¡Busca en internet, ${N}!`,
-        agents: `¡Llama a los gatitos para que ayuden, ${N}!`,
-        mcp: `Pregunta a nuestros amigos, ${N}: ${shortTool(tool)}`,
-        other: `${N}, ¡haz un ${tool}!`,
+        run: `${n.latin}, ¡ejecuta el comando!`,
+        read: `¡Lee el archivo, ${n.latin}!`,
+        edit: `¡Arregla el código, ${n.latin}!`,
+        search: `¡Encuéntralo, ${n.latin}! Busca por todas partes.`,
+        web: `¡Busca en internet, ${n.latin}!`,
+        agents: `¡Llama a los gatitos para que ayuden, ${n.latin}!`,
+        mcp: `Pregunta a nuestros amigos, ${n.latin}: ${shortTool(tool)}`,
+        other: `${n.latin}, ¡haz un ${tool}!`,
       })[kind(tool)],
-    done: `¡Bien hecho, ${N}! Toma una golosina.`,
-    oops: `Ay, ${N}... ¿qué ha pasado?`,
+    done: `¡Bien hecho, ${n.latin}! Toma una golosina.`,
+    oops: `Ay, ${n.latin}... ¿qué ha pasado?`,
     hiss: '¡Fffs! Algo salió mal.',
     wait: ['¡Psst! ¡Te estamos esperando!', '¡Miau! Te estoy esperando.'],
-    green: [`¡Tests en verde, ${N}!`, '¡Bravo! ¡A bailar!'],
-    red: [`Tests en rojo, ${N}...`, '¡Fffs! ¡Rojo!'],
-    commit: [`¡Toma una sardina, ${N}!`, '¡Ñam! ¡Gracias!'],
-    bored: [`${N}, no te duermas, ¡aún sigue!`, 'Aaah... zzz'],
-  },
+    green: [`¡Tests en verde, ${n.latin}!`, '¡Bravo! ¡A bailar!'],
+    red: [`Tests en rojo, ${n.latin}...`, '¡Fffs! ¡Rojo!'],
+    commit: [`¡Toma una sardina, ${n.latin}!`, '¡Ñam! ¡Gracias!'],
+    bored: [`${n.latin}, no te duermas, ¡aún sigue!`, 'Aaah... zzz'],
+    slapped: '¡Ay! ¿Y eso por qué?',
+    snubbed: `¿${n.latin}? ¿Hola?`,
+    retort: ['¿Qué quieres?', '¡Qué pesado!', '¡Toma!', '¡Déjame en paz!', '¡Fuera de aquí!', '¿Me tomas el pelo?'],
+    shrug: ['...', 'Ni hablar.', 'Mmm. No.', 'Ahora no.', 'Luego vemos.'],
+    swat: '¡Eh! Sin tocar.',
+    asks: '¿Y mis mimos?',
+  }),
+  rioplatense: n => RIOPLATENSE(n),
 }
+
+// Spanish as they speak it in Buenos Aires: voseo, and "dale". The cat's own
+// answers here are Asturias', who grew up there.
+const RIOPLATENSE = (n: Name): Lines => ({
+  nudges: [
+    t => `${n.latin}, ¡mirá «${t}»!`,
+    t => `¿Cómo va «${t}», ${n.latin}?`,
+    t => `¡Nada de siesta! «${t}» te espera.`,
+    t => `${n.latin}, ¡quiero «${t}» para el mediodía!`,
+    t => `Si arreglás «${t}», hay sardina.`,
+    t => `Dale ${n.latin}, un poquito más con «${t}».`,
+  ],
+  vague: [`${n.latin}, ¡a laburar!`, `¿Qué hacés ahí, ${n.latin}?`, `¡Dale ${n.latin}, arrancamos!`],
+  tool: tool =>
+    ({
+      run: `${n.latin}, ¡corré el comando!`,
+      read: `¡Leé el archivo, ${n.latin}!`,
+      edit: `¡Arreglá el código, ${n.latin}!`,
+      search: `¡Buscalo, ${n.latin}! Fijate por todos lados.`,
+      web: `¡Buscá en internet, ${n.latin}!`,
+      agents: `¡Llamá a los gatitos para que ayuden, ${n.latin}!`,
+      mcp: `Preguntale a nuestros amigos, ${n.latin}: ${shortTool(tool)}`,
+      other: `${n.latin}, ¡hacé un ${tool}!`,
+    })[kind(tool)],
+  done: `¡Bien ahí, ${n.latin}! Tomá una golosina.`,
+  oops: `Uh, ${n.latin}... ¿qué pasó?`,
+  hiss: '¡Fffs! ¿Quién fue?',
+  wait: ['¡Ey! ¡Te estamos esperando!', '¿Qué querés?'],
+  green: [`¡Tests en verde, ${n.latin}!`, 'Obvio. ¿Qué esperabas?'],
+  red: [`Tests en rojo, ${n.latin}...`, '¡Fffs! Yo no fui, che.'],
+  commit: [`¡Tomá una sardina, ${n.latin}!`, '¿Sardina? ¿Y el asado?'],
+  bored: [`${n.latin}, no te duermas, ¡todavía sigue!`, 'Qué embole... zzz'],
+  slapped: '¡Ay! ¿Y eso por qué?',
+  snubbed: `¿${n.latin}? ¿Hola?`,
+  retort: ['¿Qué querés?', '¡Qué pesado!', '¡Tomá!', '¡Qué hincha pelotas!', '¡Qué plomo!', 'Ni en pedo.', 'Ni a palos.', '¡Salí de acá!', '¿Me estás cargando?'],
+  shrug: ['...', 'Ni ahí.', 'Qué pesado...', 'Mmm. No.', 'Estoy ocupada.', 'Después vemos.'],
+  swat: '¡Ey! Sin tocar.',
+  asks: '¿Y mis mimos?',
+})
 
 // Words that say nothing about what a prompt is about, in the languages
 // people are likely to write prompts in, so the topic Clawd picks is a

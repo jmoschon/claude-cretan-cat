@@ -1,7 +1,7 @@
 {
   "name": "cretan-cat",
-  "version": "1.3.0",
-  "description": "Manousos, a pixel-art Cretan cat above the prompt. Clawd tells him what to do while Claude works, and he answers in mantinades.",
+  "version": "1.4.0",
+  "description": "A pixel-art Cretan cat above the prompt, Manousos unless you name it. Clawd tells the cat what to do while Claude works, and it answers in song: Cretan mantinades, coplas and tangos, or English couplets.",
   "author": {
     "name": "Yiannis Moschonas"
   },
@@ -9,15 +9,43 @@
   "repository": "https://github.com/jmoschon/claude-cretan-cat",
   "types": "./types/index.d.ts",
   "userConfig": {
+    "name": {
+      "type": "string",
+      "title": "Cretan cat: name",
+      "description": "What the cat is called, up to 20 characters. /cat name <name> sets it too.",
+      "default": "Manousos"
+    },
     "language": {
       "type": "string",
-      "title": "Cretan cat: language",
-      "description": "What Clawd says to Manousos, and Manousos' short replies. The mantinades he sings are always in Greek.",
+      "title": "Cretan cat: Clawd's language",
+      "description": "What Clawd says to the cat, and the cat's short replies. /cat language sets it too.",
       "default": "greek",
       "options": [
         "greek",
         "english",
-        "spanish"
+        "spanish",
+        "rioplatense"
+      ]
+    },
+    "songs": {
+      "type": "string",
+      "title": "Cretan cat: songs",
+      "description": "What the cat sings while Claude works: Cretan mantinades (greek), coplas and tangos (spanish) or English couplets. /cat songs sets it too.",
+      "default": "greek",
+      "options": [
+        "greek",
+        "spanish",
+        "english"
+      ]
+    },
+    "temper": {
+      "type": "string",
+      "title": "Cretan cat: temper",
+      "description": "On, the cat may slap Clawd for nagging, swat your hand when petted, and sit on your keyboard until petted. /cat temper sets it too.",
+      "default": "off",
+      "options": [
+        "off",
+        "on"
       ]
     },
     "sound": {

@@ -34,6 +34,9 @@ const LAMP: Rgb = [255, 210, 120]
 const SNOW: Rgb = [238, 242, 250]
 const CUSHION: Rgb = [172, 188, 208]
 const CUSHION_EDGE: Rgb = [120, 138, 166]
+const KEYBOARD: Rgb = [58, 60, 70]
+const KEYCAP: Rgb = [150, 154, 168]
+const KEYBOARD_PX = 3
 const LAWN_PX = 4
 const WALL_PX = 4
 // Feet stand on this pixel row, counted up from the bottom.
@@ -69,8 +72,12 @@ export type Scene = {
   month?: number
   // Helpers Claude has running: a kitten each, up to four.
   kittens?: number
-  // Seconds since he was petted, while it still shows.
+  // Seconds since he was petted, while it still shows, and whether the pet
+  // earned a swat instead.
   petted?: number
+  isSwatted?: boolean
+  // Asleep on a keyboard in the middle of the yard, whatever the mood.
+  isOnKeys?: boolean
 }
 
 // Rows Clawd's bubble takes above the yard, when it fits.
@@ -86,6 +93,8 @@ const MOST_KITTENS = 4
 // How long petting shows, and how long the sardine is in the air.
 export const PETTING_S = 3
 const TOSS_S = 1.2
+// How long a slap's swiping lasts before she sits back, glaring.
+const SWIPE_S = 1.5
 
 // Whether a reply bubble fits beside the cat at this width.
 export const replyFits = (cols: number) => Math.min(REPLY_MOST, cols - CAT_FROM - CAT_ROOM - 6) >= REPLY_LEAST
@@ -170,6 +179,13 @@ function catAt(mood: Mood, t: number, since: number, from: number, to: number): 
     case 'bored':
       // A big yawn, then asleep where he stands.
       return { pose: since < 2.5 ? 'yawn' : 'sleep', x: since < 2.5 ? seated : middle, lift: 0, isLeft: false }
+    case 'slap':
+      // Right up to Clawd, swiping, then sitting back to glare at him.
+      if (since < SWIPE_S) return { pose: Math.floor(since * 7) % 2 === 0 ? 'slapA' : 'slapB', x: from, lift: 0, isLeft: false }
+      return { pose: 'sitA', x: from + 2, lift: 0, isLeft: false }
+    case 'snub':
+      // Off to the far side, eyes shut, as if he weren't there.
+      return { pose: 'purr', x: to - SPRITES.purr[0]!.length, lift: 0, isLeft: false }
   }
 }
 
@@ -178,7 +194,7 @@ function catAt(mood: Mood, t: number, since: number, from: number, to: number): 
 // How Clawd stands for a mood: talking (an arm waving at the cat) while
 // Claude works, waving at you while you're needed, cheering when it is done,
 // dozing while Manousos naps.
-function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { look: ClawdLook; lift: number } {
+function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { look: ClawdLook; lift: number; dx?: number } {
   const base: ClawdLook = { ...LOOK, color: CLAWD_ORANGE, facing: 1, isBlinking: Math.sin(t * 1.1) > 0.96 }
   const wave = Math.floor(t * 2.5) % 2 === 0
   switch (mood) {
@@ -195,6 +211,9 @@ function clawdLook(mood: Mood, t: number, since: number, isTalking: boolean): { 
     case 'wait':
       // Facing you, both arms waving.
       return { look: { ...base, facing: 0, arms: { left: wave ? 'up' : 'out', right: wave ? 'out' : 'up' } }, lift: 0 }
+    case 'slap':
+      // Knocked back by the swipe, arms up.
+      return { look: { ...base, eyes: 'wide', facing: 1, arms: { left: 'up', right: 'up' } }, lift: 0, dx: since < SWIPE_S && Math.floor(since * 7) % 2 === 1 ? -2 : -1 }
     case 'feast':
       // The toss: arm up, then out as the sardine leaves.
       return { look: { ...base, arms: { left: 'down', right: since < 0.25 ? 'up' : 'out' } }, lift: 0 }
@@ -337,20 +356,29 @@ export function drawCat(scene: Scene): string {
   const clawd = clawdLook(mood, t, since, said !== '')
   const clawdTop = feet + 1 - CLAWD_H - clawd.lift
   shadow(CLAWD_X + 1, CLAWD_X + CLAWD_W - 2)
-  for (const p of clawdPixels(clawd.look)) set(CLAWD_X + p.x, clawdTop + p.y, p.c)
+  const clawdX = CLAWD_X + (clawd.dx ?? 0)
+  for (const p of clawdPixels(clawd.look)) set(clawdX + p.x, clawdTop + p.y, p.c)
 
   // Manousos, in his room. Petted, he stops to purr (asleep, he purrs on).
   const C = COATS[scene.coat]
   const isPetted = scene.petted !== undefined && scene.petted < PETTING_S
-  const cat = catAt(mood, t, since, CAT_FROM, catTo)
-  if (isPetted && cat.pose !== 'sleep') Object.assign(cat, { pose: 'purr', lift: 0, isLeft: false, x: cat.x + (cat.pose.startsWith('sit') ? 0 : 3) })
+  const isSwatting = isPetted && scene.isSwatted === true
+  const cat = scene.isOnKeys ? { ...catAt('nap', t, since, CAT_FROM, catTo) } : catAt(mood, t, since, CAT_FROM, catTo)
+  if (isSwatting) Object.assign(cat, { pose: Math.floor((scene.petted ?? 0) * 7) % 2 === 0 ? 'slapA' : 'slapB', lift: 0, isLeft: false })
+  else if (isPetted && cat.pose !== 'sleep') Object.assign(cat, { pose: 'purr', lift: 0, isLeft: false, x: cat.x + (cat.pose.startsWith('sit') ? 0 : 3) })
   const sprite = SPRITES[cat.pose]
   const spriteW = sprite[0]!.length
   // Never over Clawd, never off the right edge; never above the strip.
   cat.x = Math.max(CAT_FROM, Math.min(cols - spriteW, cat.x))
   const isAsleep = cat.pose === 'sleep'
-  const catTop = feet + 1 - CAT_H - Math.min(cat.lift, feet + 1 - CAT_H) - (isAsleep ? 1 : 0)
-  if (mood === 'nap') {
+  const onKeys = scene.isOnKeys === true && !isPetted
+  const catTop = feet + 1 - CAT_H - Math.min(cat.lift, feet + 1 - CAT_H) - (isAsleep ? 1 : 0) - (onKeys ? KEYBOARD_PX - 1 : 0)
+  if (scene.isOnKeys) {
+    // Your keyboard, a row of keycaps peeking out from under her.
+    for (let x = cat.x - 2; x <= cat.x + spriteW; x++) {
+      for (let k = 0; k < KEYBOARD_PX; k++) set(x, feet + 1 - k, k === 1 && x % 2 === 0 ? KEYCAP : KEYBOARD)
+    }
+  } else if (mood === 'nap') {
     // His cushion, the pale blue of the bedsheet in the photo.
     for (let x = cat.x - 1; x <= cat.x + spriteW - 3; x++) {
       const isEnd = x === cat.x - 1 || x === cat.x + spriteW - 3
@@ -363,7 +391,7 @@ export function drawCat(scene: Scene): string {
   // The sardine a commit earns, tossed from Clawd's claw to his mouth.
   if (mood === 'feast' && since < TOSS_S) {
     const k = since / TOSS_S
-    const fromX = CLAWD_X + CLAWD_W + 1
+    const fromX = clawdX + CLAWD_W + 1
     const fromY = clawdTop
     const toX = cat.x + 6
     const toY = catTop + 5
@@ -431,6 +459,10 @@ export function drawCat(scene: Scene): string {
     }
   } else if (mood === 'tool') {
     if (Math.floor(t * 2) % 2 === 0) over(headCol + 2, Math.max(0, headRow), '!', [255, 210, 80])
+  } else if (mood === 'slap') {
+    // Stars where the paw lands, while it swipes.
+    if (since < SWIPE_S) over(clawdX + CLAWD_W - 1, Math.max(0, Math.floor(clawdTop / 2) + Math.floor(since * 7) % 2), '*', [255, 230, 120])
+    over(headCol + 2, Math.max(0, headRow - 1), '!', [255, 90, 90])
   } else if (mood === 'oops' || mood === 'hiss') {
     over(headCol + 2, Math.max(0, headRow - 1), '!', [255, 90, 90])
   } else if (mood === 'wait') {
@@ -440,7 +472,8 @@ export function drawCat(scene: Scene): string {
   } else if (mood === 'happy' && !isPetted) {
     text(cat.x + spriteW - 2, Math.max(0, headRow - 1), '<3', pink)
   }
-  if (isPetted) {
+  if (isSwatting) over(cat.x + 1, Math.max(0, headRow), '!', [255, 90, 90])
+  else if (isPetted) {
     for (let i = 0; i < 2; i++) {
       const q = ((scene.petted ?? 0) / PETTING_S + i * 0.45) % 1
       text(cat.x + 4 + i * 9, Math.max(0, headRow + 1 - Math.round(q * 3)), '<3', pink)

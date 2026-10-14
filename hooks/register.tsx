@@ -2,13 +2,46 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Cat, Coat, Mood } from '../types'
-import { bashKind, isLanguage, LINES, saysFailed, shortTool, topicOf, type Language } from './lines'
+import { bashKind, isLanguage, LANGUAGES, LINES, NAME_MOST, catNameOf, saysFailed, shortTool, topicOf, type Language, type Name } from './lines'
 import { COATS, drawCat, fit, PETTING_S, replyFits } from './manousos'
+import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
 
-const NAME = 'Manousos'
+// The cat's name ("name" setting, Manousos unless you pick one), what it
+// sings ("songs"), and whether it has a temper ("temper").
+let catName: Name = catNameOf(undefined)
+const name = () => catName.latin
+let songLanguage: SongLanguage = 'greek'
+const songs = () => SONGS[songLanguage]
+let isTempered = false
+// With a temper: the chance a nudge from Clawd earns a slap, or a snub; that
+// a pet earns a swat; and that a turn starts with the cat on your keyboard.
+const TEMPER = { slap: 0.3, snub: 0.3, keys: 0.2 }
+// What it types, lying on your keyboard, into Clawd's bubble.
+const TYPED = ['asdfjjjjjjjjjj;;;;;;', 'ñññññññññññññññ', 'qwwwwwwwwwwwwwwwwwww', 'gggggggg              h']
+// What Clawd says, and the cat's short replies, in the "language" setting.
+const linesOf = () => LINES[language](catName)
+
+// The settings /cat can change. A /cat command writes the /config row where
+// it can; where it can't, it keeps the value in the store, with the /config
+// value it was set over. Whichever changed last wins: a /config value that
+// has changed since replaces the command's.
+const FIELDS = ['name', 'language', 'songs', 'temper'] as const
+type Field = (typeof FIELDS)[number]
+type Override = { value: string; over: unknown }
+let fromConfig: Partial<Record<Field, unknown>> = {}
+function apply(field: Field, value: unknown) {
+  if (field === 'name') catName = catNameOf(value)
+  if (field === 'language') language = isLanguage(value) ? value : 'greek'
+  if (field === 'songs') {
+    const next = isSongLanguage(value) ? value : 'greek'
+    if (next !== songLanguage) deck = []
+    songLanguage = next
+  }
+  if (field === 'temper') isTempered = value === 'on'
+}
 const TICK_MS = 400
 const CAPTION_WIDTH = 60
-// A fresh mantinada every VERSE_TICKS ticks (~12s) while the cat works.
+// A fresh song every VERSE_TICKS ticks (~12s) while the cat works.
 const VERSE_TICKS = 30
 
 const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
@@ -21,12 +54,14 @@ const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
   nudge: 0,
   sardines: 0,
   pettedAt: 0,
+  isSwatted: false,
+  isOnKeys: false,
 } as Cat)
 const isHidden = atom({ plugin: 'cretan-cat', key: 'isHidden' } as const, false)
 const coat = atom({ plugin: 'cretan-cat', key: 'coat' } as const, 'manousos' as Coat)
 const isCoat = (v: unknown): v is Coat => typeof v === 'string' && v in COATS
 
-// While Claude thinks, Clawd nudges Manousos about the topic, a new line
+// While Claude thinks, Clawd nudges the cat about the topic, a new line
 // every NUDGE_TICKS ticks (~8s). What he says is in the "language" setting.
 const NUDGE_TICKS = 20
 let language: Language = 'greek'
@@ -54,6 +89,8 @@ type Stage = {
   // (0: never), and the helpers running.
   moodAt: number
   pettedAt: number
+  isSwatted: boolean
+  isOnKeys: boolean
   kittens: number
 }
 const STAGE_START: Stage = {
@@ -66,6 +103,8 @@ const STAGE_START: Stage = {
   reply: undefined,
   moodAt: 0,
   pettedAt: 0,
+  isSwatted: false,
+  isOnKeys: false,
   kittens: 0,
 }
 const stage: Stage = { ...STAGE_START }
@@ -74,11 +113,28 @@ let seconds = 0
 const stageCols = (bodyColumns: number) => Math.min(STAGE_MOST_COLS, bodyColumns)
 // He sings while Claude works and again, a fresh couplet, when it is done.
 const isSinging = (mood: Mood) => mood === 'think' || mood === 'tool' || mood === 'happy'
-// What he answers, by mood: a couplet while he sings, otherwise a short line.
+// She shows on your keyboard only while nothing needs you: napping,
+// thinking, on a tool or dozing. Waiting on you, a failure, tests, a sardine
+// or the work being done always show over her.
+const KEYS_SHOW = new Set<Mood>(['nap', 'think', 'tool', 'bored'])
+const showsKeys = (isOnKeys: boolean, mood: Mood) => isOnKeys && isTempered && KEYS_SHOW.has(mood)
+
+// What the cat answers, by mood: a song while singing, otherwise a short
+// line in the "language" setting.
 function replyOf(c: Cat): string[] | undefined {
-  if (isSinging(c.mood)) return MANTINADES[c.verse % MANTINADES.length]
-  const lines = LINES[language]
-  const short = { oops: lines.hiss, wait: lines.wait[1], dance: lines.green[1], hiss: lines.red[1], feast: lines.commit[1], bored: lines.bored[1] }
+  const lines = linesOf()
+  if (showsKeys(c.isOnKeys, c.mood)) return [lines.asks]
+  if (isSinging(c.mood)) return songs()[c.verse % songs().length]
+  if (c.mood === 'slap') return [lines.retort[c.nudge % lines.retort.length]!]
+  if (c.mood === 'snub') return [lines.shrug[c.nudge % lines.shrug.length]!]
+  const short = {
+    oops: lines.hiss,
+    wait: lines.wait[1],
+    dance: lines.green[1],
+    hiss: lines.red[1],
+    feast: lines.commit[1],
+    bored: lines.bored[1],
+  }
   return c.mood in short ? [short[c.mood as keyof typeof short]] : undefined
 }
 
@@ -88,7 +144,8 @@ function sceneAt(ms: number) {
   const t = ms / 1000
   const local = new Date(ms)
   const petted = stage.pettedAt > 0 ? t - stage.pettedAt : undefined
-  return { ...stage, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
+  const isOnKeys = showsKeys(stage.isOnKeys, stage.mood)
+  return { ...stage, isOnKeys, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
 }
 
 // Each pose is drawn as a raw block (no backticks inside), cut into its 4 lines.
@@ -166,6 +223,25 @@ const BASE_POSES = {
   ~/  /""\  \/___/
    (_/    \_)`),
   ],
+  slap: [
+    pose(String.raw`
+    /\_/\   !
+ o=( >.< )
+   ==_Y_==
+    (")(")~`),
+    pose(String.raw`
+ o  /\_/\   !
+  \( >.< )
+   ==_Y_==
+    (")(")~`),
+  ],
+  snub: [
+    pose(String.raw`
+    /\_/\
+   ( -.- )  hmpf
+   ==_Y_==
+    (")(")~`),
+  ],
 }
 // The newer moods borrow the closest pose.
 const POSES: Record<Mood, string[][]> = {
@@ -184,46 +260,22 @@ const FRAMES = Object.fromEntries(
 ) as Record<Mood, string[][]>
 
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${NAME} is napping · /cat hide hides him · /cat ginger, tuxedo or manousos changes his coat`,
-  think: () => `${NAME} is thinking it over`,
-  tool: c => `${NAME} is on it: ${shortTool(c.tool ?? 'a tool')}`,
-  happy: () => `${NAME} purrs: done!`,
-  oops: () => `${NAME} got startled: something went wrong`,
+  nap: () => `${name()} is napping · /cat help · /cat hide · /cat ginger, tuxedo or manousos changes the coat`,
+  think: () => `${name()} is thinking it over`,
+  tool: c => `${name()} is on it: ${shortTool(c.tool ?? 'a tool')}`,
+  happy: () => `${name()} purrs: done!`,
+  oops: () => `${name()} got startled: something went wrong`,
   wait: c =>
-    `${NAME} is waiting for you: ${
+    `${name()} is waiting for you: ${
       c.tool === 'AskUserQuestion' ? "answer Claude's question" : c.tool === 'ExitPlanMode' ? "review Claude's plan" : `answer the ${shortTool(c.tool ?? 'permission')} prompt`
     }`,
-  dance: () => `${NAME} dances: the tests passed`,
-  hiss: () => `${NAME} hisses: the tests failed`,
-  feast: c => `${NAME} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`,
-  bored: c => `${NAME} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
+  dance: () => `${name()} dances: the tests passed`,
+  hiss: () => `${name()} hisses: the tests failed`,
+  feast: c => `${name()} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`,
+  bored: c => `${name()} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
+  slap: () => `${name()} slapped Clawd for nagging`,
+  snub: () => `${name()} is ignoring Clawd`,
 }
-
-// Cretan mantinades: fifteen-syllable rhyming couplets, sung while the cat works.
-const MANTINADES: [string, string][] = [
-  ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.'],
-  ['Σιγά σιγά ο κώδικας, σιγά και το πιθάρι,', 'ο βιαστικός ο γάτος μου ποτέ δεν πιάνει ψάρι.'],
-  ['Ψάχνω στα logs σαν το βοσκό που χάθηκε τ\' αρνί του,', 'κι όταν το βρει, πώς χαίρεται σαν να \'βρε την ψυχή του.'],
-  ['Ψηλά στον Ψηλορείτη μας χιονίζει και φυσάει,', 'κι ο γάτος μέσα στο ζεστό τον κώδικα κοιτάει.'],
-  ['Μην κάνεις merge Παρασκευή, το λέει κι η γιαγιά μου,', 'γιατί το Σάββατο θα κλαις, θα λες «αχ, η καρδιά μου».'],
-  ['Σκέφτεται ο Μανούσος μου, και μην τον ενοχλείτε,', 'θα φέρει μιαν απάντηση ψηλή σαν Ψηλορείτη.'],
-  ['Η λύρα θέλει δοξάρι, κι ο γάτος θέλει χάδι,', 'κι ο κώδικας θέλει δουλειά τη μέρα και το βράδυ.'],
-  ['Στις τρεις τη νύχτα μ’ έπιασε το on-call με τρομάρα,', 'κι εγώ στον ύπνο μου ζητώ ρακή και μια κιθάρα.'],
-  ['Τα tests μου είναι κάπριτσα, σαν κοπελιά που αλλάζει,', 'κι εκεί που λες πως πέρασε, το build σε κατασφάζει.'],
-  ['Έστειλα PR το πρωί κι ακόμα περιμένω,', 'τα γένια μου μακρύνανε, στον καφενέ πηγαίνω.'],
-  ['Ρακή μου και ρακάκι μου, σε πίνω να ξεχάσω', 'το force push στο main που ’κανα, πριν τη δουλειά τη χάσω.'],
-  ['Μια σύσκεψη, δυο σύσκεψεις, τρεις σύσκεψεις τη μέρα,', 'κι ο κώδικας μου κάθεται και χάσκει στον αέρα.'],
-  ['Πάτησε ο Μανούσος μου στο πληκτρολόγιο πάνω,', 'κι έφτιαξε το bug που ’ψαχνα, κι εγώ τη δόξα χάνω.'],
-  ['Το Datadog μας ακριβό, σαν τ’ ακριβό χρυσάφι,', 'κι οι logs που δεν διαβάζουμε σαπίζουνε στο ράφι.'],
-  ['Σαν μεθυσμένος στο γλεντί, το pod πέφτει και βγαίνει,', 'κι ο Kubernetes το κοιτά και λέει πως υγιαίνει.'],
-  ['Το Jira μου έχει tickets σαν τ’ ουρανού τ’ αστέρια,', 'κι εγώ τα κλείνω ένα ένα με δυο μονάχα χέρια.'],
-  ['Στο laptop μου δουλεύει, ναι, το ορκίζομαι στη μάνα,', 'μα στην production έπεσε, και χτύπησε καμπάνα.'],
-  ['Στο standup λέω «προχωρώ», το ίδιο κάθε μέρα,', 'κι ο ticket μου ’ναι In Progress ώσπου να βάλω βέρα.'],
-  ['Βρίζω αυτόν που έγραψε τον κώδικα πριν χρόνια,', 'και το git blame με πρόδωσε, και πέφτουν τα κανόνια.'],
-  ['Απ’ τον μπακάλη ζήτησα ρακή και δυο κουλούρια μόνο,', 'κι ήρθε πιο γρήγορα απ’ το build που περιμένω χρόνο.'],
-  ['Δυο πράγματα ’ναι δύσκολα σε τούτη τη ζωή μας:', 'το cache και τα ονόματα, κι off-by-one στην αρχή μας.'],
-  ['Έτρεξα DELETE χωρίς WHERE μες στην production βάση,', 'και τώρα ψάχνω το backup πριν η ομάδα με πιάσει.'],
-]
 
 // A shuffled deck: every couplet plays once before any repeats. The deck is
 // seeded from the clock, since the sandbox's Math.random may start the same
@@ -240,7 +292,7 @@ const random = () => {
 async function nextVerse($: EngineInterface, current: number) {
   if (deck.length === 0) {
     seed ^= (await $.clock.now()) | 0
-    deck = MANTINADES.map((_, i) => i)
+    deck = songs().map((_, i) => i)
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1))
       ;[deck[i], deck[j]] = [deck[j]!, deck[i]!]
@@ -262,6 +314,8 @@ const COLOR: Record<Mood, string> = {
   hiss: 'red',
   feast: 'green',
   bored: 'gray',
+  slap: 'red',
+  snub: 'gray',
 }
 
 // Outside the terminal the ASCII cat wears his coat's color while calm; a
@@ -415,14 +469,20 @@ function eatSardine($: EngineInterface) {
   return eating
 }
 
-async function pet($: EngineInterface) {
+// Pets the cat; whether it earned a swat instead of a purr.
+async function pet($: EngineInterface): Promise<boolean> {
   const ms = await $.clock.now()
-  stage.pettedAt = ms / 1000
-  await update($, cat, c => ({ ...c, pettedAt: ms }))
+  // A cat with a temper may swat the hand that pets it, unless it was on
+  // your keyboard asking for exactly that: then it purrs and gets off it.
+  const wasOnKeys = (await read($, cat)).isOnKeys
+  const isSwatted = !wasOnKeys && isTempered && random() < TEMPER.slap
+  Object.assign(stage, { pettedAt: ms / 1000, isSwatted, isOnKeys: false })
+  await update($, cat, c => ({ ...c, pettedAt: ms, isSwatted, isOnKeys: false }))
   // Redraw once the purring is over, so the caption lets go of it.
   $.clock.after(PETTING_S * 1000 + 50, () => void update($, cat, c => ({ ...c, frame: c.frame + 1 })).catch(() => {}))
   const pets = await $.store.get('pets')
   await $.store.set('pets', (typeof pets === 'number' ? pets : 0) + 1)
+  return isSwatted
 }
 
 // What a finished Bash call's output says: you rejected it at the prompt;
@@ -433,7 +493,10 @@ const COMMITTED = /^\[[^\]\n]+ [0-9a-f]{7,}\]/m
 
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
-  const lines = LINES[language]
+  const lines = linesOf()
+  if (showsKeys(c.isOnKeys, c.mood)) return TYPED[c.nudge % TYPED.length]
+  if (c.mood === 'slap') return lines.slapped
+  if (c.mood === 'snub') return lines.snubbed
   if (c.mood === 'tool') return lines.tool(c.tool ?? '?')
   if (c.mood === 'happy') return lines.done
   if (c.mood === 'oops') return lines.oops
@@ -448,7 +511,6 @@ function saidOf(c: Cat): string | undefined {
 }
 
 export const register: Register = (on, options) => {
-  language = isLanguage(options.language) ? options.language : 'greek'
   isSoundOn = options.sound === 'on'
   Object.assign(stage, STAGE_START)
   inTurn = false
@@ -460,12 +522,31 @@ export const register: Register = (on, options) => {
   flash = null
   settle = null
   deck = []
+  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper }
+  for (const field of FIELDS) apply(field, fromConfig[field])
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'cat', description: `Show or hide ${NAME} (/cat hide, /cat show), /cat pet; /cat manousos, ginger or tuxedo changes his coat` })
+    // Seed the dice now, not at the first song: unseeded, they roll the same
+    // way every session (her first pets were always swats).
+    await quietly(async () => {
+      seed ^= (await $.clock.now()) | 0
+    })
+    await $.command.register({ name: 'cat', description: `${name()}, the cat above the prompt: /cat help for name, coat, languages, temper, pet, hide and show` })
     await quietly(async () => {
       const saved = await $.store.get('coat')
       if (isCoat(saved)) await update($, coat, () => saved)
+      // What /cat set where /config couldn't be written, unless /config has
+      // changed since.
+      const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
+      for (const field of FIELDS) {
+        const o = overrides[field]
+        if (o && o.over === fromConfig[field]) apply(field, o.value)
+        else {
+          apply(field, fromConfig[field])
+          delete overrides[field]
+        }
+      }
+      await $.store.set('settings', overrides)
       // Hidden stays hidden across sessions, as the coat does.
       if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
       const { today: sardines } = await tally($)
@@ -494,6 +575,15 @@ export const register: Register = (on, options) => {
         const working = c.mood === 'think' || c.mood === 'tool'
         const verse = working && ticks % VERSE_TICKS === 0 ? await nextVerse($, c.verse) : c.verse
         const nudge = c.mood === 'think' && ticks % NUDGE_TICKS === 0 ? c.nudge + 1 : c.nudge
+        // A nudge too many: a cat with a temper may slap Clawd, or snub him.
+        if (nudge !== c.nudge && isTempered) {
+          const roll = random()
+          const temper = roll < TEMPER.slap ? 'slap' : roll < TEMPER.slap + TEMPER.snub ? 'snub' : undefined
+          if (temper) {
+            await update($, cat, cur => ({ ...cur, nudge }))
+            return react($, temper)
+          }
+        }
         // The terminal's yard animates by blit; only the ASCII cat elsewhere
         // needs a redraw per frame, so skip one that would change nothing else.
         const isQuiet = helpers === c.helpers && verse === c.verse && nudge === c.nudge
@@ -517,37 +607,124 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // /cat hides or shows him (or /cat hide, /cat show), kept across sessions;
-  // /cat pet pets him; /cat <coat> changes his coat, kept across sessions.
+  // /cat hides or shows the cat (or /cat hide, /cat show), kept across
+  // sessions; /cat pet pets it; /cat <coat> changes its coat, kept across
+  // sessions. /cat name, /cat language, /cat songs and /cat temper change
+  // the settings of the same names, the rows /config shows.
   on('command.run', { command: 'cat' }, async ($, e) => {
-    const arg = e.args.trim().toLowerCase()
+    const raw = e.args.trim()
+    const typed = raw.toLowerCase()
+    const [arg = '', ...rest] = typed.split(/\s+/)
+    const value = rest.join(' ')
+    // Changes settings: kept in the store first, so they show now and hold
+    // even if writing /config reloads the plugin midway; then written to
+    // their /config rows where the plugin can see them. A row locked, or a
+    // write refused, keeps its /config value. Says what couldn't change.
+    const change = async (changes: Partial<Record<Field, string>>) => {
+      const rows = await $.config.list().catch(() => [])
+      const rowOf = (field: Field) => rows.find(r => r.key === `cretan-cat.${field}` || (r.provider.plugin === 'cretan-cat' && r.key.endsWith(`.${field}`)))
+      const refused: string[] = []
+      const fields = (Object.keys(changes) as Field[]).filter(field => {
+        const locked = rowOf(field)?.isLocked === true
+        if (locked) refused.push(`the ${field} is locked in /config`)
+        return !locked
+      })
+      const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
+      for (const field of fields) {
+        overrides[field] = { value: changes[field]!, over: fromConfig[field] }
+        apply(field, changes[field])
+      }
+      await $.store.set('settings', overrides)
+      for (const field of fields) {
+        const row = rowOf(field)
+        if (!row) continue
+        const { deny } = (await $.config.set({ key: row.key, value: changes[field]! })) as { deny?: string }
+        if (deny === undefined) continue
+        refused.push(`the ${field}: ${deny}`)
+        delete overrides[field]
+        apply(field, fromConfig[field])
+        await $.store.set('settings', overrides)
+      }
+      const c = await update($, cat, cur => ({ ...cur, frame: cur.frame + 1 }))
+      Object.assign(stage, { said: saidOf(c), reply: replyOf(c) })
+      return refused
+    }
+    const setting = async (field: Field, to: string, done: string) => {
+      const refused = await change({ [field]: to })
+      return { text: refused.length === 0 ? done : `Couldn't change ${refused.join('; ')}` }
+    }
+    // A whole cat at once: its settings and its coat.
+    const becomes = async (look: Coat, settings: Record<Field, string>, done: string) => {
+      const refused = await change(settings)
+      await update($, coat, () => look)
+      await update($, isHidden, () => false)
+      await $.store.set('isHidden', false)
+      await $.store.set('coat', look)
+      return { text: refused.length === 0 ? done : `${done} Couldn't change ${refused.join('; ')}` }
+    }
+    if (arg === 'asturias' && value === '') {
+      return becomes('ginger', { name: 'Asturias', language: 'rioplatense', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat reset brings Manousos back)')
+    }
+    if (arg === 'reset' && value === '') {
+      return becomes('manousos', { name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
+    }
     if (arg === '' || arg === 'hide' || arg === 'show') {
+      if (value !== '') return { text: `/cat ${arg} takes nothing after it.` }
       const hidden = await update($, isHidden, h => (arg === '' ? !h : arg === 'hide'))
       await $.store.set('isHidden', hidden)
-      return { text: hidden ? `${NAME} went to hide under the sofa, until /cat show.` : `${NAME} is back.` }
+      return { text: hidden ? `${name()} went to hide under the sofa, until /cat show.` : `${name()} is back.` }
     }
     if (arg === 'pet') {
-      if (await read($, isHidden)) return { text: `${NAME} is under the sofa: /cat show brings him back to be petted.` }
-      await pet($)
-      return { text: `${NAME} closes his eyes and purrs.` }
+      if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back to be petted.` }
+      const isSwatted = await pet($)
+      return { text: isSwatted ? `${name()} swats your hand: ${linesOf().swat}` : `${name()} purrs, eyes closed.` }
     }
     if (arg === 'stats') {
       const { today: sardines, total } = await tally($)
       const pets = await $.store.get('pets')
       const s = (n: number) => (n === 1 ? '' : 's')
       const petted = typeof pets === 'number' ? pets : 0
-      return { text: `${NAME} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit. He has been petted ${petted} time${s(petted)}.` }
+      return { text: `${name()} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit, and has been petted ${petted} time${s(petted)}.` }
     }
-    if (isCoat(arg)) {
+    if (arg === 'name') {
+      // As you typed it, capitals and all; empty, the name it has now.
+      const given = raw.slice(raw.search(/\s/) + 1).trim()
+      if (rest.length === 0) return { text: `The cat is called ${name()}. /cat name <name> renames it (up to ${NAME_MOST} characters); /cat name Manousos goes back.` }
+      if ([...given].length > NAME_MOST) return { text: `That name is too long: up to ${NAME_MOST} characters.` }
+      const to = catNameOf(given).latin
+      return setting('name', to, `The cat is called ${to} now.`)
+    }
+    if (arg === 'language' || arg === 'lang') {
+      if (!isLanguage(value)) return { text: `Clawd speaks ${language}. /cat language ${LANGUAGES.join(', ')} changes it.` }
+      return setting('language', value, `Clawd speaks ${value} now.`)
+    }
+    if (arg === 'songs') {
+      if (!isSongLanguage(value)) return { text: `${name()} sings in ${songLanguage}. /cat songs ${SONG_LANGUAGES.join(', ')} changes it.` }
+      return setting('songs', value, `${name()} sings in ${value} now.`)
+    }
+    if (arg === 'temper') {
+      if (value !== 'on' && value !== 'off') return { text: `Temper is ${isTempered ? 'on' : 'off'}. /cat temper on or off changes it.` }
+      return setting('temper', value, value === 'on' ? `${name()} has a temper now: nag and it bites back.` : `${name()} is calm again.`)
+    }
+    if (isCoat(arg) && value === '') {
       await update($, coat, () => arg)
       await update($, isHidden, () => false)
       await $.store.set('isHidden', false)
       await $.store.set('coat', arg)
-      return { text: `${NAME} is wearing his ${arg} coat now.` }
+      return { text: `${name()} is wearing the ${arg} coat now.` }
     }
-    const help = `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>). /cat pet pets him (or press pet under the yard). /cat stats: his sardines and pets. /cat hide and /cat show (or /cat alone, to toggle) put ${NAME} away and back. Language and sound: /config, "Cretan cat".`
+    const help = [
+      `/cat name <name>: what the cat is called (${name()} now).`,
+      `/cat ${Object.keys(COATS).join(', ')}: the coat.`,
+      `/cat language ${LANGUAGES.join('|')}: what Clawd speaks.`,
+      `/cat songs ${SONG_LANGUAGES.join('|')}: what ${name()} sings.`,
+      `/cat temper on|off: whether ${name()} slaps Clawd, swats your hand and sits on your keyboard.`,
+      `/cat asturias: Asturias, ginger and rioplatense, with coplas and a temper; /cat reset: Manousos as he came.`,
+      `/cat pet (or press pet under the yard), /cat stats, /cat hide, /cat show (/cat alone toggles).`,
+      `The same settings, and sound, are under /config, "Cretan cat".`,
+    ].join(' ')
     // /cat help asks for this; anything else is a slip, and says so.
-    return { text: arg === 'help' ? help : `${NAME} doesn't know "/cat ${arg}". ${help}` }
+    return { text: arg === 'help' && value === '' ? help : `${name()} doesn't know "/cat ${raw}". ${help}` }
   })
 
   // Clawd picks up the prompt's topic; slash commands stay between you and him.
@@ -568,7 +745,9 @@ export const register: Register = (on, options) => {
     stopFlash()
     await quietly(async () => {
       const verse = await nextVerse($, (await read($, cat)).verse)
-      await update($, cat, c => ({ ...c, verse }))
+      // Some days she gets to your keyboard before Claude does.
+      const isOnKeys = isTempered && random() < TEMPER.keys
+      await update($, cat, c => ({ ...c, verse, isOnKeys: c.isOnKeys || isOnKeys }))
       await setMood($, 'think')
     })
     return next(e)
@@ -728,7 +907,9 @@ export const register: Register = (on, options) => {
     // The clock now (the frame loop's last reading, if the clock won't say).
     const now = await $.clock.now().catch(() => seconds * 1000)
     const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000
-    const caption = (isPetted ? `${NAME} purrs <3` : CAPTION[c.mood](c)) + kittens
+    const petted = c.isSwatted ? `${name()} swatted your hand: ${linesOf().swat}` : `${name()} purrs <3`
+    const onKeys = `${name()} is on your keyboard: pet (p) to get it back`
+    const caption = (isPetted ? petted : showsKeys(c.isOnKeys, c.mood) ? onKeys : CAPTION[c.mood](c)) + kittens
     // Petting: a click on it, or p while the band has the focus.
     const petting = (
       <Button key="pet" plain hotkey="p" dimColor onPress={() => void pet($).catch(() => {})}>
@@ -752,6 +933,8 @@ export const register: Register = (on, options) => {
         rows: layout.rows,
         kittens: c.helpers,
         pettedAt: c.pettedAt / 1000,
+        isSwatted: c.isSwatted,
+        isOnKeys: c.isOnKeys,
       })
       return (
         <Box flexDirection="column">
