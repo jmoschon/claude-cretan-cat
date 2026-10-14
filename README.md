@@ -109,45 +109,42 @@ To update, run `git pull` in the folder.
 | Command | What it does |
 |---|---|
 | `/cat hide`, `/cat show` | Hide him, or bring him back. A bare `/cat` toggles. He stays hidden in new sessions until you bring him back. |
-| `/cat pet` | Pet him: he closes his eyes and purrs (Asturias may swat you instead). |
+| `/cat pet` | Pet him: he closes his eyes and purrs (with a temper, he may swat you instead). |
 | `/cat manousos` | The original coat: dark brown with a white bib and mittens. |
-| `/cat ginger` (or `/cat asturias`) | Asturias, his Argentine ginger sister. See below. |
+| `/cat ginger` | An orange tabby. |
 | `/cat tuxedo` | Black and white. |
+| `/cat name <name>` | Call the cat something else, up to 20 characters. `/cat name Manousos` goes back. |
+| `/cat language <language>` | What Clawd speaks: `greek`, `english`, `spanish` or `rioplatense`. `/cat lang` works too. |
+| `/cat songs <language>` | What the cat sings: `greek`, `spanish` or `english`. |
+| `/cat temper on`, `/cat temper off` | Give the cat a temper, or take it away. See below. |
 | `/cat stats` | How many sardines he has had today and in all (one per commit, or per finished task that used tools), and how often he has been petted. |
-| `/cat help` | Lists the commands and coats, and where the settings are. Anything `/cat` doesn't know says so, then shows the same. |
+| `/cat help` | Lists all of this. Anything `/cat` doesn't know says so, then shows the same. |
 
-The coat you pick, whether he is hidden, his sardines and his pets are remembered across sessions.
+The coat you pick, whether he is hidden, his sardines and his pets are
+remembered across sessions. The name, the two languages and the temper are
+settings: `/cat name`, `/cat language`, `/cat songs` and `/cat temper`
+change the same rows you find under `/config`, so the two never disagree.
 
-Two settings, under `/config`:
-
-| Setting | Values | Default | What it does |
+| Setting (`/config`) | Values | Default | What it does |
 |---|---|---|---|
-| Cretan cat: language | `greek`, `english`, `spanish` | `greek` | The language of what Clawd says and of Manousos' short replies. The mantinades are always in Greek; they are Cretan songs, and they stay that way. |
+| Cretan cat: name | any name, up to 20 characters | `Manousos` | What the cat is called, in the caption and by Clawd. In Greek, Clawd calls Manousos *Μανούσο*, and any other name as you wrote it. |
+| Cretan cat: Clawd's language | `greek`, `english`, `spanish`, `rioplatense` | `greek` | What Clawd says, and the cat's short replies. Rioplatense is the Spanish of Buenos Aires: *¡Dale Manousos, arrancamos!* |
+| Cretan cat: songs | `greek`, `spanish`, `english` | `greek` | What the cat sings while Claude works: Cretan mantinades, payador coplas and the odd tango, or English rhyming couplets, all bent to the work. Each set stays in its own language, whatever Clawd speaks. |
+| Cretan cat: temper | `off`, `on` | `off` | See below. |
 | Cretan cat: sound | `off`, `on` | `off` | A soft meow when the work is done or Claude is waiting for you. It plays through `afplay`, so on macOS only. |
 
-## Asturias
+### Temper
 
-The ginger coat is Asturias, Manousos' sister. Her temper is spicier than
-his, and she grew up in Buenos Aires, so she doesn't sing mantinades:
+With the temper on, the cat has opinions:
 
-- **Her songs** are payador coplas (four eight-syllable lines, the gauchos'
-  improvised verse and the closest thing to a mantinada) and the odd tango,
-  bent to the work. Like the mantinades, they stay in their own language:
-  rioplatense Spanish.
-- **Her replies** are her own too, whatever the language setting says:
-  *¿Qué querés?* when Claude waits for you, *Yo no fui, che* at red tests,
-  *¿Sardina? ¿Y el asado?* for a commit.
-- **Nag her and she bites back.** Each time Clawd nudges her while Claude
-  thinks, she may slap him (*¡Qué pesado!*, *¡Qué hincha pelotas!*) or
-  ignore him altogether (*Ni ahí.*).
-- **Clawd** follows the language setting with her too, but in Spanish he
-  talks to her the way they do in Buenos Aires: *¡Dale Asturias, arrancamos!*,
-  *¡Corré el comando!*
-- **Petting her** sometimes gets you a swat instead of a purr.
-- **Your keyboard.** Some turns she gets there before Claude does, lies down
-  on it and types into Clawd's bubble (*asdfjjjjj;;;;*, *ñññññ*), asking
-  *¿Y mis mimos?*. She stays, through any number of turns, until you pet
-  her. Nothing is held up: it's only her side of the yard, and she gets up
+- **Nag him and he bites back.** Each time Clawd nudges him while Claude
+  thinks, he may slap Clawd (*Stop nagging!*) or ignore him altogether
+  (*Nope.*).
+- **Petting him** sometimes gets you a swat instead of a purr.
+- **Your keyboard.** Some turns he gets there before Claude does, lies down
+  on it and types into Clawd's bubble (*asdfjjjjj;;;;*), asking for
+  cuddles. He stays, through any number of turns, until you pet him.
+  Nothing is held up: it's only his side of the yard, and he gets up
   whenever Claude needs you, something fails or the tests finish.
 
 ## Room it needs
@@ -188,8 +185,10 @@ Files:
   keeps the cat's mood, and draws the band above the prompt.
 - `hooks/manousos.ts`: draws the scene as pixels, two to a terminal cell.
 - `hooks/sprites.ts`: Manousos, pose by pose, as letter grids, and his coats.
-- `hooks/lines.ts`: what Clawd and Manousos say, per language; how the topic
-  is picked from a prompt; which Bash commands are tests or commits.
+- `hooks/lines.ts`: what Clawd and the cat say, per language; the cat's
+  name; how the topic is picked from a prompt; which Bash commands are tests
+  or commits.
+- `hooks/songs.ts`: what the cat sings, per song language.
 - `hooks/clawd.ts`: Clawd, from claude-toons.
 - `sounds/meow.wav`: the meow, synthesized by `scripts/meow.py` (no samples).
 

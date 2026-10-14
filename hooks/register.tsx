@@ -2,15 +2,43 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Cat, Coat, Mood } from '../types'
-import { CATS, type Persona } from './cats'
-import { bashKind, isLanguage, LINES, saysFailed, shortTool, topicOf, type Language } from './lines'
+import { bashKind, isLanguage, LANGUAGES, LINES, NAME_MOST, catNameOf, saysFailed, shortTool, topicOf, type Language, type Name } from './lines'
 import { COATS, drawCat, fit, PETTING_S, replyFits } from './manousos'
+import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
 
-// Who is in the yard, by the coat picked: Manousos, or Asturias.
-let who: Persona = CATS.manousos
-const name = () => who.name.latin
-// What Clawd says, in the language setting, the way this cat is spoken to.
-const linesOf = () => (who.dialects?.[language] ?? LINES[language])(who.name)
+// The cat's name ("name" setting, Manousos unless you pick one), what it
+// sings ("songs"), and whether it has a temper ("temper").
+let catName: Name = catNameOf(undefined)
+const name = () => catName.latin
+let songLanguage: SongLanguage = 'greek'
+const songs = () => SONGS[songLanguage]
+let isTempered = false
+// With a temper: the chance a nudge from Clawd earns a slap, or a snub; that
+// a pet earns a swat; and that a turn starts with the cat on your keyboard.
+const TEMPER = { slap: 0.3, snub: 0.3, keys: 0.2 }
+// What it types, lying on your keyboard, into Clawd's bubble.
+const TYPED = ['asdfjjjjjjjjjj;;;;;;', 'qwwwwwwwwwwwwwwwwwww', 'gggggggg              h', 'kkkkkkkkkkk;;;;;;;;;']
+// What Clawd says, and the cat's short replies, in the "language" setting.
+const linesOf = () => LINES[language](catName)
+
+// The settings /cat can change. A /cat command writes the /config row where
+// it can; where it can't, it keeps the value in the store, with the /config
+// value it was set over. Whichever changed last wins: a /config value that
+// has changed since replaces the command's.
+const FIELDS = ['name', 'language', 'songs', 'temper'] as const
+type Field = (typeof FIELDS)[number]
+type Override = { value: string; over: unknown }
+let fromConfig: Partial<Record<Field, unknown>> = {}
+function apply(field: Field, value: unknown) {
+  if (field === 'name') catName = catNameOf(value)
+  if (field === 'language') language = isLanguage(value) ? value : 'greek'
+  if (field === 'songs') {
+    const next = isSongLanguage(value) ? value : 'greek'
+    if (next !== songLanguage) deck = []
+    songLanguage = next
+  }
+  if (field === 'temper') isTempered = value === 'on'
+}
 const TICK_MS = 400
 const CAPTION_WIDTH = 60
 // A fresh song every VERSE_TICKS ticks (~12s) while the cat works.
@@ -32,11 +60,6 @@ const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
 const isHidden = atom({ plugin: 'cretan-cat', key: 'isHidden' } as const, false)
 const coat = atom({ plugin: 'cretan-cat', key: 'coat' } as const, 'manousos' as Coat)
 const isCoat = (v: unknown): v is Coat => typeof v === 'string' && v in COATS
-// A new cat brings a new songbook: the deck starts over.
-const wear = (c: Coat) => {
-  if (CATS[c] !== who) deck = []
-  who = CATS[c]
-}
 
 // While Claude thinks, Clawd nudges the cat about the topic, a new line
 // every NUDGE_TICKS ticks (~8s). What he says is in the "language" setting.
@@ -94,23 +117,23 @@ const isSinging = (mood: Mood) => mood === 'think' || mood === 'tool' || mood ==
 // thinking, on a tool or dozing. Waiting on you, a failure, tests, a sardine
 // or the work being done always show over her.
 const KEYS_SHOW = new Set<Mood>(['nap', 'think', 'tool', 'bored'])
-const showsKeys = (isOnKeys: boolean, mood: Mood) => isOnKeys && who.says !== undefined && KEYS_SHOW.has(mood)
+const showsKeys = (isOnKeys: boolean, mood: Mood) => isOnKeys && isTempered && KEYS_SHOW.has(mood)
 
 // What the cat answers, by mood: a song while singing, otherwise a short
-// line, in the cat's own words if it has them.
+// line in the "language" setting.
 function replyOf(c: Cat): string[] | undefined {
-  if (showsKeys(c.isOnKeys, c.mood)) return [who.says!.asks]
-  if (isSinging(c.mood)) return who.songs[c.verse % who.songs.length]
   const lines = linesOf()
-  const own = who.says
-  if (own && (c.mood === 'slap' || c.mood === 'snub')) return [own[c.mood][c.nudge % own[c.mood].length]!]
+  if (showsKeys(c.isOnKeys, c.mood)) return [lines.asks]
+  if (isSinging(c.mood)) return songs()[c.verse % songs().length]
+  if (c.mood === 'slap') return [lines.retort[c.nudge % lines.retort.length]!]
+  if (c.mood === 'snub') return [lines.shrug[c.nudge % lines.shrug.length]!]
   const short = {
-    oops: own?.hiss ?? lines.hiss,
-    wait: own?.wait ?? lines.wait[1],
-    dance: own?.green ?? lines.green[1],
-    hiss: own?.red ?? lines.red[1],
-    feast: own?.commit ?? lines.commit[1],
-    bored: own?.bored ?? lines.bored[1],
+    oops: lines.hiss,
+    wait: lines.wait[1],
+    dance: lines.green[1],
+    hiss: lines.red[1],
+    feast: lines.commit[1],
+    bored: lines.bored[1],
   }
   return c.mood in short ? [short[c.mood as keyof typeof short]] : undefined
 }
@@ -237,7 +260,7 @@ const FRAMES = Object.fromEntries(
 ) as Record<Mood, string[][]>
 
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${name()} is napping · /cat hide hides ${who.him} · /cat ginger, tuxedo or manousos changes the cat`,
+  nap: () => `${name()} is napping · /cat help · /cat hide · /cat ginger, tuxedo or manousos changes the coat`,
   think: () => `${name()} is thinking it over`,
   tool: c => `${name()} is on it: ${shortTool(c.tool ?? 'a tool')}`,
   happy: () => `${name()} purrs: done!`,
@@ -269,7 +292,7 @@ const random = () => {
 async function nextVerse($: EngineInterface, current: number) {
   if (deck.length === 0) {
     seed ^= (await $.clock.now()) | 0
-    deck = who.songs.map((_, i) => i)
+    deck = songs().map((_, i) => i)
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1))
       ;[deck[i], deck[j]] = [deck[j]!, deck[i]!]
@@ -449,10 +472,10 @@ function eatSardine($: EngineInterface) {
 // Pets the cat; whether it earned a swat instead of a purr.
 async function pet($: EngineInterface): Promise<boolean> {
   const ms = await $.clock.now()
-  // A cat with a temper may swat the hand that pets her, unless she was on
-  // your keyboard asking for exactly that: then she purrs and gets off it.
+  // A cat with a temper may swat the hand that pets it, unless it was on
+  // your keyboard asking for exactly that: then it purrs and gets off it.
   const wasOnKeys = (await read($, cat)).isOnKeys
-  const isSwatted = !wasOnKeys && who.says !== undefined && random() < who.temper.slap
+  const isSwatted = !wasOnKeys && isTempered && random() < TEMPER.slap
   Object.assign(stage, { pettedAt: ms / 1000, isSwatted, isOnKeys: false })
   await update($, cat, c => ({ ...c, pettedAt: ms, isSwatted, isOnKeys: false }))
   // Redraw once the purring is over, so the caption lets go of it.
@@ -471,7 +494,7 @@ const COMMITTED = /^\[[^\]\n]+ [0-9a-f]{7,}\]/m
 // What Clawd is saying now, by mood.
 function saidOf(c: Cat): string | undefined {
   const lines = linesOf()
-  if (showsKeys(c.isOnKeys, c.mood)) return who.says!.typed[c.nudge % who.says!.typed.length]
+  if (showsKeys(c.isOnKeys, c.mood)) return TYPED[c.nudge % TYPED.length]
   if (c.mood === 'slap') return lines.slapped
   if (c.mood === 'snub') return lines.snubbed
   if (c.mood === 'tool') return lines.tool(c.tool ?? '?')
@@ -488,7 +511,6 @@ function saidOf(c: Cat): string | undefined {
 }
 
 export const register: Register = (on, options) => {
-  language = isLanguage(options.language) ? options.language : 'greek'
   isSoundOn = options.sound === 'on'
   Object.assign(stage, STAGE_START)
   inTurn = false
@@ -500,7 +522,8 @@ export const register: Register = (on, options) => {
   flash = null
   settle = null
   deck = []
-  who = CATS.manousos
+  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper }
+  for (const field of FIELDS) apply(field, fromConfig[field])
 
   on('session.start', async ($, e, next) => {
     // Seed the dice now, not at the first song: unseeded, they roll the same
@@ -508,13 +531,22 @@ export const register: Register = (on, options) => {
     await quietly(async () => {
       seed ^= (await $.clock.now()) | 0
     })
-    await $.command.register({ name: 'cat', description: 'Show or hide the cat (/cat hide, /cat show), /cat pet; /cat manousos, tuxedo, or ginger (Asturias) changes the cat' })
+    await $.command.register({ name: 'cat', description: `${name()}, the cat above the prompt: /cat help for name, coat, languages, temper, pet, hide and show` })
     await quietly(async () => {
       const saved = await $.store.get('coat')
-      if (isCoat(saved)) {
-        await update($, coat, () => saved)
-        wear(saved)
+      if (isCoat(saved)) await update($, coat, () => saved)
+      // What /cat set where /config couldn't be written, unless /config has
+      // changed since.
+      const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
+      for (const field of FIELDS) {
+        const o = overrides[field]
+        if (o && o.over === fromConfig[field]) apply(field, o.value)
+        else {
+          apply(field, fromConfig[field])
+          delete overrides[field]
+        }
       }
+      await $.store.set('settings', overrides)
       // Hidden stays hidden across sessions, as the coat does.
       if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
       const { today: sardines } = await tally($)
@@ -544,9 +576,9 @@ export const register: Register = (on, options) => {
         const verse = working && ticks % VERSE_TICKS === 0 ? await nextVerse($, c.verse) : c.verse
         const nudge = c.mood === 'think' && ticks % NUDGE_TICKS === 0 ? c.nudge + 1 : c.nudge
         // A nudge too many: a cat with a temper may slap Clawd, or snub him.
-        if (nudge !== c.nudge && who.says !== undefined) {
+        if (nudge !== c.nudge && isTempered) {
           const roll = random()
-          const temper = roll < who.temper.slap ? 'slap' : roll < who.temper.slap + who.temper.snub ? 'snub' : undefined
+          const temper = roll < TEMPER.slap ? 'slap' : roll < TEMPER.slap + TEMPER.snub ? 'snub' : undefined
           if (temper) {
             await update($, cat, cur => ({ ...cur, nudge }))
             return react($, temper)
@@ -576,42 +608,87 @@ export const register: Register = (on, options) => {
   })
 
   // /cat hides or shows the cat (or /cat hide, /cat show), kept across
-  // sessions; /cat pet pets it; /cat <coat> changes the cat, kept across
-  // sessions (/cat asturias is the ginger coat).
+  // sessions; /cat pet pets it; /cat <coat> changes its coat, kept across
+  // sessions. /cat name, /cat language, /cat songs and /cat temper change
+  // the settings of the same names, the rows /config shows.
   on('command.run', { command: 'cat' }, async ($, e) => {
-    const typed = e.args.trim().toLowerCase()
-    const arg = typed === 'asturias' ? 'ginger' : typed
+    const raw = e.args.trim()
+    const typed = raw.toLowerCase()
+    const [arg = '', ...rest] = typed.split(/\s+/)
+    const value = rest.join(' ')
+    // Writes the /config row where there is one (the plugin then reloads
+    // with it); else keeps the value in the store. Either way it shows now.
+    const setting = async (field: Field, to: string, done: string) => {
+      const rows = await $.config.list().catch(() => [])
+      const row = rows.find(r => r.key === `cretan-cat.${field}` || (r.provider.plugin === 'cretan-cat' && r.key.endsWith(`.${field}`)))
+      if (row) {
+        const { deny } = (await $.config.set({ key: row.key, value: to })) as { deny?: string }
+        if (deny !== undefined) return { text: `Couldn't change the ${field}: ${deny}` }
+      } else {
+        const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
+        await $.store.set('settings', { ...overrides, [field]: { value: to, over: fromConfig[field] } })
+      }
+      apply(field, to)
+      const c = await update($, cat, cur => ({ ...cur, frame: cur.frame + 1 }))
+      Object.assign(stage, { said: saidOf(c), reply: replyOf(c) })
+      return { text: done }
+    }
     if (arg === '' || arg === 'hide' || arg === 'show') {
+      if (value !== '') return { text: `/cat ${arg} takes nothing after it.` }
       const hidden = await update($, isHidden, h => (arg === '' ? !h : arg === 'hide'))
       await $.store.set('isHidden', hidden)
       return { text: hidden ? `${name()} went to hide under the sofa, until /cat show.` : `${name()} is back.` }
     }
     if (arg === 'pet') {
-      if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings ${who.him} back to be petted.` }
+      if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back to be petted.` }
       const isSwatted = await pet($)
-      return { text: isSwatted ? `${name()} swats your hand: ${who.says?.swat ?? ''}` : `${name()} closes ${who.his} eyes and purrs.` }
+      return { text: isSwatted ? `${name()} swats your hand: ${linesOf().swat}` : `${name()} closes their eyes and purrs.` }
     }
     if (arg === 'stats') {
       const { today: sardines, total } = await tally($)
       const pets = await $.store.get('pets')
       const s = (n: number) => (n === 1 ? '' : 's')
       const petted = typeof pets === 'number' ? pets : 0
-      const He = who.he[0]!.toUpperCase() + who.he.slice(1)
-      return { text: `${name()} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit. ${He} has been petted ${petted} time${s(petted)}.` }
+      return { text: `${name()} has had ${sardines} sardine${s(sardines)} today and ${total} in all, one per finished task or commit, and has been petted ${petted} time${s(petted)}.` }
     }
-    if (isCoat(arg)) {
+    if (arg === 'name') {
+      // As you typed it, capitals and all; empty, the name it has now.
+      const given = raw.slice(raw.search(/\s/) + 1).trim()
+      if (rest.length === 0) return { text: `The cat is called ${name()}. /cat name <name> renames it (up to ${NAME_MOST} characters); /cat name Manousos goes back.` }
+      if ([...given].length > NAME_MOST) return { text: `That name is too long: up to ${NAME_MOST} characters.` }
+      const to = catNameOf(given).latin
+      return setting('name', to, `The cat is called ${to} now.`)
+    }
+    if (arg === 'language' || arg === 'lang') {
+      if (!isLanguage(value)) return { text: `Clawd speaks ${language}. /cat language ${LANGUAGES.join(', ')} changes it.` }
+      return setting('language', value, `Clawd speaks ${value} now.`)
+    }
+    if (arg === 'songs') {
+      if (!isSongLanguage(value)) return { text: `${name()} sings in ${songLanguage}. /cat songs ${SONG_LANGUAGES.join(', ')} changes it.` }
+      return setting('songs', value, `${name()} sings in ${value} now.`)
+    }
+    if (arg === 'temper') {
+      if (value !== 'on' && value !== 'off') return { text: `Temper is ${isTempered ? 'on' : 'off'}. /cat temper on or off changes it.` }
+      return setting('temper', value, value === 'on' ? `${name()} has a temper now: nag and it bites back.` : `${name()} is calm again.`)
+    }
+    if (isCoat(arg) && value === '') {
       await update($, coat, () => arg)
       await update($, isHidden, () => false)
       await $.store.set('isHidden', false)
       await $.store.set('coat', arg)
-      wear(arg)
-      // She's no coat of his: she lets you know she's here.
-      const says = who.says
-      return { text: says ? `${name()} is here now. ${says.wait}` : `${name()} is wearing his ${arg} coat now.` }
+      return { text: `${name()} is wearing the ${arg} coat now.` }
     }
-    const help = `Coats: ${Object.keys(COATS).join(', ')} (/cat <coat>; ginger is Asturias). /cat pet pets ${who.him} (or press pet under the yard). /cat stats: sardines and pets. /cat hide and /cat show (or /cat alone, to toggle) put ${name()} away and back. Language and sound: /config, "Cretan cat".`
+    const help = [
+      `/cat name <name>: what the cat is called (${name()} now).`,
+      `/cat ${Object.keys(COATS).join(', ')}: the coat.`,
+      `/cat language ${LANGUAGES.join('|')}: what Clawd speaks.`,
+      `/cat songs ${SONG_LANGUAGES.join('|')}: what ${name()} sings.`,
+      `/cat temper on|off: whether ${name()} slaps Clawd, swats your hand and sits on your keyboard.`,
+      `/cat pet (or press pet under the yard), /cat stats, /cat hide, /cat show (/cat alone toggles).`,
+      `The same settings, and sound, are under /config, "Cretan cat".`,
+    ].join(' ')
     // /cat help asks for this; anything else is a slip, and says so.
-    return { text: arg === 'help' ? help : `${name()} doesn't know "/cat ${typed}". ${help}` }
+    return { text: arg === 'help' && value === '' ? help : `${name()} doesn't know "/cat ${raw}". ${help}` }
   })
 
   // Clawd picks up the prompt's topic; slash commands stay between you and him.
@@ -633,7 +710,7 @@ export const register: Register = (on, options) => {
     await quietly(async () => {
       const verse = await nextVerse($, (await read($, cat)).verse)
       // Some days she gets to your keyboard before Claude does.
-      const isOnKeys = who.says !== undefined && random() < who.temper.keys
+      const isOnKeys = isTempered && random() < TEMPER.keys
       await update($, cat, c => ({ ...c, verse, isOnKeys: c.isOnKeys || isOnKeys }))
       await setMood($, 'think')
     })
@@ -794,8 +871,8 @@ export const register: Register = (on, options) => {
     // The clock now (the frame loop's last reading, if the clock won't say).
     const now = await $.clock.now().catch(() => seconds * 1000)
     const isPetted = c.pettedAt > 0 && now - c.pettedAt < PETTING_S * 1000
-    const petted = c.isSwatted ? `${name()} swatted your hand: ${who.says?.swat ?? ''}` : `${name()} purrs <3`
-    const onKeys = `${name()} is on your keyboard: pet ${who.him} (p) to get it back`
+    const petted = c.isSwatted ? `${name()} swatted your hand: ${linesOf().swat}` : `${name()} purrs <3`
+    const onKeys = `${name()} is on your keyboard: pet (p) to get it back`
     const caption = (isPetted ? petted : showsKeys(c.isOnKeys, c.mood) ? onKeys : CAPTION[c.mood](c)) + kittens
     // Petting: a click on it, or p while the band has the focus.
     const petting = (

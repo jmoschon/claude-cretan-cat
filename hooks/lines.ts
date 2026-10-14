@@ -1,8 +1,8 @@
 // What Clawd tells the cat, and what the cat says when not singing, in each
-// language the "language" setting offers. The songs are in cats.ts: they
-// stay in the cat's own language whatever the setting.
+// language the "language" setting offers. The songs are in songs.ts, under
+// a setting of their own.
 
-export const LANGUAGES = ['greek', 'english', 'spanish'] as const
+export const LANGUAGES = ['greek', 'english', 'spanish', 'rioplatense'] as const
 export type Language = (typeof LANGUAGES)[number]
 
 export const isLanguage = (v: unknown): v is Language => typeof v === 'string' && (LANGUAGES as readonly string[]).includes(v)
@@ -31,6 +31,13 @@ export type Lines = {
   // Clawd, slapped for a nudge; and his nudge, ignored.
   slapped: string
   snubbed: string
+  // With the "temper" setting on, the cat's side of it: what it says as it
+  // slaps Clawd, or ignores him; a pet it didn't ask for; and, lying on your
+  // keyboard, what it wants to get off it.
+  retort: string[]
+  shrug: string[]
+  swat: string
+  asks: string
 }
 
 const kind = (tool: string) =>
@@ -53,9 +60,16 @@ const kind = (tool: string) =>
 // An MCP tool by its own name (`mcp__server__tool` -> `tool`).
 export const shortTool = (tool: string) => tool.split('__').pop() ?? tool
 
-// The cat's name as Clawd calls it: in Latin letters, and in Greek (the
-// vocative).
+// The cat's name as Clawd calls it: as written, and in Greek (the
+// vocative). A name of your own is called as you wrote it, in Greek too.
 export type Name = { latin: string; greek: string }
+export const DEFAULT_NAME = 'Manousos'
+export const NAME_MOST = 20
+export function catNameOf(raw: unknown): Name {
+  const name = typeof raw === 'string' ? [...raw.replace(/[\u0000-\u001f\u007f]/g, '').trim()].slice(0, NAME_MOST).join('') : ''
+  if (name === '' || name.toLowerCase() === DEFAULT_NAME.toLowerCase()) return { latin: DEFAULT_NAME, greek: 'Μανούσο' }
+  return { latin: name, greek: name }
+}
 
 export const LINES: Record<Language, (n: Name) => Lines> = {
   greek: n => ({
@@ -89,6 +103,10 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     bored: [`${n.greek}, μην κοιμάσαι, ακόμα τρέχει!`, 'Χααα... ζζζ'],
     slapped: 'Άου! Γιατί με χτυπάς;',
     snubbed: `${n.greek}; Μ' ακούς;`,
+    retort: ['Τι θες;', 'Φτάνει πια!', 'Πάρ\' τα!', 'Μη με πρήζεις!', 'Φύγε από δω!'],
+    shrug: ['...', 'Όχι τώρα.', 'Μμμ. Όχι.', 'Αργότερα.', 'Δουλεύω.'],
+    swat: 'Εεε! Χωρίς χέρια.',
+    asks: 'Και τα χάδια μου;',
   }),
   english: n => ({
     nudges: [
@@ -121,6 +139,10 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     bored: [`${n.latin}, don't fall asleep, it's still running!`, 'Yaaawn... zzz'],
     slapped: 'Ow! What was that for?',
     snubbed: `${n.latin}? Hello?`,
+    retort: ['What now?', 'Enough!', 'Take that!', 'Stop nagging!', 'Shoo!', 'Are you kidding me?'],
+    shrug: ['...', 'Nope.', 'Mmm. No.', 'Busy.', 'Later.'],
+    swat: 'Hey! No touching.',
+    asks: 'Where are my cuddles?',
   }),
   spanish: n => ({
     nudges: [
@@ -153,11 +175,16 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     bored: [`${n.latin}, no te duermas, ¡aún sigue!`, 'Aaah... zzz'],
     slapped: '¡Ay! ¿Y eso por qué?',
     snubbed: `¿${n.latin}? ¿Hola?`,
+    retort: ['¿Qué quieres?', '¡Qué pesado!', '¡Toma!', '¡Déjame en paz!', '¡Fuera de aquí!', '¿Me tomas el pelo?'],
+    shrug: ['...', 'Ni hablar.', 'Mmm. No.', 'Ahora no.', 'Luego vemos.'],
+    swat: '¡Eh! Sin tocar.',
+    asks: '¿Y mis mimos?',
   }),
+  rioplatense: n => RIOPLATENSE(n),
 }
 
-// Spanish as Clawd speaks it to a cat from Buenos Aires: voseo, and "dale".
-export const RIOPLATENSE = (n: Name): Lines => ({
+// Spanish as they speak it in Buenos Aires: voseo, and "dale".
+const RIOPLATENSE = (n: Name): Lines => ({
   nudges: [
     t => `${n.latin}, ¡mirá «${t}»!`,
     t => `¿Cómo va «${t}», ${n.latin}?`,
@@ -188,6 +215,10 @@ export const RIOPLATENSE = (n: Name): Lines => ({
   bored: [`${n.latin}, no te duermas, ¡todavía sigue!`, 'Aaah... zzz'],
   slapped: '¡Ay! ¿Y eso por qué?',
   snubbed: `¿${n.latin}? ¿Hola?`,
+  retort: ['¿Qué querés?', '¡Qué pesado!', '¡Tomá!', '¡Qué plomo!', 'Ni a palos.', '¡Salí de acá!', '¿Me estás cargando?'],
+  shrug: ['...', 'Ni ahí.', 'Qué pesado...', 'Mmm. No.', 'Después vemos.'],
+  swat: '¡Ey! Sin tocar.',
+  asks: '¿Y mis mimos?',
 })
 
 // Words that say nothing about what a prompt is about, in the languages

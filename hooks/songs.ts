@@ -1,45 +1,12 @@
-// Who lives in the yard, by coat: Manousos, the Cretan, in his own coat or
-// the tuxedo; Asturias, his ginger sister from Buenos Aires, who sings
-// coplas and tangos instead of mantinades, and answers for herself in
-// rioplatense Spanish whatever the language setting says.
+// What the cat sings while Claude works, by the "songs" setting: Cretan
+// mantinades, rioplatense coplas and tangos, or English couplets. Each set
+// stays in its own language, whatever language Clawd speaks.
 
-import type { Coat } from '../types'
-import { RIOPLATENSE, type Language, type Lines, type Name } from './lines'
+export const SONG_LANGUAGES = ['greek', 'spanish', 'english'] as const
+export type SongLanguage = (typeof SONG_LANGUAGES)[number]
+export const isSongLanguage = (v: unknown): v is SongLanguage => typeof v === 'string' && (SONG_LANGUAGES as readonly string[]).includes(v)
 
-// Her own short answers, in place of the language setting's.
-export type Says = {
-  hiss: string
-  wait: string
-  green: string
-  red: string
-  commit: string
-  bored: string
-  // Clawd nudged once too often: a slap, or nothing at all.
-  slap: string[]
-  snub: string[]
-  // A pet she didn't ask for.
-  swat: string
-  // Lying on your keyboard: what she types into Clawd's bubble, and what
-  // she wants to get off it.
-  typed: string[]
-  asks: string
-}
-
-export type Persona = {
-  name: Name
-  he: string
-  him: string
-  his: string
-  songs: [string, string][]
-  says?: Says
-  // How Clawd speaks a language to this cat, where it isn't the usual way.
-  dialects?: Partial<Record<Language, (n: Name) => Lines>>
-  // The chance that a nudge from Clawd earns a slap, or a snub, instead;
-  // and that a turn starts with her on your keyboard.
-  temper: { slap: number; snub: number; keys: number }
-}
-
-// Cretan mantinades: fifteen-syllable rhyming couplets, sung while the cat works.
+// Cretan mantinades: fifteen-syllable rhyming couplets.
 const MANTINADES: [string, string][] = [
   ['Στο πληκτρολόγιο κάθεται, τα bugs τα κυνηγάει,', 'κι όποιο ποντίκι βρει μπροστά, με μια πατιά το φάει.'],
   ['Σιγά σιγά ο κώδικας, σιγά και το πιθάρι,', 'ο βιαστικός ο γάτος μου ποτέ δεν πιάνει ψάρι.'],
@@ -65,9 +32,8 @@ const MANTINADES: [string, string][] = [
   ['Έτρεξα DELETE χωρίς WHERE μες στην production βάση,', 'και τώρα ψάχνω το backup πριν η ομάδα με πιάσει.'],
 ]
 
-// Asturias' songs: payador coplas, four eight-syllable lines sung two to a
-// line, the gauchos' answer to the mantinada; and a few tangos, bent to the
-// work.
+// Payador coplas, four eight-syllable lines sung two to a line, the
+// gauchos' answer to the mantinada; and a few tangos, bent to the work.
 const COPLAS: [string, string][] = [
   ['Aquí me pongo a cantar al compás de la consola,', 'que la gata que desvela un bug no se queda sola.'],
   ['Yo no soy gata de nadie, ni de patrón ni de amigo;', 'si me buscás, yo te araño; si me ignorás, te persigo.'],
@@ -88,36 +54,23 @@ const COPLAS: [string, string][] = [
   ['Che, Clawd, no me apurés, que yo laburo a mi modo:', 'un ratito con el código, y una siesta para todo.'],
 ]
 
-const MANOUSOS: Persona = {
-  name: { latin: 'Manousos', greek: 'Μανούσο' },
-  he: 'he',
-  him: 'him',
-  his: 'his',
-  songs: MANTINADES,
-  temper: { slap: 0, snub: 0, keys: 0 },
-}
+// English rhyming couplets, in the same spirit.
+const COUPLETS: [string, string][] = [
+  ['Upon the keyboard sits the cat and chases every bug in sight,', 'and any mouse that crosses him is gone in just one bite.'],
+  ['Slow and steady, line by line, the way the old folks say;', 'the cat who rushes through the code goes hungry all the day.'],
+  ['I search the logs the way a shepherd hunts a stray at night,', 'and when I find the error, oh, my heart is warm and light.'],
+  ["Don't merge upon a Friday, as my grandma used to say,", "or you'll spend your Saturday in tears and disarray."],
+  ['At three a.m. the pager rang, the on-call shift was mine;', 'I dreamt of raki, sunny Crete, and graphs that all looked fine.'],
+  ['My tests are fickle lovers, changing moods from day to day:', 'you think the build is passing, then it throws it all away.'],
+  ["I sent my PR this morning, and I'm waiting for review;", "my whiskers have grown longer, and my coffee's cold now too."],
+  ['One meeting, then another, then a third one after lunch,', 'and all my code sits idle while the calendar eats my lunch.'],
+  ['It works upon my laptop, and I swear it on my name,', "but production's down in flames, and somehow I'm to blame."],
+  ['At standup I say "progressing", as I do most every day;', "the ticket's still In Progress, and it's likely there to stay."],
+  ['I cursed whoever wrote this code so many years ago,', 'then git blame showed my own name there, and all I said was "oh".'],
+  ['There are only two hard problems that will ruin any day:', 'cache invalidation, naming things, and off-by-one, they say.'],
+  ['I ran a DELETE without a WHERE upon the prod DB,', 'and now I hunt for backups while the team comes after me.'],
+  ['Our Datadog bill is precious, like a chest of shining gold,', 'and the logs nobody reads in there are slowly growing old.'],
+  ['Like a dancer at a wedding, the pod goes down and up,', "and Kubernetes swears it's healthy, raising high its cup."],
+]
 
-const ASTURIAS: Persona = {
-  name: { latin: 'Asturias', greek: 'Αστούριας' },
-  he: 'she',
-  him: 'her',
-  his: 'her',
-  songs: COPLAS,
-  dialects: { spanish: RIOPLATENSE },
-  says: {
-    hiss: '¡Fffs! ¿Quién fue?',
-    wait: '¿Qué querés?',
-    green: 'Obvio. ¿Qué esperabas?',
-    red: '¡Fffs! Yo no fui, che.',
-    commit: '¿Sardina? ¿Y el asado?',
-    bored: 'Qué embole... zzz',
-    slap: ['¿Qué querés?', '¡Qué pesado!', '¡Tomá!', '¡Qué hincha pelotas!', 'Ni en pedo.', '¡Salí de acá!', '¿Me estás cargando?'],
-    snub: ['...', 'Ni ahí.', 'Qué pesado...', 'Mmm. No.', 'Estoy ocupada.', 'Después vemos.'],
-    swat: '¡Ey! Sin tocar.',
-    typed: ['asdfjjjjjjjjjj;;;;;;', 'ñññññññññññññññ', 'qwwwwwwwwwwwwwwwwwww', 'gggggggg              h'],
-    asks: '¿Y mis mimos?',
-  },
-  temper: { slap: 0.3, snub: 0.3, keys: 0.2 },
-}
-
-export const CATS: Record<Coat, Persona> = { manousos: MANOUSOS, tuxedo: MANOUSOS, ginger: ASTURIAS }
+export const SONGS: Record<SongLanguage, [string, string][]> = { greek: MANTINADES, spanish: COPLAS, english: COUPLETS }

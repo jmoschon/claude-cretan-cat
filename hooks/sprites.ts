@@ -1,4 +1,4 @@
-// The cat (Manousos, or Asturias in the ginger coat) as hand-drawn pixel art, facing right (mirrored to face left),
+// The cat as hand-drawn pixel art, facing right (mirrored to face left),
 // 14 pixels tall: seven terminal rows at two pixels a cell. Each letter is a
 // color of his coat:
 //   .  clear          o  outline         f  fur          F  light fur
@@ -18,7 +18,7 @@ export const COATS: Record<Coat, Record<string, Rgb>> = (() => {
   return {
     // From the photo: dark brown long hair, white bib, belly and paws.
     manousos: { ...shared, o: [34, 26, 24], f: [104, 86, 74], F: [150, 128, 106], d: [58, 46, 40], e: [236, 196, 70], E: [255, 226, 120] },
-    // Asturias: an orange tabby with green eyes.
+    // An orange tabby with green eyes.
     ginger: { ...shared, o: [86, 40, 16], f: [232, 140, 62], F: [250, 186, 116], d: [176, 86, 36], e: [120, 200, 80], E: [170, 235, 120] },
     tuxedo: { ...shared, o: [12, 12, 14], f: [52, 50, 58], F: [80, 78, 90], d: [30, 30, 34], w: [246, 246, 246], g: [200, 200, 206], e: [150, 220, 90], E: [200, 250, 140] },
   }
