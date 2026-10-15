@@ -196,19 +196,20 @@ const RIOPLATENSE = (n: Name): Lines => ({
   offKeys: `¡${n.latin}, bajate del teclado!`,
 })
 
-// Jamona: posh older British when composed; Argentine Spanish when her
-// temper flares. She loves jamón, birds, fetching hairbands, prog rock,
-// folk music, cuddles and laying on top of people.
+// Jamona: a sweet, cuddly grey tabby. Posh older British. She loves jamón,
+// birds, fetching hairbands, prog rock, folk, cups of tea, cuddles, sleeping
+// on people and on the sofa. No temper — she only switches to Argentine
+// Spanish when she wants you to throw the hairband so she can fetch it.
 export const JAMONA = (n: Name): Lines => ({
   nudges: [
     t => `${n.latin}, do attend to "${t}", won't you?`,
     t => `How is "${t}" progressing, ${n.latin}, dear?`,
-    t => `No dozing off! "${t}" awaits your attention.`,
     t => `${n.latin}, I should rather like "${t}" by tea time.`,
     t => `Finish "${t}" and there's a slice of jamón.`,
     t => `Come now ${n.latin}, a touch more on "${t}".`,
     t => `Shall we have a cup of tea after "${t}"?`,
     t => `${n.latin}, one more push on "${t}", then cuddles.`,
+    t => `I'll sit on your lap while you do "${t}", yes?`,
   ],
   vague: [`${n.latin}, shall we begin?`, `What are you up to, ${n.latin}?`, `Come along ${n.latin}, time to work.`, `Fancy a cup of tea before we start, ${n.latin}?`],
   tool: tool =>
@@ -227,17 +228,18 @@ export const JAMONA = (n: Name): Lines => ({
   hiss: 'Goodness! Something has gone awry.',
   wait: ['Ahem! We are waiting on you, if you please.', 'Mew? One is waiting. Shall I sit on your lap?'],
   green: [`Tests are green, ${n.latin}! How marvellous.`, 'Delightful! A little celebration dance.'],
-  red: [`Tests are red, ${n.latin}... most unfortunate.`, 'Hsss! How very disagreeable.'],
+  red: [`Tests are red, ${n.latin}... most unfortunate.`, 'Oh dear. Shall we have some tea and try again?'],
   commit: [`A slice of jamón for you, ${n.latin}!`, 'Mmm! Exquisite, thank you.'],
   bored: [`${n.latin}, do stay awake, it's still running!`, 'Oh, a bird! ... I mean, yaaawn... zzz'],
-  slapped: 'I beg your pardon! That was uncalled for.',
+  slapped: 'Oh! That was rather unexpected.',
   snubbed: `${n.latin}? I say, are you listening?`,
-  // When her temper flares, the Argentine comes out.
-  retort: ['¡Dejame en paz!', '¡Qué pesado, che!', '¡Tomá!', '¡Dejá de joder!', '¡No me hinches!', '¡Rajá de acá!', 'Ni en pedo.'],
-  shrug: ['...', 'Ni ahí.', 'Estoy ocupada.', 'Después.', 'Paso.'],
-  swat: '¡Ey! Sin tocar, che.',
-  asks: '¿Y mis mimos? ¿O me traés una gomita del pelo?',
-  offKeys: `¡${n.latin}, bajate del teclado! ... Oh, is that a bird outside?`,
+  // Sweet cat — no real temper lines, just gentle nudges.
+  retort: ['I beg your pardon!', 'Really, now.', 'That was uncalled for.', 'How very rude.'],
+  shrug: ['...', 'Mmm, not now.', 'Perhaps later, dear.', 'One is resting.', 'I am on the sofa.'],
+  // She only switches to Argentine when she wants to play fetch.
+  swat: '¡Tirá la gomita, dale! ¡Quiero jugar!',
+  asks: '¡Che, tirame la gomita del pelo! ¡Dale, dale!',
+  offKeys: `${n.latin}, I am quite comfortable here on the sofa. Oh, is that a bird?`,
 })
 
 // Words that say nothing about what a prompt is about, in the languages

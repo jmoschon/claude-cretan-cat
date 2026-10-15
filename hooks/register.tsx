@@ -1122,7 +1122,7 @@ export const register: Register = (on, options) => {
       return becomes({ coat: 'ginger', name: 'Asturias', language: 'spanish', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat manousos brings Manousos back)')
     }
     if (arg === 'jamona' && value === '') {
-      return becomes({ coat: 'tabby', name: 'Jamona', language: 'british', songs: 'british', temper: 'on' }, 'Jamona is here now. Splendid, shall we begin? (/cat manousos brings Manousos back)')
+      return becomes({ coat: 'tabby', name: 'Jamona', language: 'british', songs: 'british', temper: 'off' }, 'Jamona is here now. Splendid, shall we begin? (/cat manousos brings Manousos back)')
     }
     if ((arg === 'manousos' || arg === 'reset') && value === '') {
       return becomes({ coat: 'manousos', name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
@@ -1268,7 +1268,7 @@ export const register: Register = (on, options) => {
         ['/cat resolution high|low', `the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (${resolution} now)`],
         ['/cat ai on|off', `songs and nudges written for each prompt: one small Haiku call a turn, only the topic words sent (${isAiOn ? 'on' : 'off'} now)`],
         ['/cat asturias', 'Asturias: ginger, rioplatense Spanish, coplas and a temper'],
-        ['/cat jamona', 'Jamona: cream tabby, posh British, British couplets and a temper'],
+        ['/cat jamona', 'Jamona: grey tabby, posh British, prog rock couplets, sweet and cuddly'],
         ['/cat manousos', 'Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
         ['/cat treat', 'toss the cat a sardine (or press treat)'],
