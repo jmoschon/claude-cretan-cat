@@ -60,6 +60,7 @@ export const HD_COATS: Partial<Record<Coat, Readonly<Record<string, Rgb>>>> = {
   manousos: { H: [176,  154,  128] },
   ginger: { H: [252,  208,  152] },
   tuxedo: { H: [106,  104,  118] },
+  tabby: { H: [190,  184,  172] },
 }
 
 // The cat, by pose (sprites.ts SPRITES), at 3x: scale3x of the low sprite,

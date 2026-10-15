@@ -164,9 +164,11 @@ const LANGUAGE_NAME: Record<Language, string> = {
   english: 'English',
   // Spanish here is the Spanish of Buenos Aires, as the built-in lines are.
   spanish: 'Rioplatense Spanish (voseo, "dale", "che")',
+  british: 'posh British English (splendid, one does, quite, rather)',
 }
 
 const isAsturias = (s: AiSetup) => s.name.latin === 'Asturias'
+const isJamona = (s: AiSetup) => s.name.latin === 'Jamona'
 
 // Built-in mantinades (songs.ts #1, #2, #6, #7, #13) with their syllables
 // marked: "-" between syllables, "‿" where two vowels are sung as one, "|"
@@ -205,7 +207,9 @@ function songRule(s: AiSetup, turn: number): string {
   const form =
     s.songs === 'spanish'
       ? `a Rioplatense copla (voseo)${isAsturias(s) ? ", in Asturias' voice" : ''}: two lines of two eight-syllable halves, rhyming`
-      : 'an English rhyming couplet, about fourteen syllables a line'
+      : s.songs === 'british'
+        ? `a posh British English rhyming couplet${isJamona(s) ? ", in Jamona's refined voice" : ''}, about fourteen syllables a line`
+        : 'an English rhyming couplet, about fourteen syllables a line'
   return `"song": ${form}, sung by the cat in the first person about the topic. Like: "${a}" / "${b}"`
 }
 
@@ -215,13 +219,14 @@ export const SASSY_TONE =
   'TONE: sassy and grumpy. The cat is put-upon, with attitude, and works on its own terms; Clawd nags (impatient, deadlines) and the cat talks back. ' +
   'Cheeky, never mean: grumpy at Clawd, never at the person at the keyboard.'
 const ASTURIAS_VOICE = 'The cat is Asturias, a ginger she-cat from Buenos Aires: rioplatense attitude and slang (che, dale, laburar, qué plomo, ni ahí); she wants asado, not sardines.'
+const JAMONA_VOICE = 'The cat is Jamona, an elegant grey tabby she-cat with light green eyes and a cream belly: posh older British when composed (splendid, one does, quite, rather), but when her temper flares she switches to Argentine Spanish (che, dale, dejá de joder, ni en pedo). She loves jamón, chatting with birds, fetching hairbands, cups of tea, cuddles and laying on top of people. She adores prog rock from the 60s and 70s (Genesis, Yes, Pink Floyd, Jethro Tull, King Crimson) and folk music (Fairport Convention, Pentangle, Sandy Denny).'
 
 function example(s: AiSetup): string {
   const lines = LINES[s.language](s.name)
   const topic = s.language === 'greek' ? 'checkout' : 'checkout tests'
   if (!s.isTempered) return `Like: Clawd: "${lines.nudges[5]!(topic)}"`
   // Comebacks with bite but nothing crude (some built-in ones are saltier).
-  const retort = { greek: 'Μη με πρήζεις!', english: 'Stop nagging!', spanish: '¿Me estás cargando?' }[s.language]
+  const retort = { greek: 'Μη με πρήζεις!', english: 'Stop nagging!', spanish: '¿Me estás cargando?', british: 'How frightfully rude!' }[s.language]
   return `Like: Clawd: "${lines.nudges[3]!(topic)}" Cat, slapping him: "${retort}" Ignoring him: "${lines.shrug[2]!}"`
 }
 
@@ -243,6 +248,7 @@ export function systemPrompt(s: AiSetup, turn = 0): string {
     'The Facts are true counts about this session: you may refer to at most one of them, playfully, where it fits. Never invent a fact.',
     s.isTempered ? SASSY_TONE : WARM_TONE,
     ...(isAsturias(s) ? [ASTURIAS_VOICE] : []),
+    ...(isJamona(s) ? [JAMONA_VOICE] : []),
     example(s),
   ].join('\n')
 }

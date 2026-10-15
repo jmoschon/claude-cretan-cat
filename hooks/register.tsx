@@ -375,7 +375,7 @@ const FRAMES = Object.fromEntries(
 // Whether the napping caption carries the /cat tips ("hints" setting).
 let hasHints = true
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat asturias or manousos swaps the cat' : ''}`,
+  nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat asturias, jamona or manousos swaps the cat' : ''}`,
   think: () => `${name()} is thinking it over`,
   tool: c => `${name()} is on it: ${shortTool(c.tool ?? 'a tool')}`,
   happy: () => `${name()} purrs: done!`,
@@ -861,7 +861,7 @@ async function yardOf($: EngineInterface, surface: string, table: ReturnType<Eng
 const COMMANDS = [
   ...['help', 'hide', 'show', 'pet', 'treat', 'play', 'stats', 'config', 'settings', 'hints'],
   ...['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai'],
-  ...['band', 'small', 'dock', 'asturias', 'reset', ...Object.keys(COATS)],
+  ...['band', 'small', 'dock', 'asturias', 'jamona', 'reset', ...Object.keys(COATS)],
 ]
 // The commands that take something after them (/cat name Luna).
 const TAKES_VALUE = new Set(['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai', 'hints'])
@@ -1121,6 +1121,9 @@ export const register: Register = (on, options) => {
     if (arg === 'asturias' && value === '') {
       return becomes({ coat: 'ginger', name: 'Asturias', language: 'spanish', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat manousos brings Manousos back)')
     }
+    if (arg === 'jamona' && value === '') {
+      return becomes({ coat: 'tabby', name: 'Jamona', language: 'british', songs: 'british', temper: 'on' }, 'Jamona is here now. Splendid, shall we begin? (/cat manousos brings Manousos back)')
+    }
     if ((arg === 'manousos' || arg === 'reset') && value === '') {
       return becomes({ coat: 'manousos', name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
     }
@@ -1265,6 +1268,7 @@ export const register: Register = (on, options) => {
         ['/cat resolution high|low', `the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (${resolution} now)`],
         ['/cat ai on|off', `songs and nudges written for each prompt: one small Haiku call a turn, only the topic words sent (${isAiOn ? 'on' : 'off'} now)`],
         ['/cat asturias', 'Asturias: ginger, rioplatense Spanish, coplas and a temper'],
+        ['/cat jamona', 'Jamona: cream tabby, posh British, British couplets and a temper'],
         ['/cat manousos', 'Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
         ['/cat treat', 'toss the cat a sardine (or press treat)'],
