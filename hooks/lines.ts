@@ -206,10 +206,13 @@ export const JAMONA = (n: Name): Lines => ({
     t => `How is "${t}" progressing, ${n.latin}, dear?`,
     t => `${n.latin}, I should rather like "${t}" by tea time.`,
     t => `Finish "${t}" and there's a slice of jamón.`,
+    t => `Oh! Was that a bird? ... Right, "${t}". Carry on.`,
     t => `Come now ${n.latin}, a touch more on "${t}".`,
     t => `Shall we have a cup of tea after "${t}"?`,
     t => `${n.latin}, one more push on "${t}", then cuddles.`,
     t => `I'll sit on your lap while you do "${t}", yes?`,
+    t => `Did you hear that chirping? Lovely. Now, "${t}".`,
+    t => `A pigeon! ... No, focus. "${t}", ${n.latin}.`,
   ],
   vague: [`${n.latin}, shall we begin?`, `What are you up to, ${n.latin}?`, `Come along ${n.latin}, time to work.`, `Fancy a cup of tea before we start, ${n.latin}?`],
   tool: tool =>
@@ -230,7 +233,7 @@ export const JAMONA = (n: Name): Lines => ({
   green: [`Tests are green, ${n.latin}! How marvellous.`, 'Delightful! A little celebration dance.'],
   red: [`Tests are red, ${n.latin}... most unfortunate.`, 'Oh dear. Shall we have some tea and try again?'],
   commit: [`A slice of jamón for you, ${n.latin}!`, 'Mmm! Exquisite, thank you.'],
-  bored: [`${n.latin}, do stay awake, it's still running!`, 'Oh, a bird! ... I mean, yaaawn... zzz'],
+  bored: [`${n.latin}, shall we put the kettle on? It's still running!`, 'Oh, a bird! ... I mean, yaaawn... zzz'],
   slapped: 'Oh! That was rather unexpected.',
   snubbed: `${n.latin}? I say, are you listening?`,
   // Sweet cat — no real temper lines, just gentle nudges.

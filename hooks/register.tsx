@@ -859,7 +859,7 @@ async function yardOf($: EngineInterface, surface: string, table: ReturnType<Eng
 
 // Every /cat command and alias, for the one a typo is closest to.
 const COMMANDS = [
-  ...['help', 'hide', 'show', 'pet', 'treat', 'play', 'stats', 'config', 'settings', 'hints'],
+  ...['help', 'hide', 'show', 'pet', 'treat', 'play', 'fetch', 'stats', 'config', 'settings', 'hints'],
   ...['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai'],
   ...['band', 'small', 'dock', 'asturias', 'jamona', 'reset', ...Object.keys(COATS)],
 ]
@@ -1172,6 +1172,16 @@ export const register: Register = (on, options) => {
       if (did === 'sulk') return { text: `You dangle the fishing toy. ${name()} curls up and looks the other way.` }
       return { text: `You dangle the fishing toy, and ${name()} goes after it.` }
     }
+    if (arg === 'fetch' && value === '') {
+      if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back first.` }
+      if (catName.latin !== 'Jamona') return { text: `${name()} stares at the hairband, unimpressed. Only Jamona fetches those.` }
+      sound($, 'bell')
+      await treatTo($, 'play', PLAY_MS)
+      const ms = inTurn ? FLASH_MS : PLAY_MS
+      if (!inTurn) $.clock.after(ms / 2, () => sound($, 'bell'))
+      $.clock.after(ms, () => sound($, 'happy'))
+      return { text: `You throw the hairband. ¡Dale, dale! Jamona sprints after it and brings it back, tail high. ¡Otra vez, tirala de nuevo!` }
+    }
     if (arg === 'stats') {
       const count = (v: unknown) => (typeof v === 'number' ? v : 0)
       const text = statsText(name(), await tally($), count(await $.store.get('pets')), count(await $.store.get('swats')))
@@ -1273,6 +1283,7 @@ export const register: Register = (on, options) => {
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
         ['/cat treat', 'toss the cat a sardine (or press treat)'],
         ['/cat play', 'dangle the fishing toy (or press play)'],
+        ['/cat fetch', 'throw a hairband for Jamona to fetch (only she plays this game)'],
         ['/cat stats', 'sardines and pets'],
         ['/cat config', 'every setting and what it is now (/cat settings too)'],
         ['/cat hide|show', 'hide the cat, or bring it back (/cat alone toggles)'],
