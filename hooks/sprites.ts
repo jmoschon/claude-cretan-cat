@@ -259,7 +259,7 @@ export const SARDINE_COLORS: Record<string, Rgb> = { s: [80, 96, 118], S: [186, 
 // b outline, B band color, h highlight.
 export const HAIRBAND = ['.bbb.', 'bBhBb', 'bBBBb', 'bBBBb', '.bbb.']
 
-export const HAIRBAND_COLORS: Record<string, Rgb> = { b: [86, 42, 62], B: [200, 80, 120], h: [240, 160, 190] }
+export const HAIRBAND_COLORS: Record<string, Rgb> = { b: [20, 20, 22], B: [50, 48, 54], h: [90, 88, 94] }
 
 // A slice of jamón: Jamona's reward instead of the sardine.
 // j outline, J meat, F fat rim, h highlight.

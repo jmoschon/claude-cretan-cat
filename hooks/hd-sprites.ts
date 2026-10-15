@@ -686,7 +686,7 @@ export const HD_SARDINE: HdArt | undefined = {
   },
 }
 
-// The hairband Jamona fetches.
+// The hairband Jamona fetches: a plain black elastic ring.
 export const HD_HAIRBAND: HdArt | undefined = {
   rows: [
     '.....bbbbbbb.....',
@@ -704,9 +704,9 @@ export const HD_HAIRBAND: HdArt | undefined = {
     '.....bbbbbbb.....',
   ],
   palette: {
-    b: [86,  42,  62],
-    B: [200,  80,  120],
-    h: [240,  160,  190],
+    b: [20,  20,  22],
+    B: [50,  48,  54],
+    h: [90,  88,  94],
   },
 }
 
