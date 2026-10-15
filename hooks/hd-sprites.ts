@@ -686,6 +686,30 @@ export const HD_SARDINE: HdArt | undefined = {
   },
 }
 
+// The hairband Jamona fetches.
+export const HD_HAIRBAND: HdArt | undefined = {
+  rows: [
+    '.....bbbbbbb.....',
+    '...bbBBBBBBBbb...',
+    '..bBBBBhhhBBBBb..',
+    '.bBBBhhhhhhhBBBb.',
+    '.bBBhh....hhBBb..',
+    'bBBh........hBBb.',
+    'bBBh........hBBb.',
+    'bBBBh......hBBBb.',
+    '.bBBBhh..hhBBBb..',
+    '.bBBBBhhhBBBBBb..',
+    '..bBBBBBBBBBBb...',
+    '...bbBBBBBBBbb...',
+    '.....bbbbbbb.....',
+  ],
+  palette: {
+    b: [86,  42,  62],
+    B: [200,  80,  120],
+    h: [240,  160,  190],
+  },
+}
+
 // Clawd: his low-resolution pixels for the look (clawd.ts), smoothed with
 // scale3x and shaded: a lit top, a darker underside and right side, an
 // outline a shade of his own color. Cached per look.

@@ -196,6 +196,8 @@ type Stage = {
   kittens: number
   // The cat alone in his square (/cat small, /cat dock).
   isSolo: boolean
+  // A hairband fetch instead of the fishing toy (Jamona only).
+  isFetching: boolean
   // At high resolution: where the text boxes are, the picture last sent (by
   // its hash) and each box's cells, as drawn or last blitted.
   hd: { sig: string; picture: number; texts: Uint32Array[] } | undefined
@@ -214,6 +216,7 @@ const STAGE_START: Stage = {
   isOnKeys: false,
   kittens: 0,
   isSolo: false,
+  isFetching: false,
   hd: undefined,
 }
 const stage: Stage = { ...STAGE_START }
@@ -255,7 +258,7 @@ function sceneAt(ms: number) {
   const local = new Date(ms)
   const petted = stage.pettedAt > 0 ? t - stage.pettedAt : undefined
   const isOnKeys = showsKeys(stage.isOnKeys, stage.mood)
-  return { ...stage, isOnKeys, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
+  return { ...stage, isOnKeys, isFetching: stage.isFetching, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
 }
 
 // Each pose is drawn as a raw block (no backticks inside), cut into its 4 lines.
@@ -478,6 +481,7 @@ async function setMood($: EngineInterface, mood: Mood, tool: string | null = nul
   const [was, wasTool] = [current, currentTool]
   current = mood
   currentTool = tool
+  if (mood !== 'play') stage.isFetching = false
   try {
     const moodAt = (await $.clock.now()) / 1000
     const c = await update($, cat, cur => ({ ...cur, mood, tool }))
@@ -1175,6 +1179,7 @@ export const register: Register = (on, options) => {
     if (arg === 'fetch' && value === '') {
       if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back first.` }
       if (catName.latin !== 'Jamona') return { text: `${name()} stares at the hairband, unimpressed. Only Jamona fetches those.` }
+      stage.isFetching = true
       sound($, 'bell')
       await treatTo($, 'play', PLAY_MS)
       const ms = inTurn ? FLASH_MS : PLAY_MS

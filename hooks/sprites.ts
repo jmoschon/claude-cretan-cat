@@ -254,3 +254,9 @@ export const KITTEN = {
 export const SARDINE = ['..sss..s', '.sSSSs.s', 'sSkSSSss', '.sSSSs.s', '..sss..s']
 
 export const SARDINE_COLORS: Record<string, Rgb> = { s: [80, 96, 118], S: [186, 202, 220], k: [18, 14, 12] }
+
+// A hairband (elastic), small and round, for Jamona to fetch.
+// b outline, B band color, h highlight.
+export const HAIRBAND = ['.bbb.', 'bBhBb', 'bBBBb', 'bBBBb', '.bbb.']
+
+export const HAIRBAND_COLORS: Record<string, Rgb> = { b: [86, 42, 62], B: [200, 80, 120], h: [240, 160, 190] }
