@@ -12,18 +12,20 @@
 | `/cat pet`                 | Pet him: he closes his eyes and purrs (or press `pet`, `p`)            |
 | `/cat treat`               | Toss him a sardine (or press `treat`, `t`)                             |
 | `/cat play`                | Dangle the fishing toy, its bell jingling (or press `play`, `y`)       |
-| `/cat coat <coat>`         | The coat alone: `manousos` (dark brown, white bib and mittens), `ginger`, `tuxedo` (see [Coat](settings.md#coat)) |
+| `/cat coat <coat>`         | The coat alone: `manousos` (dark brown, white bib and mittens), `ginger`, `tuxedo`, `tabby` (see [Coat](settings.md#coat)) |
 | `/cat ginger`              | An orange tabby                                                       |
 | `/cat tuxedo`              | Black and white                                                       |
+| `/cat tabby`               | Grey tabby with a cream belly                                         |
 | `/cat name <name>`         | Call the cat something else, up to 20 characters                      |
-| `/cat language <language>` | What Clawd speaks: `greek`, `english`, `spanish`                      |
-| `/cat songs <language>`    | What the cat sings: `greek`, `english`, `spanish`                     |
+| `/cat language <language>` | What Clawd speaks: `greek`, `english`, `spanish`, `british`           |
+| `/cat songs <language>`    | What the cat sings: `greek`, `english`, `spanish`, `british`          |
 | `/cat temper on\|off`      | Give the cat a temper, or take it away (see [Temper](settings.md#temper)) |
 | `/cat sound on\|off`       | His voice, on macOS (see [Sound](settings.md#sound))                   |
 | `/cat resolution high\|low` | The yard as a fine picture in kitty and Ghostty, or in cells (see [Resolution](settings.md#resolution)) |
 | `/cat hints on\|off`       | The /cat tips under the napping cat (see [Hints](settings.md#hints))   |
 | `/cat ai on\|off`          | Songs and nudges written for each prompt by one small Haiku call a turn; only the topic words are sent (see [AI songs and lines](settings.md#ai-songs-and-lines)) |
 | `/cat asturias`            | Asturias, all at once (see [Meet Asturias](../README.md#meet-asturias)) |
+| `/cat jamona`              | Jamona, all at once (see [Meet Jamona](../README.md#meet-jamona))      |
 | `/cat manousos`            | Manousos as he came, coat and settings (`/cat reset` too)              |
 | `/cat stats`               | Sardines, pets and his rank, drawn                                    |
 | `/cat config`              | Every setting and what it is now                                      |
@@ -44,8 +46,11 @@ A few details:
   coat, has Clawd speak Spanish as they speak it in Buenos Aires, sets the songs to coplas and tangos, and
   turns the temper on. She answers in her own words (*¿Qué querés?*, *Yo no
   fui, che*, *¿Sardina? ¿Y el asado?*).
+- **Jamona.** `/cat jamona` names the cat Jamona, puts her in the tabby coat,
+  has Clawd speak posh British, sets the songs to British couplets, and turns
+  the temper off. She answers gently (*I beg your pardon!*, *One is resting.*).
 - **Manousos.** `/cat manousos` (or `/cat reset`) brings back his name and
-  coat, Greek, mantinades and no temper. Neither it nor `/cat asturias`
+  coat, Greek, mantinades and no temper. Neither it nor `/cat asturias` or `/cat jamona`
   touches the sound, the resolution or AI songs. To put a coat on whoever the cat is
   now, use `/cat coat <coat>`.
 - **Stats.** `/cat stats` draws today's sardines as fish (one per commit, or
@@ -66,14 +71,15 @@ A few details:
 Manousos, the cat above the prompt
 
   /cat name <name>          what the cat is called (Manousos now)
-  /cat coat <coat>          the coat: manousos, ginger, tuxedo (manousos now); /cat ginger or tuxedo too
-  /cat language <language>  what Clawd speaks: greek, english, spanish (greek now); /cat lang too
-  /cat songs <language>     what Manousos sings: greek, english, spanish (greek now)
+  /cat coat <coat>          the coat: manousos, ginger, tuxedo, tabby (manousos now); /cat ginger, tuxedo or tabby too
+  /cat language <language>  what Clawd speaks: greek, english, spanish, british (greek now); /cat lang too
+  /cat songs <language>     what Manousos sings: greek, english, spanish, british (greek now)
   /cat temper on|off        whether Manousos slaps Clawd, swats you, sits on your keyboard (off now)
   /cat sound on|off         whether Manousos mrrps, mews, purrs and hisses, on macOS (off now)
   /cat resolution high|low  the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (low now)
   /cat ai on|off            songs and nudges written for each prompt: one small Haiku call a turn, only the topic words sent (off now)
   /cat asturias             Asturias: ginger, rioplatense Spanish, coplas and a temper
+  /cat jamona               Jamona: grey tabby, posh British, prog rock couplets, sweet and cuddly
   /cat manousos             Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)
   /cat pet                  pet the cat (or press pet under the yard)
   /cat treat                toss the cat a sardine (or press treat)

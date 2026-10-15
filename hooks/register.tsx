@@ -1248,7 +1248,7 @@ export const register: Register = (on, options) => {
       ]
       return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; they are under /config, "Cretan cat", too.` }
     }
-    // /cat coat <coat>, or a coat alone, ginger or tuxedo (/cat manousos is the whole cat).
+    // /cat coat <coat>, or a coat alone, ginger, tuxedo or tabby (/cat manousos is the whole cat).
     const look = arg === 'coat' ? value : value === '' ? arg : ''
     if (arg === 'coat' || isCoat(look)) {
       if (!isCoat(look)) return { text: `${name()} is wearing the ${wears} coat. /cat coat ${Object.keys(COATS).join(', ')} changes it.` }
@@ -1260,7 +1260,7 @@ export const register: Register = (on, options) => {
       '',
       table([
         ['/cat name <name>', `what the cat is called (${name()} now)`],
-        ['/cat coat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${wears} now); /cat ginger or tuxedo too`],
+        ['/cat coat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${wears} now); /cat ginger, tuxedo or tabby too`],
         ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now); /cat lang too`],
         ['/cat songs <language>', `what ${name()} sings: ${SONG_LANGUAGES.join(', ')} (${songLanguage} now)`],
         ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
