@@ -36,7 +36,9 @@ Clawd for nagging, swat your hand, or get to your keyboard first.
   "checkout tests" going, Manousos?* The topic is picked from the last
   meaningful words of your prompt, as you wrote them: "refactor the BigQuery
   cost report for October" becomes "BigQuery cost report", leaving out the
-  verb and when it is due. Slash commands are never picked up.
+  verb and when it is due. Slash commands are never picked up. With
+  [AI songs](settings.md#ai-songs-and-lines) on, the nudges and his song are
+  written for that topic instead.
 - **Orders.** For each tool Clawd has a line: *Manousos, run the command!*,
   *Read the file, Manousos!*, *Call the kittens to help, Manousos!*
 - **Waiting.** He sits up (*Meow! Waiting for you.*) when Claude Code shows

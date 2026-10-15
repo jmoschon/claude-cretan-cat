@@ -7,6 +7,7 @@ import { COATS, drawCat, drawCells, fit, PETTING_S, replyFits, skyAt, soloFit, t
 import { base64, cellsOf, drawHd, sameWords, type Overlay } from './hd'
 import { cellsToSvg, SVG_MOST } from './svg'
 import { isSongLanguage, SONG_LANGUAGES, SONGS, type SongLanguage } from './songs'
+import { AI_VERSE, aiNudge, aiPrompt, aiRetort, aiShrug, aiSong, aiStatsLine, aiTurnEnd, aiTurnStart, DAILY_CAP, factsOf, forgetAi, noteCommit, notePet, noteTest, noteTool, resetAi, stopAi, takeAiSong, type AiSetup } from './ai'
 
 // The cat's name ("name" setting, Manousos unless you pick one), what it
 // sings ("songs"), and whether it has a temper ("temper").
@@ -26,7 +27,7 @@ const linesOf = () => LINES[language](catName)
 // it can; where it can't, it keeps the value in the store, with the /config
 // value it was set over. Whichever changed last wins: a /config value that
 // has changed since replaces the command's.
-const FIELDS = ['name', 'language', 'songs', 'temper', 'sound', 'resolution'] as const
+const FIELDS = ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'place', 'hints', 'ai'] as const
 type Field = (typeof FIELDS)[number]
 type Override = { value: string; over: unknown }
 let fromConfig: Partial<Record<Field, unknown>> = {}
@@ -41,7 +42,17 @@ function apply(field: Field, value: unknown) {
   if (field === 'temper') isTempered = value === 'on'
   if (field === 'sound') isSoundOn = value === 'on'
   if (field === 'resolution') resolution = value === 'high' ? 'high' : 'low'
+  if (field === 'coat') wears = isCoat(value) ? value : 'manousos'
+  if (field === 'place') lives = isPlace(value) ? value : 'band'
+  if (field === 'hints') hasHints = value !== 'off'
+  // Songs and lines written for each prompt (ai.ts); they were written for
+  // the old name, languages and temper, so a change to those forgets them.
+  if (field === 'ai') isAiOn = value === 'on'
+  if (AI_FIELDS.has(field)) forgetAi()
 }
+let isAiOn = false
+const AI_FIELDS: ReadonlySet<Field> = new Set(['name', 'language', 'songs', 'temper', 'ai'])
+const aiSetup = (): AiSetup => ({ name: catName, language, songs: songLanguage, isTempered })
 // How finely the yard is drawn ("resolution" setting): low, two pixels a
 // cell; high, a picture (hd.ts) where the terminal shows pictures.
 type Resolution = 'low' | 'high'
@@ -131,9 +142,11 @@ const cat = atom({ plugin: 'cretan-cat', key: 'cat' } as const, {
   isOnKeys: false,
 } as Cat)
 const isHidden = atom({ plugin: 'cretan-cat', key: 'isHidden' } as const, false)
-const coat = atom({ plugin: 'cretan-cat', key: 'coat' } as const, 'manousos' as Coat)
-const isCoat = (v: unknown): v is Coat => typeof v === 'string' && v in COATS
-const place = atom({ plugin: 'cretan-cat', key: 'place' } as const, 'band' as Place)
+// His coat ("coat" setting) and where he lives ("place": the wide yard in
+// the band, a small square there, or a pane of his own).
+let wears: Coat = 'manousos'
+const isCoat = (v: unknown): v is Coat => typeof v === 'string' && Object.hasOwn(COATS, v)
+let lives: Place = 'band'
 const isPlace = (v: unknown): v is Place => v === 'band' || v === 'small' || v === 'dock'
 // The cat's own pane (/cat dock), and the columns it asks the dock for.
 const PANE = 'cat'
@@ -221,9 +234,9 @@ function replyOf(c: Cat): string[] | undefined {
   const lines = linesOf()
   // On your keyboard: what it wants to get off it.
   if (showsKeys(c.isOnKeys, c.mood)) return [lines.asks]
-  if (isSinging(c.mood)) return songs()[c.verse % songs().length]
-  if (c.mood === 'slap') return [lines.retort[c.nudge % lines.retort.length]!]
-  if (c.mood === 'snub' || c.mood === 'sulk' || c.mood === 'butt') return [lines.shrug[c.nudge % lines.shrug.length]!]
+  if (isSinging(c.mood)) return aiSong(c.verse) ?? songs()[Math.max(0, c.verse) % songs().length]
+  if (c.mood === 'slap') return [aiRetort(c.nudge) ?? lines.retort[c.nudge % lines.retort.length]!]
+  if (c.mood === 'snub' || c.mood === 'sulk' || c.mood === 'butt') return [aiShrug(c.nudge) ?? lines.shrug[c.nudge % lines.shrug.length]!]
   const short = {
     oops: lines.hiss,
     wait: lines.wait[1],
@@ -359,8 +372,7 @@ const FRAMES = Object.fromEntries(
   Object.entries(POSES).map(([mood, frames]) => [mood, frames.map(f => f.map(l => l.padEnd(CAT_WIDTH)))]),
 ) as Record<Mood, string[][]>
 
-// Whether the napping caption carries the /cat hints (/cat hints on|off),
-// kept across sessions.
+// Whether the napping caption carries the /cat tips ("hints" setting).
 let hasHints = true
 const CAPTION: Record<Mood, (c: Cat) => string> = {
   nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat asturias or manousos swaps the cat' : ''}`,
@@ -396,6 +408,8 @@ const random = () => {
 }
 
 async function nextVerse($: EngineInterface, current: number) {
+  // A song written for this turn's prompt goes first, once.
+  if (takeAiSong()) return AI_VERSE
   if (deck.length === 0) {
     seed ^= (await $.clock.now()) | 0
     deck = songs().map((_, i) => i)
@@ -677,6 +691,7 @@ async function pet($: EngineInterface): Promise<boolean> {
   $.clock.after(PETTING_S * 1000 + 50, () => void update($, cat, c => ({ ...c, frame: c.frame + 1 })).catch(() => {}))
   const pets = await $.store.get('pets')
   await $.store.set('pets', (typeof pets === 'number' ? pets : 0) + 1)
+  await notePet($)
   if (isSwatted) {
     const swats = await $.store.get('swats')
     await $.store.set('swats', (typeof swats === 'number' ? swats : 0) + 1)
@@ -744,7 +759,7 @@ function saidOf(c: Cat): string | undefined {
   if (c.mood === 'bored') return lines.bored[0]
   if (c.mood !== 'think') return undefined
   if (!c.asked) return lines.vague[c.nudge % lines.vague.length]
-  return lines.nudges[c.nudge % lines.nudges.length]!(c.asked)
+  return aiNudge(c.nudge) ?? lines.nudges[c.nudge % lines.nudges.length]!(c.asked)
 }
 
 // Opens the cat's pane: docked beside the transcript in the fullscreen
@@ -760,7 +775,7 @@ const isDocked = async ($: EngineInterface) => (await $.ui.panes()).some(p => p.
 async function reveal($: EngineInterface) {
   await update($, isHidden, () => false)
   await $.store.set('isHidden', false)
-  if ((await read($, place)) === 'dock') await openPane($)
+  if (lives === 'dock') await openPane($)
 }
 
 // What the caption under the cat says now: petted, on your keyboard, or his
@@ -781,7 +796,7 @@ async function stageUp($: EngineInterface, c: Cat, now: number, requestId: strin
   Object.assign(stage, {
     requestId,
     mood: c.mood,
-    coat: await read($, coat),
+    coat: wears,
     said: saidOf(c),
     reply: replyOf(c),
     cols,
@@ -842,6 +857,97 @@ async function yardOf($: EngineInterface, surface: string, table: ReturnType<Eng
   return undefined
 }
 
+// Every /cat command and alias, for the one a typo is closest to.
+const COMMANDS = [
+  ...['help', 'hide', 'show', 'pet', 'treat', 'play', 'stats', 'config', 'settings', 'hints'],
+  ...['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai'],
+  ...['band', 'small', 'dock', 'asturias', 'reset', ...Object.keys(COATS)],
+]
+// The commands that take something after them (/cat name Luna).
+const TAKES_VALUE = new Set(['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai', 'hints'])
+// How many letters to add, drop or change to turn a into b.
+function editDistance(a: string, b: string) {
+  let row = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i]
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min(row[j]! + 1, next[j - 1]! + 1, row[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1))
+    row = next
+  }
+  return row[b.length]!
+}
+// The command `typed` is a slip for: at most two letters off, and fewer
+// than it has letters (so "ok" is no "dock"); the first of the closest.
+function closest(typed: string): string | undefined {
+  let best: { command: string; distance: number } | undefined
+  for (const command of COMMANDS) {
+    const distance = editDistance(typed, command)
+    if (distance <= 2 && distance < typed.length && (best === undefined || distance < best.distance)) best = { command, distance }
+  }
+  return best?.command
+}
+
+// Changes settings: kept in the store first, so they show now and hold even
+// if writing /config reloads the plugin midway; then written to their
+// /config rows where the plugin can see them. A row locked, or a write
+// refused, keeps its /config value. Says what couldn't change.
+// `stored` runs once the store holds the changes, before any /config write.
+async function changeSettings($: EngineInterface, changes: Partial<Record<Field, string>>, stored?: () => Promise<unknown>): Promise<string[]> {
+  const rows = await $.config.list().catch(() => [])
+  const rowOf = (field: Field) => rows.find(r => r.key === `cretan-cat.${field}` || (r.provider.plugin === 'cretan-cat' && r.key.endsWith(`.${field}`)))
+  const refused: string[] = []
+  const fields = (Object.keys(changes) as Field[]).filter(field => {
+    const locked = rowOf(field)?.isLocked === true
+    if (locked) refused.push(`the ${field} is locked in /config`)
+    return !locked
+  })
+  const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
+  for (const field of fields) {
+    overrides[field] = { value: changes[field]!, over: fromConfig[field] }
+    apply(field, changes[field])
+  }
+  await $.store.set('settings', overrides)
+  await stored?.()
+  for (const field of fields) {
+    const row = rowOf(field)
+    if (!row) continue
+    const { deny } = (await $.config.set({ key: row.key, value: changes[field]! })) as { deny?: string }
+    if (deny === undefined) continue
+    refused.push(`the ${field}: ${deny}`)
+    delete overrides[field]
+    apply(field, fromConfig[field])
+    await $.store.set('settings', overrides)
+  }
+  const c = await update($, cat, cur => ({ ...cur, frame: cur.frame + 1 }))
+  Object.assign(stage, { said: saidOf(c), reply: replyOf(c) })
+  return refused
+}
+
+// Up to 1.10 the coat, where he lives and the tips were kept in the store
+// alone. Each moves to its setting once, its /config row written where it
+// can be (a locked row keeps its value), so a cat in the ginger coat keeps it.
+const LEGACY: Record<'coat' | 'place' | 'hints', (saved: unknown) => string | undefined> = {
+  coat: saved => (isCoat(saved) ? saved : undefined),
+  place: saved => (isPlace(saved) ? saved : undefined),
+  hints: saved => (saved === true ? 'on' : saved === false ? 'off' : undefined),
+}
+async function migrate($: EngineInterface) {
+  const changes: Partial<Record<Field, string>> = {}
+  const found: string[] = []
+  for (const [key, of] of Object.entries(LEGACY) as [keyof typeof LEGACY, (saved: unknown) => string | undefined][]) {
+    const saved = await $.store.get(key)
+    if (saved === undefined || saved === null) continue
+    found.push(key)
+    const to = of(saved)
+    if (to !== undefined && to !== fromConfig[key]) changes[key] = to
+  }
+  if (found.length === 0) return
+  // The old keys go once the settings hold their values, before /config is
+  // written (which may reload the plugin), so this runs only once.
+  const forget = () => Promise.all(found.map(key => $.store.delete(key).catch(() => $.store.set(key, null))))
+  if (Object.keys(changes).length === 0) await forget()
+  else await changeSettings($, changes, forget)
+}
+
 export const register: Register = (on, options) => {
   soundAt = -Infinity
   isSounding = false
@@ -860,7 +966,8 @@ export const register: Register = (on, options) => {
   refusals = 0
   hdWhy = 'not drawn yet'
   envSeen = ''
-  fromConfig = { name: options.name, language: options.language, songs: options.songs, temper: options.temper, sound: options.sound, resolution: options.resolution }
+  resetAi()
+  fromConfig = Object.fromEntries(FIELDS.map(field => [field, options[field]]))
   for (const field of FIELDS) apply(field, fromConfig[field])
 
   on('session.start', async ($, e, next) => {
@@ -871,8 +978,6 @@ export const register: Register = (on, options) => {
     })
     await $.command.register({ name: 'cat', description: `${name()}, the cat above the prompt: /cat help for name, coat, languages, temper, pet, hide and show` })
     await quietly(async () => {
-      const saved = await $.store.get('coat')
-      if (isCoat(saved)) await update($, coat, () => saved)
       // What /cat set where /config couldn't be written, unless /config has
       // changed since.
       const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
@@ -885,13 +990,12 @@ export const register: Register = (on, options) => {
         }
       }
       await $.store.set('settings', overrides)
-      // Hidden stays hidden across sessions, as the coat does.
+      await migrate($)
+      // Hidden stays hidden across sessions.
       if ((await $.store.get('isHidden')) === true) await update($, isHidden, () => true)
-      // So does where he lives; docked, his pane opens again.
-      const where = await $.store.get('place')
-      if (isPlace(where)) await update($, place, () => where)
-      hasHints = (await $.store.get('hints')) !== false
-      if (where === 'dock' && !(await read($, isHidden))) void openPane($)
+      // Docked, his pane opens again; moved out of it under /config, it closes.
+      if (lives === 'dock' && !(await read($, isHidden))) void openPane($)
+      else if (lives !== 'dock' && (await $.ui.panes().catch(() => [])).some(p => p.id === PANE)) void closePane($)
       const { today: sardines } = await tally($)
       // A new session, or this module reloaded: no turn is known to be under
       // way, so he starts asleep rather than stuck in a mood from before, and
@@ -1002,76 +1106,47 @@ export const register: Register = (on, options) => {
       const width = Math.max(...rows.map(([left]) => left.length))
       return rows.map(([left, right]) => `  ${left.padEnd(width)}  ${right}`).join('\n')
     }
-    // Changes settings: kept in the store first, so they show now and hold
-    // even if writing /config reloads the plugin midway; then written to
-    // their /config rows where the plugin can see them. A row locked, or a
-    // write refused, keeps its /config value. Says what couldn't change.
-    const change = async (changes: Partial<Record<Field, string>>) => {
-      const rows = await $.config.list().catch(() => [])
-      const rowOf = (field: Field) => rows.find(r => r.key === `cretan-cat.${field}` || (r.provider.plugin === 'cretan-cat' && r.key.endsWith(`.${field}`)))
-      const refused: string[] = []
-      const fields = (Object.keys(changes) as Field[]).filter(field => {
-        const locked = rowOf(field)?.isLocked === true
-        if (locked) refused.push(`the ${field} is locked in /config`)
-        return !locked
-      })
-      const overrides = ((await $.store.get('settings')) ?? {}) as Partial<Record<Field, Override>>
-      for (const field of fields) {
-        overrides[field] = { value: changes[field]!, over: fromConfig[field] }
-        apply(field, changes[field])
-      }
-      await $.store.set('settings', overrides)
-      for (const field of fields) {
-        const row = rowOf(field)
-        if (!row) continue
-        const { deny } = (await $.config.set({ key: row.key, value: changes[field]! })) as { deny?: string }
-        if (deny === undefined) continue
-        refused.push(`the ${field}: ${deny}`)
-        delete overrides[field]
-        apply(field, fromConfig[field])
-        await $.store.set('settings', overrides)
-      }
-      const c = await update($, cat, cur => ({ ...cur, frame: cur.frame + 1 }))
-      Object.assign(stage, { said: saidOf(c), reply: replyOf(c) })
-      return refused
-    }
     const setting = async (field: Field, to: string, done: string) => {
-      const refused = await change({ [field]: to })
+      const refused = await changeSettings($, { [field]: to })
       return { text: refused.length === 0 ? done : `Couldn't change ${refused.join('; ')}` }
     }
-    // A whole cat at once: its settings and its coat.
-    // The coat goes first: writing the /config rows may reload the plugin
-    // before this command gets any further.
-    const becomes = async (look: Coat, settings: Partial<Record<Field, string>>, done: string) => {
-      await $.store.set('coat', look)
-      await update($, coat, () => look)
+    // A whole cat at once: its coat and its settings. Out from under the sofa
+    // first: writing the /config rows may reload the plugin before this
+    // command gets any further.
+    const becomes = async (settings: Partial<Record<Field, string>>, done: string) => {
       await reveal($)
-      const refused = await change(settings)
+      const refused = await changeSettings($, settings)
       return { text: refused.length === 0 ? done : `${done} Couldn't change ${refused.join('; ')}` }
     }
     if (arg === 'asturias' && value === '') {
-      return becomes('ginger', { name: 'Asturias', language: 'spanish', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat manousos brings Manousos back)')
+      return becomes({ coat: 'ginger', name: 'Asturias', language: 'spanish', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat manousos brings Manousos back)')
     }
     if ((arg === 'manousos' || arg === 'reset') && value === '') {
-      return becomes('manousos', { name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
+      return becomes({ coat: 'manousos', name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
     }
-    if ((arg === 'band' || arg === 'small' || arg === 'dock') && value === '') {
+    // Where he lives, and out from under the sofa if he was hiding there.
+    if (isPlace(arg) && value === '') {
       const to: Place = arg
-      await update($, place, () => to)
-      await $.store.set('place', to)
+      const [wasHidden, was] = [await read($, isHidden), lives]
       if (to !== 'dock') await closePane($)
-      await reveal($)
-      if (to === 'band') return { text: `${name()} has the whole yard again.` }
-      if (to === 'small') return { text: `${name()} curled up in a small square. /cat dock moves it into a pane on the side; /cat band gives back the whole yard.` }
+      await update($, isHidden, () => false)
+      await $.store.set('isHidden', false)
+      const refused = await changeSettings($, { place: to })
+      if (lives === 'dock') await openPane($)
+      const out = wasHidden ? `${name()} came out from under the sofa` : ''
+      if (refused.length > 0) return { text: `${out === '' ? "Couldn't" : `${out}, but couldn't`} change ${refused.join('; ')}` }
+      const and = out === '' ? name() : `${out} and`
+      if (to === 'band') return { text: !wasHidden && was === 'band' ? `${name()} already has the whole yard.` : `${and} has the whole yard again.` }
+      if (to === 'small') return { text: `${and} curled up in a small square. /cat dock moves it into a pane on the side; /cat band gives back the whole yard.` }
       const where = e.presentation.isFullscreen ? 'docked on the right; drag its edge to resize it' : 'above the prompt (it docks on the right in the fullscreen layout)'
-      return { text: `${name()} moved into a pane of its own, ${where}. Closing the pane, or /cat band, brings it back to the yard.` }
+      return { text: `${and} moved into a pane of its own, ${where}. Closing the pane, or /cat band, brings it back to the yard.` }
     }
     if (arg === '' || arg === 'hide' || arg === 'show') {
       if (value !== '') return { text: `/cat ${arg} takes nothing after it.` }
       const hidden = await update($, isHidden, h => (arg === '' ? !h : arg === 'hide'))
       await $.store.set('isHidden', hidden)
       if (hidden) await closePane($)
-      else if ((await read($, place)) === 'dock') await openPane($)
+      else if (lives === 'dock') await openPane($)
       return { text: hidden ? `${name()} went to hide under the sofa, until /cat show.` : `${name()} is back.` }
     }
     if (arg === 'pet') {
@@ -1081,10 +1156,7 @@ export const register: Register = (on, options) => {
     }
     if (arg === 'hints') {
       if (value !== 'on' && value !== 'off') return { text: `Hints are ${hasHints ? 'on' : 'off'}. /cat hints on or off shows or hides the /cat tips under the napping cat.` }
-      hasHints = value === 'on'
-      await $.store.set('hints', hasHints)
-      await update($, cat, c => ({ ...c, frame: c.frame + 1 }))
-      return { text: hasHints ? 'The /cat tips are back under the napping cat.' : `Just "${name()} is napping" from now on. /cat hints on brings the tips back.` }
+      return setting('hints', value, value === 'on' ? 'The /cat tips are back under the napping cat.' : `Just "${name()} is napping" from now on. /cat hints on brings the tips back.`)
     }
     if ((arg === 'treat' || arg === 'play') && value === '') {
       if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back first.` }
@@ -1099,7 +1171,9 @@ export const register: Register = (on, options) => {
     }
     if (arg === 'stats') {
       const count = (v: unknown) => (typeof v === 'number' ? v : 0)
-      return { text: statsText(name(), await tally($), count(await $.store.get('pets')), count(await $.store.get('swats'))) }
+      const text = statsText(name(), await tally($), count(await $.store.get('pets')), count(await $.store.get('swats')))
+      const aiLine = await aiStatsLine($, isAiOn)
+      return { text: aiLine === undefined ? text : `${text}\n${aiLine}` }
     }
     if (arg === 'name') {
       // As you typed it, capitals and all; empty, the name it has now.
@@ -1130,6 +1204,16 @@ export const register: Register = (on, options) => {
       if (value === 'on') sound($, 'happy')
       return said
     }
+    if (arg === 'ai') {
+      if (value !== 'on' && value !== 'off') return { text: `AI songs and lines are ${isAiOn ? 'on' : 'off'}. /cat ai on or off changes it: one small Haiku call a turn, sending only the topic words.` }
+      return setting(
+        'ai',
+        value,
+        value === 'on'
+          ? `AI songs and lines are on: one small Haiku call a turn (at most ${DAILY_CAP} a day) writes ${name()}'s song and Clawd's nudges. Only the prompt's topic words, cleaned of anything secret, and these settings are sent.`
+          : `AI songs and lines are off: the built-in ones, and no model calls.`,
+      )
+    }
     if (arg === 'resolution') {
       // Asked for again: a terminal that refused a picture gets another try.
       if (value === 'high') {
@@ -1148,11 +1232,15 @@ export const register: Register = (on, options) => {
     if ((arg === 'config' || arg === 'settings') && value === '') {
       const rows: [string, string][] = [
         ['name', name()],
-        ['coat', await read($, coat)],
+        ['coat', wears],
         ['language', language],
         ['songs', songLanguage],
         ['temper', isTempered ? 'on' : 'off'],
         ['sound', isSoundOn ? 'on' : 'off'],
+        ['place', lives],
+        ['hints', hasHints ? 'on' : 'off'],
+        // (ai before resolution, whose row is last: it can run long.)
+        ['ai', isAiOn ? 'on' : 'off'],
         ['resolution', resolution === 'high' ? (hdWhy === '' ? 'high (pictures)' : `high, in cells: ${hdWhy}`) : resolution],
       ]
       return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; they are under /config, "Cretan cat", too.` }
@@ -1160,40 +1248,46 @@ export const register: Register = (on, options) => {
     // /cat coat <coat>, or a coat alone, ginger or tuxedo (/cat manousos is the whole cat).
     const look = arg === 'coat' ? value : value === '' ? arg : ''
     if (arg === 'coat' || isCoat(look)) {
-      if (!isCoat(look)) return { text: `${name()} is wearing the ${await read($, coat)} coat. /cat coat ${Object.keys(COATS).join(', ')} changes it.` }
-      await $.store.set('coat', look)
-      await update($, coat, () => look)
+      if (!isCoat(look)) return { text: `${name()} is wearing the ${wears} coat. /cat coat ${Object.keys(COATS).join(', ')} changes it.` }
       await reveal($)
-      return { text: `${name()} is wearing the ${look} coat now.` }
+      return setting('coat', look, `${name()} is wearing the ${look} coat now.`)
     }
     const help = [
       `${name()}, the cat above the prompt`,
       '',
       table([
         ['/cat name <name>', `what the cat is called (${name()} now)`],
-        ['/cat coat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${await read($, coat)} now); /cat ginger or tuxedo too`],
-        ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now)`],
+        ['/cat coat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${wears} now); /cat ginger or tuxedo too`],
+        ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now); /cat lang too`],
         ['/cat songs <language>', `what ${name()} sings: ${SONG_LANGUAGES.join(', ')} (${songLanguage} now)`],
         ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
         ['/cat sound on|off', `whether ${name()} mrrps, mews, purrs and hisses, on macOS (${isSoundOn ? 'on' : 'off'} now)`],
         ['/cat resolution high|low', `the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (${resolution} now)`],
+        ['/cat ai on|off', `songs and nudges written for each prompt: one small Haiku call a turn, only the topic words sent (${isAiOn ? 'on' : 'off'} now)`],
         ['/cat asturias', 'Asturias: ginger, rioplatense Spanish, coplas and a temper'],
         ['/cat manousos', 'Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
         ['/cat treat', 'toss the cat a sardine (or press treat)'],
         ['/cat play', 'dangle the fishing toy (or press play)'],
         ['/cat stats', 'sardines and pets'],
-        ['/cat config', 'every setting and what it is now'],
+        ['/cat config', 'every setting and what it is now (/cat settings too)'],
         ['/cat hide|show', 'hide the cat, or bring it back (/cat alone toggles)'],
         ['/cat hints on|off', `the /cat tips under the napping cat (${hasHints ? 'on' : 'off'} now)`],
+        ['/cat band', `the whole yard above the prompt (${lives} now)`],
         ['/cat small', 'the cat alone in a small square at the right, above the prompt'],
         ['/cat dock', 'the cat in a pane of its own, docked on the right'],
-        ['/cat band', 'the whole yard above the prompt again'],
+        ['/cat help', 'this list'],
       ]),
       '',
       'The same settings are under /config, "Cretan cat".',
     ].join('\n')
-    return { text: arg === 'help' && value === '' ? help : `${name()} doesn't know "/cat ${raw}".\n\n${help}` }
+    if (arg === 'help' && value === '') return { text: help }
+    // A slip of the keys: the command it is closest to, if one is close.
+    const meant = closest(arg)
+    if (meant === undefined) return { text: `${name()} doesn't know "/cat ${raw}".\n\n${help}` }
+    // What came after it, only for a command that takes something.
+    const after = meant === arg || !TAKES_VALUE.has(meant) ? '' : raw.slice(arg.length).trimEnd()
+    return { text: `${name()} doesn't know "/cat ${raw}". Did you mean /cat ${meant}${after}?\n\n/cat help lists everything ${name()} does.` }
   })
 
   // Clawd picks up the prompt's topic; slash commands stay between you and him.
@@ -1201,11 +1295,35 @@ export const register: Register = (on, options) => {
     if (!e.text.trimStart().startsWith('/')) {
       const asked = topicOf(e.text) || null
       await update($, cat, c => ({ ...c, asked, nudge: c.nudge + 1 })).catch(() => {})
+      // A real prompt: its turn may have its words written (ai.ts).
+      // Only what the person typed at the prompt, between turns: never a
+      // channel, a peer, another plugin, a notification or a delivery into
+      // a running turn.
+      if (e.command === undefined && e.isMeta !== true && e.origin?.kind === 'composer' && e.turnId === undefined) aiPrompt(e.text)
     }
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
+    // One model call for the turn, when the "ai" setting is on (ai.ts).
+    if (e.agentId === undefined) {
+      // A reply that lands once the turn is over is the closing song, if
+      // the cat is still at it (the sardine, then the song).
+      const onLate = async () => {
+        const c = await read($, cat)
+        if (inTurn || (c.mood !== 'happy' && c.mood !== 'feast') || !takeAiSong()) return
+        const sung = await update($, cat, cur => ({ ...cur, verse: AI_VERSE, frame: cur.frame + 1 }))
+        Object.assign(stage, { said: saidOf(sung), reply: replyOf(sung) })
+      }
+      // What happened so far, as counts (ai.ts says which): petted or
+      // swatted in the last ten minutes, today's sardines.
+      const facts = async () => {
+        const c = await read($, cat)
+        const isRecent = c.pettedAt > 0 && (await $.clock.now()) - c.pettedAt < 600_000
+        return factsOf($, { sardinesToday: c.sardines, petted: !isRecent ? 'no' : c.isSwatted ? 'swatted' : 'petted' })
+      }
+      aiTurnStart($, e.turnId, isAiOn, aiSetup(), async () => (await read($, cat)).nudge, onLate, facts, line => $.ui.log(line, { to: 'debug' }))
+    }
     turn += 1
     inTurn = true
     calls = []
@@ -1231,6 +1349,7 @@ export const register: Register = (on, options) => {
     if (e.agentId !== undefined || !inTurn) return next(e)
     const call: Call = { tool: e.tool, input: e as unknown as Record<string, unknown>, turn, isWaiting: ASKS_YOU.has(e.tool), isBored: false }
     calls.push(call)
+    noteTool(e.tool)
     didWork = true
     void resume($).catch(() => {})
     if (call.isWaiting) sound($, 'mew')
@@ -1269,6 +1388,7 @@ export const register: Register = (on, options) => {
               // or followed by more (`| tail`, `|| true`), the output has to.
               const hasFailed = result.isError === true || (!kind.isExitTold && saysFailed(text))
               if (hasFailed) sound($, 'hiss')
+              await noteTest($, hasFailed).catch(() => {})
               return react($, hasFailed ? 'hiss' : 'dance')
             }
             // A commit went in if git says so ("[main abc1234] ..."), or if
@@ -1276,6 +1396,7 @@ export const register: Register = (on, options) => {
             if (COMMITTED.test(text) || (kind.isExitTold && result.isError !== true)) {
               isFed = true
               fedFor = 'commit'
+              noteCommit()
               sound($, 'happy')
               await eatSardine($)
               return react($, 'feast')
@@ -1321,8 +1442,15 @@ export const register: Register = (on, options) => {
     return answer
   })
 
+  // The session ends: a song still being written is cut (ai.ts).
+  on('session.end', ($, e, next) => {
+    stopAi()
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     if (e.agentId !== undefined) return next(e)
+    aiTurnEnd(e.reason, e.durationMs)
     inTurn = false
     calls = []
     stopFlash()
@@ -1377,7 +1505,7 @@ export const register: Register = (on, options) => {
       stage.hd = undefined
       return next(e)
     }
-    const where = await read($, place)
+    const where = lives
     if (where === 'dock' && (await isDocked($).catch(() => false))) return next(e)
 
     const table = $.ui.resolve(e)
@@ -1472,7 +1600,7 @@ export const register: Register = (on, options) => {
 
     stage.requestId = undefined
     stage.hd = undefined
-    const tint = isCalm(c.mood) ? COAT_TINT[await read($, coat)] : COLOR[c.mood]
+    const tint = isCalm(c.mood) ? COAT_TINT[wears] : COLOR[c.mood]
     const frames = FRAMES[c.mood]
     const lines = frames[c.frame % frames.length] ?? frames[0] ?? []
     const pad = ' '.repeat(offset(c.mood, c.frame, e.props.bodyColumns))
@@ -1524,7 +1652,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         {yard ?? (
-          <Text key="ascii" color={isCalm(c.mood) ? COAT_TINT[await read($, coat)] : COLOR[c.mood]}>
+          <Text key="ascii" color={isCalm(c.mood) ? COAT_TINT[wears] : COLOR[c.mood]}>
             {(FRAMES[c.mood][c.frame % FRAMES[c.mood].length] ?? []).join('\n')}
           </Text>
         )}
@@ -1564,10 +1692,7 @@ export const register: Register = (on, options) => {
       stage.hd = undefined
     }
     if (e.origin.kind === 'person') {
-      await quietly(async () => {
-        await update($, place, () => 'band' as Place)
-        await $.store.set('place', 'band')
-      })
+      await quietly(() => changeSettings($, { place: 'band' }))
     }
     return next(e)
   })
