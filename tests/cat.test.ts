@@ -19,7 +19,7 @@ describe('cretan-cat', () => {
       const ui = await $.ui.mount({ plugin: 'cretan-cat', surface, ...BAND, props: PROPS })
       expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
       // The caption tells you how to hide him and change his coat.
-      expect(await ui.find({ type: 'Text', text: /\/cat asturias or manousos swaps the cat/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /\/cat asturias, jamona or manousos swaps the cat/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /γάτος|κώδικα|Μανούσος/ })).toBeUndefined()
       await ui.unmount()
     }
@@ -1104,9 +1104,9 @@ describe('cretan-cat', () => {
     expect(await cmd($, 'name ' + 'x'.repeat(21))).toMatch(/too long/)
     // The old name still works, and means spanish.
     expect(await cmd($, 'language rioplatense')).toMatch(/speaks spanish now/)
-    expect(await cmd($, 'lang klingon')).toMatch(/greek, english, spanish changes it/)
+    expect(await cmd($, 'lang klingon')).toMatch(/greek, english, spanish, british changes it/)
     expect(await cmd($, 'songs english')).toMatch(/sings in english now/)
-    expect(await cmd($, 'songs')).toMatch(/greek, english, spanish changes it/)
+    expect(await cmd($, 'songs')).toMatch(/greek, english, spanish, british changes it/)
     expect(await cmd($, 'temper on')).toMatch(/has a temper now/)
     expect(writes).toEqual([
       ['cretan-cat.name', 'Luna Bella'],

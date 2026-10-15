@@ -443,7 +443,7 @@ const COLOR: Record<Mood, string> = {
 
 // Outside the terminal the ASCII cat wears his coat's color while calm; a
 // reaction (done, startled, waiting, tests, a sardine) shows in its own.
-const COAT_TINT: Record<Coat, string> = { manousos: '#967a6a', ginger: '#e88c3e', tuxedo: '#c4c4ca' }
+const COAT_TINT: Record<Coat, string> = { manousos: '#967a6a', ginger: '#e88c3e', tuxedo: '#c4c4ca', tabby: '#a8a296' }
 const isCalm = (mood: Mood) => mood === 'nap' || mood === 'think' || mood === 'tool' || mood === 'bored'
 
 // The cat paces back and forth while it works: a triangle wave across the pane.
