@@ -1259,6 +1259,84 @@ describe('cretan-cat', () => {
     expect(await caption($, /Asturias is thinking/)).toBe(true)
   })
 
+  test('/cat jamona brings her in sweet and cuddly; /cat reset brings Manousos back', async ($, on) => {
+    const { clock, saved } = setUp(on)
+    on('config.list', async () => ({ value: [] }) as never)
+    expect(await cmd($, 'jamona')).toMatch(/^Jamona is here now\. Splendid, shall we begin\? \(\/cat manousos brings Manousos back\)$/)
+    expect(saved.settings).toEqual({
+      coat: { value: 'tabby', over: 'manousos' },
+      name: { value: 'Jamona', over: 'Manousos' },
+      language: { value: 'british', over: 'greek' },
+      songs: { value: 'british', over: 'greek' },
+      temper: { value: 'off', over: 'off' },
+    })
+    expect(await caption($, /Jamona is napping/)).toBe(true)
+    expect(await cmd($, 'temper')).toMatch(/Temper is off/)
+    // Her posh British lines when the work is done.
+    await $.turn.start({ turnId: 't1' } as never)
+    const bash = $.tool.call({ tool: 'Bash', command: 'echo ok' } as never)
+    await clock.settle()
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'echo ok' } } as never)
+    await clock.advance(400)
+    expect(await caption($, /Jamona is waiting for you/)).toBe(true)
+    // British waiting line, not Spanish.
+    expect(await yardText($)).toContain('One is waiting')
+    // And back.
+    expect(await cmd($, 'reset')).toMatch(/Manousos is back/)
+    expect(kept(saved, 'coat')).toBe('manousos')
+    expect(await cmd($, 'temper')).toMatch(/Temper is off/)
+    expect(await cmd($, 'songs')).toMatch(/sings in greek/)
+    await clock.advance(13_000)
+    expect(await caption($, /Manousos is napping/)).toBe(true)
+  })
+
+  test('/cat fetch: Jamona fetches the hairband; other cats refuse', async ($, on) => {
+    const { clock, saved } = setUp(on)
+    on('config.list', async () => ({ value: [] }) as never)
+    // Other cats don't fetch.
+    expect(await cmd($, 'fetch')).toMatch(/Only Jamona fetches those/)
+    // Switch to Jamona and fetch.
+    await cmd($, 'jamona')
+    const result = await cmd($, 'fetch')
+    expect(result).toMatch(/¡Dale, dale!/)
+    expect(result).toMatch(/hairband/)
+    expect(result).toMatch(/¡Otra vez/)
+  })
+
+  test('in Greek, Clawd calls Jamona Ζαμόνα', { options: { name: 'jamona' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    await $.turn.start({ turnId: 't1' } as never)
+    await clock.settle()
+    expect(await yardText($)).toContain('Ζαμόνα')
+    expect(await caption($, /Jamona is thinking/)).toBe(true)
+  })
+
+  test('Jamona nudges include bird distractions and tea', { options: { name: 'Jamona', language: 'british' } }, async ($, on) => {
+    const { clock } = setUp(on)
+    await $.prompt.submit({ text: 'fix the deploy pipeline' } as never)
+    await $.turn.start({ turnId: 't1' } as never)
+    // Cycle through enough nudges to hit a bird or tea line.
+    const lines: string[] = []
+    for (let i = 0; i < 22; i++) {
+      await clock.advance(8_100)
+      lines.push(await yardText($))
+    }
+    const all = lines.join(' ')
+    expect(all).toMatch(/bird|chirping|pigeon/i)
+    expect(all).toMatch(/tea/i)
+  })
+
+  test('the hairband renders in the tabby coat during fetch', () => {
+    // The hairband shows instead of the fishing toy when isFetching is true.
+    const base = { mood: 'play' as const, coat: 'tabby' as const, t: 2.5, since: 0.5, cols: 120, rows: 11, hour: 12 }
+    const withToy = drawCat(base)
+    const withHairband = drawCat({ ...base, isFetching: true })
+    // Both render without errors, and they differ (hairband vs feather).
+    expect(withToy).toBeDefined()
+    expect(withHairband).toBeDefined()
+    expect(withToy).not.toBe(withHairband)
+  })
+
   test('language spanish: Clawd says it the Buenos Aires way', { options: { language: 'spanish' } }, async ($, on) => {
     const { clock } = setUp(on)
     await $.turn.start({ turnId: 't1' } as never)
@@ -1377,7 +1455,7 @@ describe('cretan-cat', () => {
   })
 
   test('the yard draws the slap, the snub and the keyboard, in every coat', () => {
-    for (const coat of ['manousos', 'ginger', 'tuxedo'] as const) {
+    for (const coat of ['manousos', 'ginger', 'tuxedo', 'tabby'] as const) {
       const keys = { coat, mood: 'think', t: 3, since: 3, cols: 110, rows: 11, hour: 12, month: 6 } as const
       expect(drawCat({ ...keys, isOnKeys: true })).not.toBe(drawCat(keys))
       const base = { coat, t: 3, cols: 110, rows: 11, hour: 12, month: 6 } as const
@@ -1650,7 +1728,7 @@ describe('cretan-cat at high resolution', () => {
     const extras = [{}, { petted: 0.5 }, { petted: 0.5, isSwatted: true }, { isOnKeys: true }, { kittens: 4 }]
     let n = 0
     for (const mood of moods) {
-      for (const coat of ['manousos', 'ginger', 'tuxedo'] as const) {
+      for (const coat of ['manousos', 'ginger', 'tuxedo', 'tabby'] as const) {
         for (const hour of [7, 12, 19, 23]) {
           for (const month of [0, 6]) {
             for (const extra of extras) {
@@ -1706,7 +1784,7 @@ const GOLDEN = [
 
 function goldenScenes() {
   const moods = ['nap', 'think', 'tool', 'happy', 'oops', 'wait', 'dance', 'hiss', 'feast', 'bored', 'slap', 'snub'] as const
-  const coats = ['manousos', 'ginger', 'tuxedo'] as const
+  const coats = ['manousos', 'ginger', 'tuxedo', 'tabby'] as const
   const out: Parameters<typeof drawCat>[0][] = []
   let i = 0
   for (const mood of moods) {
@@ -2307,6 +2385,18 @@ describe('cretan-cat AI songs and lines', () => {
     expect(system).not.toMatch(/pelotas|pedo/)
   })
 
+  test('Jamona: her voice in the request, posh British with prog rock', { options: { ai: 'on', name: 'Jamona', language: 'british', songs: 'british', temper: 'off' } }, async ($, on) => {
+    const { clock, requests } = setUp(on, () => reply({ song: ['a', 'b'], nudges: ['a', 'b', 'c'] }))
+    await start($, clock)
+    await prompt($, clock, 'fix the deploy pipeline', 't1')
+    const system = requests[0]!.system!
+    expect(system).toMatch(/Jamona/)
+    expect(system).toMatch(/posh.*British/)
+    expect(system).toMatch(/prog rock/)
+    expect(system).toMatch(/hairband/)
+    expect(system).toMatch(/British English/)
+  })
+
   test(`the day's cap: call ${DAILY_CAP + 1} is never made; /cat stats counts calls and tokens`, AI, async ($, on) => {
     const { clock, requests, saved } = setUp(on)
     saved.ai = { day: today(), calls: DAILY_CAP - 1, tokens: 4_000 }
@@ -2530,7 +2620,7 @@ describe('cretan-cat settings: coat, place and hints', () => {
     const config = await run($, 'config')
     for (const field of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'place', 'hints']) expect(config).toMatch(new RegExp(`^ {2}${field} +\\S`, 'm'))
     const help = await run($, 'help')
-    for (const command of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'asturias', 'manousos', 'pet', 'treat', 'play', 'stats', 'config', 'hide', 'hints', 'small', 'dock', 'band', 'help'])
+    for (const command of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'asturias', 'jamona', 'manousos', 'pet', 'treat', 'play', 'fetch', 'stats', 'config', 'hide', 'hints', 'small', 'dock', 'band', 'help'])
       expect(help).toMatch(new RegExp(`^ {2}/cat ${command}\\b`, 'm'))
   })
 
