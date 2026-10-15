@@ -717,10 +717,12 @@ async function treatTo($: EngineInterface, mood: Mood, ms: number) {
 }
 const PLAY_MS = 4_500
 
-// The fishing toy: its bell jingles as it comes out and again mid-chase,
-// and he purrs when he gives up on it. With a temper, now and then he won't:
-// he curls up away from it, or turns around and shows you the butt.
+// The fishing toy (or Jamona's hairband): its bell jingles as it comes out
+// and again mid-chase, and he purrs when he gives up on it. With a temper,
+// now and then he won't: he curls up away from it, or turns around and shows
+// you the butt. Jamona always plays and fetches a hairband instead.
 async function play($: EngineInterface): Promise<Mood> {
+  if (catName.latin === 'Jamona') stage.isFetching = true
   if (isTempered && random() < TEMPER.refuse) {
     const mood: Mood = random() < 0.5 ? 'butt' : 'sulk'
     await treatTo($, mood, FLASH_MS)
@@ -866,7 +868,7 @@ async function yardOf($: EngineInterface, surface: string, table: ReturnType<Eng
 
 // Every /cat command and alias, for the one a typo is closest to.
 const COMMANDS = [
-  ...['help', 'hide', 'show', 'pet', 'treat', 'play', 'fetch', 'stats', 'config', 'settings', 'hints'],
+  ...['help', 'hide', 'show', 'pet', 'treat', 'play', 'stats', 'config', 'settings', 'hints'],
   ...['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai'],
   ...['band', 'small', 'dock', 'asturias', 'jamona', 'reset', ...Object.keys(COATS)],
 ]
@@ -1177,18 +1179,8 @@ export const register: Register = (on, options) => {
       const did = await play($)
       if (did === 'butt') return { text: `You dangle the fishing toy. ${name()} turns around and shows you the butt.` }
       if (did === 'sulk') return { text: `You dangle the fishing toy. ${name()} curls up and looks the other way.` }
+      if (catName.latin === 'Jamona') return { text: `You throw the hairband. ¡Dale, dale! Jamona sprints after it and brings it back, tail high. ¡Otra vez, tirala de nuevo!` }
       return { text: `You dangle the fishing toy, and ${name()} goes after it.` }
-    }
-    if (arg === 'fetch' && value === '') {
-      if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back first.` }
-      if (catName.latin !== 'Jamona') return { text: `${name()} stares at the hairband, unimpressed. Only Jamona fetches those.` }
-      stage.isFetching = true
-      sound($, 'bell')
-      await treatTo($, 'play', PLAY_MS)
-      const ms = inTurn ? FLASH_MS : PLAY_MS
-      if (!inTurn) $.clock.after(ms / 2, () => sound($, 'bell'))
-      $.clock.after(ms, () => sound($, 'happy'))
-      return { text: `You throw the hairband. ¡Dale, dale! Jamona sprints after it and brings it back, tail high. ¡Otra vez, tirala de nuevo!` }
     }
     if (arg === 'stats') {
       const count = (v: unknown) => (typeof v === 'number' ? v : 0)
@@ -1290,8 +1282,7 @@ export const register: Register = (on, options) => {
         ['/cat manousos', 'Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
         ['/cat treat', 'toss the cat a sardine (or press treat)'],
-        ['/cat play', 'dangle the fishing toy (or press play)'],
-        ['/cat fetch', 'throw a hairband for Jamona to fetch (only she plays this game)'],
+        ['/cat play', 'dangle the fishing toy (or press play); Jamona fetches a hairband'],
         ['/cat stats', 'sardines and pets'],
         ['/cat config', 'every setting and what it is now (/cat settings too)'],
         ['/cat hide|show', 'hide the cat, or bring it back (/cat alone toggles)'],
@@ -1552,11 +1543,6 @@ export const register: Register = (on, options) => {
         play
       </Button>
     )
-    const fetching = catName.latin === 'Jamona' ? (
-      <Button key="fetch" plain hotkey="f" dimColor onPress={() => { stage.isFetching = true; void play($).catch(() => {}) }}>
-        fetch
-      </Button>
-    ) : undefined
     const isTerminal = e.surface === 'terminal'
     const requestId = isTerminal ? e.requestId : undefined
     const verse = isSinging(c.mood) ? reply : undefined
@@ -1611,7 +1597,6 @@ export const register: Register = (on, options) => {
             {petting}
             {treating}
             {playing}
-            {fetching}
             <Text key="caption" dimColor wrap="truncate">
               {caption}
             </Text>
@@ -1647,7 +1632,6 @@ export const register: Register = (on, options) => {
             {petting}
             {treating}
             {playing}
-            {fetching}
             <Text key="caption" dimColor wrap="truncate">
               {caption}
             </Text>
@@ -1696,11 +1680,6 @@ export const register: Register = (on, options) => {
           <Button key="play" plain hotkey="y" dimColor onPress={() => void play($).catch(() => {})}>
             play
           </Button>
-          {catName.latin === 'Jamona' && (
-            <Button key="fetch" plain hotkey="f" dimColor onPress={() => { stage.isFetching = true; void play($).catch(() => {}) }}>
-              fetch
-            </Button>
-          )}
         </Box>
         <Text key="caption" dimColor wrap="wrap">
           {caption}

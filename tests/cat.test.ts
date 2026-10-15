@@ -1290,14 +1290,14 @@ describe('cretan-cat', () => {
     expect(await caption($, /Manousos is napping/)).toBe(true)
   })
 
-  test('/cat fetch: Jamona fetches the hairband; other cats refuse', async ($, on) => {
+  test('/cat play with Jamona fetches a hairband instead of the fishing toy', async ($, on) => {
     const { clock, saved } = setUp(on)
     on('config.list', async () => ({ value: [] }) as never)
-    // Other cats don't fetch.
-    expect(await cmd($, 'fetch')).toMatch(/Only Jamona fetches those/)
-    // Switch to Jamona and fetch.
+    // Other cats get the fishing toy.
+    expect(await cmd($, 'play')).toMatch(/fishing toy/)
+    // Switch to Jamona — play throws a hairband.
     await cmd($, 'jamona')
-    const result = await cmd($, 'fetch')
+    const result = await cmd($, 'play')
     expect(result).toMatch(/¡Dale, dale!/)
     expect(result).toMatch(/hairband/)
     expect(result).toMatch(/¡Otra vez/)
@@ -2620,7 +2620,7 @@ describe('cretan-cat settings: coat, place and hints', () => {
     const config = await run($, 'config')
     for (const field of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'place', 'hints']) expect(config).toMatch(new RegExp(`^ {2}${field} +\\S`, 'm'))
     const help = await run($, 'help')
-    for (const command of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'asturias', 'jamona', 'manousos', 'pet', 'treat', 'play', 'fetch', 'stats', 'config', 'hide', 'hints', 'small', 'dock', 'band', 'help'])
+    for (const command of ['name', 'coat', 'language', 'songs', 'temper', 'sound', 'resolution', 'asturias', 'jamona', 'manousos', 'pet', 'treat', 'play', 'stats', 'config', 'hide', 'hints', 'small', 'dock', 'band', 'help'])
       expect(help).toMatch(new RegExp(`^ {2}/cat ${command}\\b`, 'm'))
   })
 
