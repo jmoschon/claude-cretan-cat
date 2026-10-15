@@ -1552,6 +1552,11 @@ export const register: Register = (on, options) => {
         play
       </Button>
     )
+    const fetching = catName.latin === 'Jamona' ? (
+      <Button key="fetch" plain hotkey="f" dimColor onPress={() => { stage.isFetching = true; void play($).catch(() => {}) }}>
+        fetch
+      </Button>
+    ) : undefined
     const isTerminal = e.surface === 'terminal'
     const requestId = isTerminal ? e.requestId : undefined
     const verse = isSinging(c.mood) ? reply : undefined
@@ -1606,6 +1611,7 @@ export const register: Register = (on, options) => {
             {petting}
             {treating}
             {playing}
+            {fetching}
             <Text key="caption" dimColor wrap="truncate">
               {caption}
             </Text>
@@ -1641,6 +1647,7 @@ export const register: Register = (on, options) => {
             {petting}
             {treating}
             {playing}
+            {fetching}
             <Text key="caption" dimColor wrap="truncate">
               {caption}
             </Text>
@@ -1689,6 +1696,11 @@ export const register: Register = (on, options) => {
           <Button key="play" plain hotkey="y" dimColor onPress={() => void play($).catch(() => {})}>
             play
           </Button>
+          {catName.latin === 'Jamona' && (
+            <Button key="fetch" plain hotkey="f" dimColor onPress={() => { stage.isFetching = true; void play($).catch(() => {}) }}>
+              fetch
+            </Button>
+          )}
         </Box>
         <Text key="caption" dimColor wrap="wrap">
           {caption}
