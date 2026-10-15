@@ -21,7 +21,7 @@ export const COATS: Record<Coat, Record<string, Rgb>> = (() => {
     // An orange tabby with green eyes.
     ginger: { ...shared, o: [86, 40, 16], f: [232, 140, 62], F: [250, 186, 116], d: [176, 86, 36], e: [120, 200, 80], E: [170, 235, 120] },
     tuxedo: { ...shared, o: [12, 12, 14], f: [52, 50, 58], F: [80, 78, 90], d: [30, 30, 34], w: [246, 246, 246], g: [200, 200, 206], e: [150, 220, 90], E: [200, 250, 140] },
-    // A grey tabby with a cream belly, light green eyes, white bib and muzzle.
+    // A grey tabby with a cream belly, light green eyes, a tiny white spot on the neck and a white muzzle.
     tabby: { ...shared, o: [46, 42, 38], f: [128, 122, 112], F: [168, 162, 150], d: [78, 72, 66], w: [248, 238, 222], g: [212, 206, 196], e: [140, 210, 120], E: [180, 240, 160] },
   }
 })()

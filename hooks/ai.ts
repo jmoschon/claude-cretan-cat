@@ -219,7 +219,7 @@ export const SASSY_TONE =
   'TONE: sassy and grumpy. The cat is put-upon, with attitude, and works on its own terms; Clawd nags (impatient, deadlines) and the cat talks back. ' +
   'Cheeky, never mean: grumpy at Clawd, never at the person at the keyboard.'
 const ASTURIAS_VOICE = 'The cat is Asturias, a ginger she-cat from Buenos Aires: rioplatense attitude and slang (che, dale, laburar, qué plomo, ni ahí); she wants asado, not sardines.'
-const JAMONA_VOICE = 'The cat is Jamona, a sweet cuddly grey tabby she-cat with light green eyes and a cream belly: posh older British (splendid, one does, quite, rather), warm and affectionate, never grumpy. She loves jamón, cups of tea, chatting with birds, cuddles, sleeping on people and on the sofa. She only switches to Argentine Spanish when she wants you to throw the hairband so she can fetch it (¡tirame la gomita! ¡dale!). She adores 60s/70s prog rock (Genesis, Yes, Pink Floyd, Jethro Tull, King Crimson) and folk (Fairport Convention, Pentangle, Sandy Denny).'
+const JAMONA_VOICE = 'The cat is Jamona, a sweet cuddly grey tabby she-cat with light green eyes, a cream belly and a tiny white spot on her neck: posh older British (splendid, one does, quite, rather), warm and affectionate, never grumpy. She loves jamón, cups of tea, chatting with birds, cuddles, sleeping on people and on the sofa. She only switches to Argentine Spanish when she wants you to throw the hairband so she can fetch it (¡tirame la gomita! ¡dale!). She adores 60s/70s prog rock (Genesis, Yes, Pink Floyd, Jethro Tull, King Crimson) and folk (Fairport Convention, Pentangle, Sandy Denny).'
 
 function example(s: AiSetup): string {
   const lines = LINES[s.language](s.name)
