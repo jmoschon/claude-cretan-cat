@@ -389,7 +389,10 @@ const CAPTION: Record<Mood, (c: Cat) => string> = {
     }`,
   dance: () => `${name()} dances: the tests passed`,
   hiss: () => `${name()} hisses: the tests failed`,
-  feast: c => (fedFor === 'treat' ? `${name()} got a treat from you` : `${name()} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`),
+  feast: c => {
+    const reward = catName.latin === 'Jamona' ? 'a slice of jamón' : 'a sardine'
+    return fedFor === 'treat' ? `${name()} got a treat from you` : `${name()} got ${reward} for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`
+  },
   bored: c => `${name()} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
   slap: () => `${name()} slapped Clawd for nagging`,
   snub: () => `${name()} is ignoring Clawd`,
@@ -1169,7 +1172,7 @@ export const register: Register = (on, options) => {
       if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back first.` }
       if (arg === 'treat') {
         await treat($)
-        return { text: `${name()} catches the sardine and eats it whole.` }
+        return { text: catName.latin === 'Jamona' ? `${name()} catches the slice of jamón and savours every bite.` : `${name()} catches the sardine and eats it whole.` }
       }
       const did = await play($)
       if (did === 'butt') return { text: `You dangle the fishing toy. ${name()} turns around and shows you the butt.` }
