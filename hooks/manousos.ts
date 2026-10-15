@@ -7,7 +7,7 @@
 
 import type { Coat, Mood } from '../types'
 import { CLAWD_H, CLAWD_ORANGE, CLAWD_W, clawdPixels, LOOK, type ClawdLook } from './clawd'
-import { CAT_H, COATS, HAIRBAND, HAIRBAND_COLORS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES, type Pose } from './sprites'
+import { CAT_H, COATS, HAIRBAND, HAIRBAND_COLORS, JAMON, JAMON_COLORS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES, type Pose } from './sprites'
 
 export { COATS }
 
@@ -536,7 +536,8 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
     const toY = catTop + 5
     const sardine = { x: Math.round(fromX + (toX - fromX) * k), y: Math.round(fromY + (toY - fromY) * k - Math.sin(k * Math.PI) * 7) }
     plan.sardine = sardine
-    blit(SARDINE, sardine.x, sardine.y, SARDINE_COLORS)
+    const isJamon = scene.coat === 'tabby'
+    blit(isJamon ? JAMON : SARDINE, sardine.x, sardine.y, isJamon ? JAMON_COLORS : SARDINE_COLORS)
   }
 
   // The kittens, running back and forth along the front of the lawn.

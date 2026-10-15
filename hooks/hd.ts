@@ -9,9 +9,9 @@
 
 import type { Coat } from '../types'
 import { clawdPixels } from './clawd'
-import { HD_CLAWD, HD_COATS, HD_FIXED, HD_HAIRBAND, HD_KITTEN, HD_SARDINE, HD_SCALE, HD_SHADES, HD_SPRITES, HD_TOY, type HdGrid } from './hd-sprites'
+import { HD_CLAWD, HD_COATS, HD_FIXED, HD_HAIRBAND, HD_JAMON, HD_KITTEN, HD_SARDINE, HD_SCALE, HD_SHADES, HD_SPRITES, HD_TOY, type HdGrid } from './hd-sprites'
 import { drawFrame, hash, scale, SKY, TOY, TOY_COLORS, YARD, type Plan, type Rgb, type Scene } from './manousos'
-import { COATS, HAIRBAND, HAIRBAND_COLORS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES } from './sprites'
+import { COATS, HAIRBAND, HAIRBAND_COLORS, JAMON, JAMON_COLORS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES } from './sprites'
 
 const S = HD_SCALE
 
@@ -338,7 +338,8 @@ export function paintHd(plan: Plan): { rgba: Uint8Array; width: number; height: 
   if (plan.toy && plan.isFetching) sprite(HAIRBAND, HD_HAIRBAND, plan.toy.x, plan.toy.y, HAIRBAND_COLORS, HD_HAIRBAND?.palette ?? HAIRBAND_COLORS)
   else if (plan.toy) sprite(TOY, HD_TOY, plan.toy.x, plan.toy.y, TOY_COLORS, HD_TOY?.palette ?? TOY_COLORS)
 
-  if (plan.sardine) sprite(SARDINE, HD_SARDINE, plan.sardine.x, plan.sardine.y, SARDINE_COLORS, HD_SARDINE?.palette ?? SARDINE_COLORS)
+  if (plan.sardine && cat.coat === 'tabby') sprite(JAMON, HD_JAMON, plan.sardine.x, plan.sardine.y, JAMON_COLORS, HD_JAMON?.palette ?? JAMON_COLORS)
+  else if (plan.sardine) sprite(SARDINE, HD_SARDINE, plan.sardine.x, plan.sardine.y, SARDINE_COLORS, HD_SARDINE?.palette ?? SARDINE_COLORS)
   for (const k of plan.kittens) sprite(KITTEN[k.frame], HD_KITTEN[k.frame], k.x, k.y, COATS[k.coat], coatPalette(k.coat), k.isMirrored)
 
   // A cell's ink: the color given, or dark where what is drawn there is

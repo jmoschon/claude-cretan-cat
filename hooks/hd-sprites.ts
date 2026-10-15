@@ -710,6 +710,30 @@ export const HD_HAIRBAND: HdArt | undefined = {
   },
 }
 
+// A slice of jamón, Jamona's commit reward.
+export const HD_JAMON: HdArt | undefined = {
+  rows: [
+    '......jjjjjjjjjjjjj.......',
+    '....jjJJJJJJJJJJJJJjjj....',
+    '..jjJJJJJJJJJJJJJJJJJjjj..',
+    '.jJJJJhhhJJJJJJJJJJJFFjj..',
+    'jJJJJhhhhhJJJJJJJJJJFFFjj.',
+    'jJJJJJhhhJJJJJJJJJJJJFFjj.',
+    'jJJJJJJJJJJJJJJJJJJJJFFjj.',
+    'jJJJJJJJJJJJJJJJJJJJJFFjj.',
+    '.jJJJJJJJJJJJJJJJJJJJFjj..',
+    '..jjJJJJJJJJJJJJJJJJJjj...',
+    '....jjJJJJJJJJJJJJJjjj....',
+    '......jjjjjjjjjjjjj.......',
+  ],
+  palette: {
+    j: [120,  40,  50],
+    J: [210,  90,  100],
+    F: [240,  220,  200],
+    h: [240,  150,  155],
+  },
+}
+
 // Clawd: his low-resolution pixels for the look (clawd.ts), smoothed with
 // scale3x and shaded: a lit top, a darker underside and right side, an
 // outline a shade of his own color. Cached per look.

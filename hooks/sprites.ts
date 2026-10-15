@@ -260,3 +260,9 @@ export const SARDINE_COLORS: Record<string, Rgb> = { s: [80, 96, 118], S: [186, 
 export const HAIRBAND = ['.bbb.', 'bBhBb', 'bBBBb', 'bBBBb', '.bbb.']
 
 export const HAIRBAND_COLORS: Record<string, Rgb> = { b: [86, 42, 62], B: [200, 80, 120], h: [240, 160, 190] }
+
+// A slice of jamón: Jamona's reward instead of the sardine.
+// j outline, J meat, F fat rim, h highlight.
+export const JAMON = ['..jjjjj.', '.jJJJJjj', 'jJhJJJFj', 'jJJJJJFj', '.jJJJJjj', '..jjjjj.']
+
+export const JAMON_COLORS: Record<string, Rgb> = { j: [120, 40, 50], J: [210, 90, 100], F: [240, 220, 200], h: [240, 150, 155] }
