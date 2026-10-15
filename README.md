@@ -3,7 +3,8 @@
 Manousos is a Cretan cat who lives above your Claude Code prompt.
 
 While Claude works, Clawd nudges him about your task, and Manousos answers in
-song: Cretan *mantinades* by default, or Spanish coplas, or English couplets.
+song: Cretan *mantinades* by default, or Spanish coplas, English couplets, or
+posh British ones.
 He pounces on tools, dances when the tests go green, catches a sardine for
 every commit, and purrs when the work is done. Behind them stands Psiloritis,
 under the sun or the moon as your clock says.
@@ -51,9 +52,10 @@ Kittens, dozing off, petting and the yard through the day are all in
 ```text
 /cat                    hide him, or bring him back
 /cat pet                pet him (treat and play too)
-/cat ginger             a coat: ginger, tuxedo (/cat coat manousos)
+/cat ginger             a coat: ginger, tuxedo, tabby (/cat coat manousos)
 /cat small, /cat dock   just the cat, in a square or a pane on the right
-/cat asturias           his sister; /cat manousos brings him back
+/cat asturias           his sister; /cat jamona, a sweet grey tabby;
+                        /cat manousos brings him back
 /cat name Kostis        call him something else
 /cat songs spanish      what he sings
 /cat ai on              songs written for your task (/cat ai off: the built-ins)
@@ -73,9 +75,9 @@ All ten are on the screen that installs him, and later under `/config`,
 | Setting          | Values                                              | Default    | Change it with           |
 | ---------------- | --------------------------------------------------- | ---------- | ------------------------ |
 | name             | any name, up to 20 characters                       | `Manousos` | `/cat name <name>`       |
-| coat             | `manousos`, `ginger`, `tuxedo`                      | `manousos` | `/cat coat <coat>`       |
-| Clawd's language | `greek`, `english`, `spanish` (as in Buenos Aires)  | `greek`    | `/cat language <lang>`   |
-| songs            | `greek`, `english`, `spanish`                       | `greek`    | `/cat songs <lang>`      |
+| coat             | `manousos`, `ginger`, `tuxedo`, `tabby`             | `manousos` | `/cat coat <coat>`       |
+| Clawd's language | `greek`, `english`, `spanish`, `british`            | `greek`    | `/cat language <lang>`   |
+| songs            | `greek`, `english`, `spanish`, `british`            | `greek`    | `/cat songs <lang>`      |
 | temper           | `off`, `on`: he slaps, swats and naps on your keys  | `off`      | `/cat temper on\|off`    |
 | sound            | `off`, `on`: a trill, a mew, a purr, a hiss (macOS) | `off`      | `/cat sound on\|off`     |
 | resolution       | `low`, `high`: a sharper yard in kitty and Ghostty  | `low`      | `/cat resolution low\|high` |
@@ -122,6 +124,26 @@ who came home from across the sea with a big attitude.
 
 She doesn't take orders from anyone, least of all Clawd. When you've had
 enough, `/cat reset` brings Manousos back, calm and Greek.
+
+## Meet Jamona
+
+Rather have a cuddle than a slap? Meet **Jamona**, a sweet grey tabby with a
+cream belly and light green eyes.
+
+```text
+/cat jamona
+```
+
+- **Posh British,** and older with it: *Splendid!*, *Shall we have a cup of
+  tea?*, *One is resting.*
+- **Sings British couplets** with a prog-rock and folk streak: Genesis, Yes,
+  Jethro Tull, Fairport Convention.
+- **No temper.** Nag her and she is merely offended (*I beg your pardon!*).
+  She'd rather sleep on you, or on the sofa.
+- **Argentine for one thing only:** wanting the hairband thrown (*¡Tirá la
+  gomita, dale!*).
+
+`/cat reset` brings Manousos back.
 
 ## More
 

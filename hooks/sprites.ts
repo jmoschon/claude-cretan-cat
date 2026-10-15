@@ -21,6 +21,8 @@ export const COATS: Record<Coat, Record<string, Rgb>> = (() => {
     // An orange tabby with green eyes.
     ginger: { ...shared, o: [86, 40, 16], f: [232, 140, 62], F: [250, 186, 116], d: [176, 86, 36], e: [120, 200, 80], E: [170, 235, 120] },
     tuxedo: { ...shared, o: [12, 12, 14], f: [52, 50, 58], F: [80, 78, 90], d: [30, 30, 34], w: [246, 246, 246], g: [200, 200, 206], e: [150, 220, 90], E: [200, 250, 140] },
+    // A brown mackerel tabby: warm brown fur, black stripes, tawny highlights, warm buff belly, yellow-green eyes.
+    tabby: { ...shared, o: [38, 28, 20], f: [110, 82, 56], F: [160, 126, 86], d: [62, 42, 28], w: [178, 152, 116], g: [148, 128, 100], e: [160, 190, 80], E: [200, 225, 120] },
   }
 })()
 
@@ -252,3 +254,15 @@ export const KITTEN = {
 export const SARDINE = ['..sss..s', '.sSSSs.s', 'sSkSSSss', '.sSSSs.s', '..sss..s']
 
 export const SARDINE_COLORS: Record<string, Rgb> = { s: [80, 96, 118], S: [186, 202, 220], k: [18, 14, 12] }
+
+// A hairband (elastic), small and round, for Jamona to fetch.
+// b outline, B band color, h highlight.
+export const HAIRBAND = ['.bbb.', 'bBhBb', 'bBBBb', 'bBBBb', '.bbb.']
+
+export const HAIRBAND_COLORS: Record<string, Rgb> = { b: [20, 20, 22], B: [50, 48, 54], h: [90, 88, 94] }
+
+// A slice of jamón: Jamona's reward instead of the sardine.
+// j outline, J meat, F fat rim, h highlight.
+export const JAMON = ['..jjjjj.', '.jJJJJjj', 'jJhJJJFj', 'jJJJJJFj', '.jJJJJjj', '..jjjjj.']
+
+export const JAMON_COLORS: Record<string, Rgb> = { j: [120, 40, 50], J: [210, 90, 100], F: [240, 220, 200], h: [240, 150, 155] }

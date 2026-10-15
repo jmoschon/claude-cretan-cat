@@ -5,7 +5,7 @@
 // fishing toy you dangle for him; with a temper, turning it down: curled up
 // away from it (sulk), or turned around, tail up, showing you the butt.
 export type Mood = 'nap' | 'think' | 'tool' | 'happy' | 'oops' | 'wait' | 'dance' | 'hiss' | 'feast' | 'bored' | 'slap' | 'snub' | 'play' | 'sulk' | 'butt'
-export type Coat = 'manousos' | 'ginger' | 'tuxedo'
+export type Coat = 'manousos' | 'ginger' | 'tuxedo' | 'tabby'
 // Where the cat lives: the wide yard in the band above the prompt, a small
 // square of it there, or a square in a pane of its own, docked beside the
 // transcript in the fullscreen layout.

@@ -2,7 +2,7 @@
 // language the "language" setting offers. The songs are in songs.ts, under
 // a setting of their own.
 
-export const LANGUAGES = ['greek', 'english', 'spanish'] as const
+export const LANGUAGES = ['greek', 'english', 'spanish', 'british'] as const
 export type Language = (typeof LANGUAGES)[number]
 
 export const isLanguage = (v: unknown): v is Language => typeof v === 'string' && (LANGUAGES as readonly string[]).includes(v)
@@ -73,6 +73,7 @@ export function catNameOf(raw: unknown): Name {
   const name = typeof raw === 'string' ? [...raw.replace(/[\u0000-\u001f\u007f]/g, '').trim()].slice(0, NAME_MOST).join('') : ''
   if (name === '' || name.toLowerCase() === DEFAULT_NAME.toLowerCase()) return { latin: DEFAULT_NAME, greek: 'Μανούσο' }
   if (name.toLowerCase() === 'asturias') return { latin: 'Asturias', greek: 'Αστούριας' }
+  if (name.toLowerCase() === 'jamona') return { latin: 'Jamona', greek: 'Ζαμόνα' }
   return { latin: name, greek: name }
 }
 
@@ -152,6 +153,7 @@ export const LINES: Record<Language, (n: Name) => Lines> = {
     offKeys: `${n.latin}, get off the keyboard!`,
   }),
   spanish: n => RIOPLATENSE(n),
+  british: n => JAMONA(n),
 }
 
 // Spanish as they speak it in Buenos Aires: voseo, and "dale". The cat's own
@@ -192,6 +194,55 @@ const RIOPLATENSE = (n: Name): Lines => ({
   swat: '¡Ey! Sin tocar.',
   asks: '¿Y mis mimos?',
   offKeys: `¡${n.latin}, bajate del teclado!`,
+})
+
+// Jamona: a sweet, cuddly grey tabby. Posh older British. She loves jamón,
+// birds, fetching hairbands, prog rock, folk, cups of tea, cuddles, sleeping
+// on people and on the sofa. No temper — she only switches to Argentine
+// Spanish when she wants you to throw the hairband so she can fetch it.
+export const JAMONA = (n: Name): Lines => ({
+  nudges: [
+    t => `${n.latin}, do attend to "${t}", won't you?`,
+    t => `How is "${t}" progressing, ${n.latin}, dear?`,
+    t => `${n.latin}, I should rather like "${t}" by tea time.`,
+    t => `Finish "${t}" and there's a slice of jamón.`,
+    t => `Oh! Was that a bird? ... Right, "${t}". Carry on.`,
+    t => `Come now ${n.latin}, a touch more on "${t}".`,
+    t => `Shall we have a cup of tea after "${t}"?`,
+    t => `${n.latin}, one more push on "${t}", then cuddles.`,
+    t => `I'll sit on your lap while you do "${t}", yes?`,
+    t => `Did you hear that chirping? Lovely. Now, "${t}".`,
+    t => `A pigeon! ... No, focus. "${t}", ${n.latin}.`,
+  ],
+  vague: [`${n.latin}, shall we begin?`, `What are you up to, ${n.latin}?`, `Come along ${n.latin}, time to work.`, `Fancy a cup of tea before we start, ${n.latin}?`],
+  tool: tool =>
+    ({
+      run: `${n.latin}, do run the command, please.`,
+      read: `Read the file, ${n.latin}, if you'd be so kind.`,
+      edit: `Attend to the code, ${n.latin}, there's a good cat.`,
+      search: `Do have a look about, ${n.latin}.`,
+      web: `Search the web, ${n.latin}, would you?`,
+      agents: `Summon the kittens, ${n.latin}, we need the help.`,
+      mcp: `Do ask our colleagues, ${n.latin}: ${shortTool(tool)}`,
+      other: `${n.latin}, kindly perform a ${tool}.`,
+    })[kind(tool)],
+  done: `Splendid work, ${n.latin}! Cup of tea and jamón to celebrate?`,
+  oops: `Oh dear, ${n.latin}... whatever happened?`,
+  hiss: 'Goodness! Something has gone awry.',
+  wait: ['Ahem! We are waiting on you, if you please.', 'Mew? One is waiting. Shall I sit on your lap?'],
+  green: [`Tests are green, ${n.latin}! How marvellous.`, 'Delightful! A little celebration dance.'],
+  red: [`Tests are red, ${n.latin}... most unfortunate.`, 'Oh dear. Shall we have some tea and try again?'],
+  commit: [`A slice of jamón for you, ${n.latin}!`, 'Mmm! Exquisite, thank you.'],
+  bored: [`${n.latin}, shall we put the kettle on? It's still running!`, 'Oh, a bird! ... I mean, yaaawn... zzz'],
+  slapped: 'Oh! That was rather unexpected.',
+  snubbed: `${n.latin}? I say, are you listening?`,
+  // Sweet cat — no real temper lines, just gentle nudges.
+  retort: ['I beg your pardon!', 'Really, now.', 'That was uncalled for.', 'How very rude.'],
+  shrug: ['...', 'Mmm, not now.', 'Perhaps later, dear.', 'One is resting.', 'I am on the sofa.'],
+  // She only switches to Argentine when she wants to play fetch.
+  swat: '¡Tirá la gomita, dale! ¡Quiero jugar!',
+  asks: '¡Che, tirame la gomita del pelo! ¡Dale, dale!',
+  offKeys: `${n.latin}, I am quite comfortable here on the sofa. Oh, is that a bird?`,
 })
 
 // Words that say nothing about what a prompt is about, in the languages

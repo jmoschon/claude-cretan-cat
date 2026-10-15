@@ -7,7 +7,7 @@
 
 import type { Coat, Mood } from '../types'
 import { CLAWD_H, CLAWD_ORANGE, CLAWD_W, clawdPixels, LOOK, type ClawdLook } from './clawd'
-import { CAT_H, COATS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES, type Pose } from './sprites'
+import { CAT_H, COATS, HAIRBAND, HAIRBAND_COLORS, JAMON, JAMON_COLORS, KITTEN, SARDINE, SARDINE_COLORS, SPRITES, type Pose } from './sprites'
 
 export { COATS }
 
@@ -90,6 +90,8 @@ export type Scene = {
   isOnKeys?: boolean
   // The cat alone in a small square of yard: no Clawd, no bubbles.
   isSolo?: boolean
+  // A hairband fetch instead of the fishing toy (Jamona only).
+  isFetching?: boolean
 }
 
 // Rows Clawd's bubble takes above the yard, when it fits.
@@ -349,8 +351,9 @@ export type Plan = {
   // Clawd, unless the cat is alone in his square.
   clawd?: { look: ClawdLook; x: number; top: number }
   cat: { pose: Pose; x: number; top: number; isLeft: boolean; coat: Coat }
-  // The fishing toy: the rod and the string, and the feather's top-left.
+  // The fishing toy (or hairband): the rod and the string, and the top-left.
   toy?: { lines: ToyLine[]; x: number; y: number }
+  isFetching?: boolean
   keyboard?: [number, number]
   cushion?: [number, number]
   sardine?: { x: number; y: number }
@@ -497,23 +500,30 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
       set(x, feet + 1, CUSHION_EDGE)
     }
   } else shadow(cat.x + 3, cat.x + spriteW - 4)
-  // The fishing toy: its string from the rod's tip (Clawd holds the rod; alone,
-  // it comes from above), drawn under him, the feather over him.
+  // The fishing toy (or hairband for Jamona): its string from the rod's tip
+  // (Clawd holds the rod; alone, it comes from above), drawn under him, the
+  // feather over him. A hairband bounces without a string.
   const line = (x0: number, y0: number, x1: number, y1: number, c: Rgb) => {
     const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1)
     for (let i = 0; i <= steps; i++) set(Math.round(x0 + ((x1 - x0) * i) / steps), Math.round(y0 + ((y1 - y0) * i) / steps), c)
   }
+  const fetching = scene.isFetching === true
   const toy = mood === 'play' ? { x: toyX(t, catFrom, catTo) - 1, y: Math.max(2, feet + 1 - CAT_H - 6 + Math.round(Math.sin(t * 5 + 1) * 1.5)) } : undefined
-  if (toy) {
+  if (toy && !fetching) {
     // The tip trails the swing, so the string leans.
     const tipX = toy.x + 1 - Math.round(Math.cos(t * TOY_SWING) * 3)
     const lines: ToyLine[] = [[tipX, 0, toy.x + 1, toy.y, STRING]]
     if (!isSolo) lines.unshift([clawdX + CLAWD_W - 1, clawdTop + 1, tipX, 0, ROD])
     for (const l of lines) line(...l)
     plan.toy = { lines, x: toy.x, y: toy.y }
+  } else if (toy && fetching) {
+    // The hairband bounces without a string or rod.
+    plan.toy = { lines: [], x: toy.x, y: toy.y }
+    plan.isFetching = true
   }
   blit(sprite, cat.x, catTop, C, cat.isLeft)
-  if (toy) blit(TOY, toy.x, toy.y, TOY_COLORS)
+  if (toy && fetching) blit(HAIRBAND, toy.x, toy.y, HAIRBAND_COLORS)
+  else if (toy) blit(TOY, toy.x, toy.y, TOY_COLORS)
   plan.cat = { pose: cat.pose, x: cat.x, top: catTop, isLeft: cat.isLeft, coat: scene.coat }
 
   // The sardine a commit earns, tossed from Clawd's claw to his mouth.
@@ -526,7 +536,8 @@ export function drawFrame(scene: Scene): { words: Uint32Array; isBubble: Uint8Ar
     const toY = catTop + 5
     const sardine = { x: Math.round(fromX + (toX - fromX) * k), y: Math.round(fromY + (toY - fromY) * k - Math.sin(k * Math.PI) * 7) }
     plan.sardine = sardine
-    blit(SARDINE, sardine.x, sardine.y, SARDINE_COLORS)
+    const isJamon = scene.coat === 'tabby'
+    blit(isJamon ? JAMON : SARDINE, sardine.x, sardine.y, isJamon ? JAMON_COLORS : SARDINE_COLORS)
   }
 
   // The kittens, running back and forth along the front of the lawn.

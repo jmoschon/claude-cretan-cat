@@ -1,7 +1,7 @@
 {
   "name": "cretan-cat",
-  "version": "1.11.0",
-  "description": "A pixel-art Cretan cat above the prompt, Manousos unless you name it. Clawd tells the cat what to do while Claude works, and it answers in song: Cretan mantinades, coplas and tangos, or English couplets.",
+  "version": "1.12.0",
+  "description": "A pixel-art Cretan cat above the prompt, Manousos unless you name it. Clawd tells the cat what to do while Claude works, and it answers in song: Cretan mantinades, coplas and tangos, English couplets, or posh British ones.",
   "author": {
     "name": "Yiannis Moschonas"
   },
@@ -18,34 +18,37 @@
     "coat": {
       "type": "string",
       "title": "Cretan cat: coat",
-      "description": "His fur: manousos is dark brown with a white bib and mittens, ginger an orange tabby, tuxedo black and white. /cat coat manousos|ginger|tuxedo.",
+      "description": "His fur: manousos is dark brown with a white bib and mittens, ginger an orange tabby, tuxedo black and white, tabby grey with a cream belly. /cat coat manousos|ginger|tuxedo|tabby.",
       "default": "manousos",
       "options": [
         "manousos",
         "ginger",
-        "tuxedo"
+        "tuxedo",
+        "tabby"
       ]
     },
     "language": {
       "type": "string",
       "title": "Cretan cat: what Clawd speaks",
-      "description": "The language Clawd nags him in, and his short answers: greek, english, or spanish as they speak it in Buenos Aires (¡Dale, arrancamos!). /cat language greek|english|spanish.",
+      "description": "The language Clawd nags him in, and his short answers: greek, english, spanish as they speak it in Buenos Aires (¡Dale, arrancamos!), or british, posh and older (Splendid, shall we begin?). /cat language greek|english|spanish|british.",
       "default": "greek",
       "options": [
         "greek",
         "english",
-        "spanish"
+        "spanish",
+        "british"
       ]
     },
     "songs": {
       "type": "string",
       "title": "Cretan cat: what he sings",
-      "description": "The songs in his bubble while Claude works: Cretan mantinades (greek), English couplets, or coplas and tangos (spanish). /cat songs greek|english|spanish.",
+      "description": "The songs in his bubble while Claude works: Cretan mantinades (greek), English couplets, coplas and tangos (spanish), or posh British couplets with a prog-rock streak (british). /cat songs greek|english|spanish|british.",
       "default": "greek",
       "options": [
         "greek",
         "english",
-        "spanish"
+        "spanish",
+        "british"
       ]
     },
     "temper": {

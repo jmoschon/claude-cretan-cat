@@ -60,6 +60,7 @@ export const HD_COATS: Partial<Record<Coat, Readonly<Record<string, Rgb>>>> = {
   manousos: { H: [176,  154,  128] },
   ginger: { H: [252,  208,  152] },
   tuxedo: { H: [106,  104,  118] },
+  tabby: { H: [182,  150,  108] },
 }
 
 // The cat, by pose (sprites.ts SPRITES), at 3x: scale3x of the low sprite,
@@ -682,6 +683,54 @@ export const HD_SARDINE: HdArt | undefined = {
     B: [112,  132,  160],
     k: [18,  14,  12],
     h: [255,  255,  255],
+  },
+}
+
+// The hairband Jamona fetches: a plain black elastic ring.
+export const HD_HAIRBAND: HdArt | undefined = {
+  rows: [
+    '.....bbbbbbb.....',
+    '...bbBBBBBBBbb...',
+    '..bBBBBhhhBBBBb..',
+    '.bBBBhhhhhhhBBBb.',
+    '.bBBhh....hhBBb..',
+    'bBBh........hBBb.',
+    'bBBh........hBBb.',
+    'bBBBh......hBBBb.',
+    '.bBBBhh..hhBBBb..',
+    '.bBBBBhhhBBBBBb..',
+    '..bBBBBBBBBBBb...',
+    '...bbBBBBBBBbb...',
+    '.....bbbbbbb.....',
+  ],
+  palette: {
+    b: [20,  20,  22],
+    B: [50,  48,  54],
+    h: [90,  88,  94],
+  },
+}
+
+// A slice of jamón, Jamona's commit reward.
+export const HD_JAMON: HdArt | undefined = {
+  rows: [
+    '......jjjjjjjjjjjjj.......',
+    '....jjJJJJJJJJJJJJJjjj....',
+    '..jjJJJJJJJJJJJJJJJJJjjj..',
+    '.jJJJJhhhJJJJJJJJJJJFFjj..',
+    'jJJJJhhhhhJJJJJJJJJJFFFjj.',
+    'jJJJJJhhhJJJJJJJJJJJJFFjj.',
+    'jJJJJJJJJJJJJJJJJJJJJFFjj.',
+    'jJJJJJJJJJJJJJJJJJJJJFFjj.',
+    '.jJJJJJJJJJJJJJJJJJJJFjj..',
+    '..jjJJJJJJJJJJJJJJJJJjj...',
+    '....jjJJJJJJJJJJJJJjjj....',
+    '......jjjjjjjjjjjjj.......',
+  ],
+  palette: {
+    j: [120,  40,  50],
+    J: [210,  90,  100],
+    F: [240,  220,  200],
+    h: [240,  150,  155],
   },
 }
 

@@ -19,9 +19,9 @@ stays ginger.
 | Setting (`/config`)           | Values                          | Default    | `/cat` command                  |
 | ----------------------------- | ------------------------------- | ---------- | ------------------------------- |
 | Cretan cat: his name          | any name, up to 20 characters   | `Manousos` | `/cat name <name>`              |
-| Cretan cat: coat              | `manousos`, `ginger`, `tuxedo`  | `manousos` | `/cat coat <coat>`, `/cat ginger` |
-| Cretan cat: what Clawd speaks | `greek`, `english`, `spanish`   | `greek`    | `/cat language <language>`      |
-| Cretan cat: what he sings     | `greek`, `english`, `spanish`   | `greek`    | `/cat songs <language>`         |
+| Cretan cat: coat              | `manousos`, `ginger`, `tuxedo`, `tabby` | `manousos` | `/cat coat <coat>`, `/cat ginger` |
+| Cretan cat: what Clawd speaks | `greek`, `english`, `spanish`, `british` | `greek`    | `/cat language <language>`      |
+| Cretan cat: what he sings     | `greek`, `english`, `spanish`, `british` | `greek`    | `/cat songs <language>`         |
 | Cretan cat: temper            | `off`, `on`                     | `off`      | `/cat temper on\|off`           |
 | Cretan cat: sound             | `off`, `on`                     | `off`      | `/cat sound on\|off`            |
 | Cretan cat: resolution        | `low`, `high`                   | `low`      | `/cat resolution low\|high`     |
@@ -35,28 +35,32 @@ stays ginger.
 ## Name
 
 What the cat is called, in the caption and by Clawd. In Greek, Clawd calls
-Manousos *Μανούσο* and Asturias *Αστούριας*, and any other name as you wrote
+Manousos *Μανούσο*, Asturias *Αστούριας* and Jamona *Ζαμόνα*, and any other name as you wrote
 it.
 
 ## Coat
 
 His fur: `manousos` is dark brown long hair with a white bib and white
-mittens, `ginger` an orange tabby, `tuxedo` black and white. `/cat coat
-<coat>`, or just `/cat ginger` or `/cat tuxedo`, changes it and brings him out
+mittens, `ginger` an orange tabby, `tuxedo` black and white, `tabby` grey
+with a cream belly. `/cat coat <coat>`, or just `/cat ginger`, `/cat tuxedo`
+or `/cat tabby`, changes it and brings him out
 from under the sofa. `/cat manousos` is the whole cat as he came, not just
-the coat; `/cat asturias` puts her in the ginger coat.
+the coat; `/cat asturias` puts her in the ginger coat, `/cat jamona` in the
+tabby.
 
 ## Clawd's language
 
 What Clawd says, and the cat's short replies. Spanish is the Spanish of
 Buenos Aires (*¡Dale Manousos, arrancamos!*), and the cat answers in it the
 way Asturias does. A `/config` row still set to `rioplatense`, from an older
-version, reads as `spanish`.
+version, reads as `spanish`. British is posh and older (*Splendid! Shall we
+have a cup of tea?*), the way Jamona talks.
 
 ## Songs
 
 What the cat sings while Claude works: Cretan mantinades, payador coplas and
-the odd tango, or English rhyming couplets, all bent to the work. Each set
+the odd tango, English rhyming couplets, or posh British ones with a
+prog-rock streak, all bent to the work. Each set
 stays in its own language, whatever Clawd speaks.
 
 ## Temper

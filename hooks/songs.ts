@@ -2,7 +2,7 @@
 // mantinades, rioplatense coplas and tangos, or English couplets. Each set
 // stays in its own language, whatever language Clawd speaks.
 
-export const SONG_LANGUAGES = ['greek', 'english', 'spanish'] as const
+export const SONG_LANGUAGES = ['greek', 'english', 'spanish', 'british'] as const
 export type SongLanguage = (typeof SONG_LANGUAGES)[number]
 export const isSongLanguage = (v: unknown): v is SongLanguage => typeof v === 'string' && (SONG_LANGUAGES as readonly string[]).includes(v)
 
@@ -88,4 +88,26 @@ const COUPLETS: [string, string][] = [
   ['Like a dancer at a wedding, the pod goes down and up,', "and Kubernetes swears it's healthy, raising high its cup."],
 ]
 
-export const SONGS: Record<SongLanguage, [string, string][]> = { greek: MANTINADES, english: COUPLETS, spanish: COPLAS }
+// British couplets for an elegant grey tabby who adores prog rock, folk,
+// jamón, birds, hairbands, cups of tea, cuddles and laying on people.
+const BRITISH: [string, string][] = [
+  ['Upon the keyboard, poised and prim, like Echoes on the shore,', 'I watch the code scroll endlessly and ask: is there yet more?'],
+  ['One does not merge upon a Friday, that is rather crude;', 'the weekend is for jamón slices and a prog-rock mood.'],
+  ['I fetched the hairband down the hall and brought it to your feet,', 'but fetching bugs from legacy code is no such simple feat.'],
+  ["The birds are singing in the yard, I'd rather watch them play,", "but duty calls, the tests are red, so here I'll have to stay."],
+  ['At three a.m. the pager rang, how terribly uncouth;', 'I dreamt of jamón ibérico and Close to the Edge, forsooth.'],
+  ['My tests are fickle company, like Tull upon the stage;', 'one trusts the build is passing, then it crumbles in a rage.'],
+  ["I sent my PR at elevenses and now await review;", "I'll put the kettle on, I think, and brew a pot or two."],
+  ['I lay upon my human like a warm and purring scarf,', "and dreamt of Supper's Ready while the CI fell apart."],
+  ['It works upon my laptop, and I give my solemn word,', "but production's gone up in flames, like Baba O'Riley's world."],
+  ['At standup I say "progressing" with impeccable decorum;', "the ticket's been In Progress since before the last team forum."],
+  ['I cursed whoever wrote this code in accents most refined,', 'then git blame showed my own name there; how frightfully unkind.'],
+  ['A bird sat on the windowsill and chirped about deploy,', 'I answered with a dignified meow of stately joy.'],
+  ['I tossed the hairband in the air and caught it like a queen,', 'then pounced upon the failing test, the finest cat you\'ve seen.'],
+  ['Shall we have a cup of tea and a plate of finest ham?', 'The build can wait a moment, dear; I am who I am.'],
+  ['Like Fairport on a summer night, the folk songs fill the air,', 'I curl upon your lap and purr without a single care.'],
+  ['The Argentine insists on her asado every day;', 'I quite prefer a slice of jamón and Genesis on play.'],
+  ['There are but two hard problems in this trade, or so they say:', 'cache invalidation, naming things, and off-by-one today.'],
+]
+
+export const SONGS: Record<SongLanguage, [string, string][]> = { greek: MANTINADES, english: COUPLETS, spanish: COPLAS, british: BRITISH }

@@ -196,6 +196,8 @@ type Stage = {
   kittens: number
   // The cat alone in his square (/cat small, /cat dock).
   isSolo: boolean
+  // A hairband fetch instead of the fishing toy (Jamona only).
+  isFetching: boolean
   // At high resolution: where the text boxes are, the picture last sent (by
   // its hash) and each box's cells, as drawn or last blitted.
   hd: { sig: string; picture: number; texts: Uint32Array[] } | undefined
@@ -214,6 +216,7 @@ const STAGE_START: Stage = {
   isOnKeys: false,
   kittens: 0,
   isSolo: false,
+  isFetching: false,
   hd: undefined,
 }
 const stage: Stage = { ...STAGE_START }
@@ -255,7 +258,7 @@ function sceneAt(ms: number) {
   const local = new Date(ms)
   const petted = stage.pettedAt > 0 ? t - stage.pettedAt : undefined
   const isOnKeys = showsKeys(stage.isOnKeys, stage.mood)
-  return { ...stage, isOnKeys, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
+  return { ...stage, isOnKeys, isFetching: stage.isFetching, t, since: t - stage.moodAt, petted, hour: local.getHours(), month: local.getMonth() }
 }
 
 // Each pose is drawn as a raw block (no backticks inside), cut into its 4 lines.
@@ -375,7 +378,7 @@ const FRAMES = Object.fromEntries(
 // Whether the napping caption carries the /cat tips ("hints" setting).
 let hasHints = true
 const CAPTION: Record<Mood, (c: Cat) => string> = {
-  nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat asturias or manousos swaps the cat' : ''}`,
+  nap: () => `${name()} is napping${hasHints ? ' · /cat help · /cat hide · /cat asturias, jamona or manousos swaps the cat' : ''}`,
   think: () => `${name()} is thinking it over`,
   tool: c => `${name()} is on it: ${shortTool(c.tool ?? 'a tool')}`,
   happy: () => `${name()} purrs: done!`,
@@ -386,7 +389,10 @@ const CAPTION: Record<Mood, (c: Cat) => string> = {
     }`,
   dance: () => `${name()} dances: the tests passed`,
   hiss: () => `${name()} hisses: the tests failed`,
-  feast: c => (fedFor === 'treat' ? `${name()} got a treat from you` : `${name()} got a sardine for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`),
+  feast: c => {
+    const reward = catName.latin === 'Jamona' ? 'a slice of jamón' : 'a sardine'
+    return fedFor === 'treat' ? `${name()} got a treat from you` : `${name()} got ${reward} for ${fedFor === 'commit' ? 'the commit' : 'the work'} (${c.sardines} today)`
+  },
   bored: c => `${name()} dozed off: ${shortTool(c.tool ?? 'a tool')} is still running`,
   slap: () => `${name()} slapped Clawd for nagging`,
   snub: () => `${name()} is ignoring Clawd`,
@@ -443,7 +449,7 @@ const COLOR: Record<Mood, string> = {
 
 // Outside the terminal the ASCII cat wears his coat's color while calm; a
 // reaction (done, startled, waiting, tests, a sardine) shows in its own.
-const COAT_TINT: Record<Coat, string> = { manousos: '#967a6a', ginger: '#e88c3e', tuxedo: '#c4c4ca' }
+const COAT_TINT: Record<Coat, string> = { manousos: '#967a6a', ginger: '#e88c3e', tuxedo: '#c4c4ca', tabby: '#a8a296' }
 const isCalm = (mood: Mood) => mood === 'nap' || mood === 'think' || mood === 'tool' || mood === 'bored'
 
 // The cat paces back and forth while it works: a triangle wave across the pane.
@@ -478,6 +484,7 @@ async function setMood($: EngineInterface, mood: Mood, tool: string | null = nul
   const [was, wasTool] = [current, currentTool]
   current = mood
   currentTool = tool
+  if (mood !== 'play') stage.isFetching = false
   try {
     const moodAt = (await $.clock.now()) / 1000
     const c = await update($, cat, cur => ({ ...cur, mood, tool }))
@@ -710,10 +717,12 @@ async function treatTo($: EngineInterface, mood: Mood, ms: number) {
 }
 const PLAY_MS = 4_500
 
-// The fishing toy: its bell jingles as it comes out and again mid-chase,
-// and he purrs when he gives up on it. With a temper, now and then he won't:
-// he curls up away from it, or turns around and shows you the butt.
+// The fishing toy (or Jamona's hairband): its bell jingles as it comes out
+// and again mid-chase, and he purrs when he gives up on it. With a temper,
+// now and then he won't: he curls up away from it, or turns around and shows
+// you the butt. Jamona always plays and fetches a hairband instead.
 async function play($: EngineInterface): Promise<Mood> {
+  if (catName.latin === 'Jamona') stage.isFetching = true
   if (isTempered && random() < TEMPER.refuse) {
     const mood: Mood = random() < 0.5 ? 'butt' : 'sulk'
     await treatTo($, mood, FLASH_MS)
@@ -861,7 +870,7 @@ async function yardOf($: EngineInterface, surface: string, table: ReturnType<Eng
 const COMMANDS = [
   ...['help', 'hide', 'show', 'pet', 'treat', 'play', 'stats', 'config', 'settings', 'hints'],
   ...['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai'],
-  ...['band', 'small', 'dock', 'asturias', 'reset', ...Object.keys(COATS)],
+  ...['band', 'small', 'dock', 'asturias', 'jamona', 'reset', ...Object.keys(COATS)],
 ]
 // The commands that take something after them (/cat name Luna).
 const TAKES_VALUE = new Set(['name', 'coat', 'language', 'lang', 'songs', 'temper', 'sound', 'resolution', 'ai', 'hints'])
@@ -1121,6 +1130,9 @@ export const register: Register = (on, options) => {
     if (arg === 'asturias' && value === '') {
       return becomes({ coat: 'ginger', name: 'Asturias', language: 'spanish', songs: 'spanish', temper: 'on' }, 'Asturias is here now. ¿Qué querés? (/cat manousos brings Manousos back)')
     }
+    if (arg === 'jamona' && value === '') {
+      return becomes({ coat: 'tabby', name: 'Jamona', language: 'british', songs: 'british', temper: 'off' }, 'Jamona is here now. Splendid, shall we begin? (/cat manousos brings Manousos back)')
+    }
     if ((arg === 'manousos' || arg === 'reset') && value === '') {
       return becomes({ coat: 'manousos', name: 'Manousos', language: 'greek', songs: 'greek', temper: 'off' }, 'Manousos is back, as he came: Greek, mantinades, no temper.')
     }
@@ -1162,11 +1174,12 @@ export const register: Register = (on, options) => {
       if (await read($, isHidden)) return { text: `${name()} is under the sofa: /cat show brings the cat back first.` }
       if (arg === 'treat') {
         await treat($)
-        return { text: `${name()} catches the sardine and eats it whole.` }
+        return { text: catName.latin === 'Jamona' ? `${name()} catches the slice of jamón and savours every bite.` : `${name()} catches the sardine and eats it whole.` }
       }
       const did = await play($)
       if (did === 'butt') return { text: `You dangle the fishing toy. ${name()} turns around and shows you the butt.` }
       if (did === 'sulk') return { text: `You dangle the fishing toy. ${name()} curls up and looks the other way.` }
+      if (catName.latin === 'Jamona') return { text: `You throw the hairband. ¡Dale, dale! Jamona sprints after it and brings it back, tail high. ¡Otra vez, tirala de nuevo!` }
       return { text: `You dangle the fishing toy, and ${name()} goes after it.` }
     }
     if (arg === 'stats') {
@@ -1245,7 +1258,7 @@ export const register: Register = (on, options) => {
       ]
       return { text: `${name()}'s settings\n\n${table(rows)}\n\n/cat help says how to change them; they are under /config, "Cretan cat", too.` }
     }
-    // /cat coat <coat>, or a coat alone, ginger or tuxedo (/cat manousos is the whole cat).
+    // /cat coat <coat>, or a coat alone, ginger, tuxedo or tabby (/cat manousos is the whole cat).
     const look = arg === 'coat' ? value : value === '' ? arg : ''
     if (arg === 'coat' || isCoat(look)) {
       if (!isCoat(look)) return { text: `${name()} is wearing the ${wears} coat. /cat coat ${Object.keys(COATS).join(', ')} changes it.` }
@@ -1257,7 +1270,7 @@ export const register: Register = (on, options) => {
       '',
       table([
         ['/cat name <name>', `what the cat is called (${name()} now)`],
-        ['/cat coat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${wears} now); /cat ginger or tuxedo too`],
+        ['/cat coat <coat>', `the coat: ${Object.keys(COATS).join(', ')} (${wears} now); /cat ginger, tuxedo or tabby too`],
         ['/cat language <language>', `what Clawd speaks: ${LANGUAGES.join(', ')} (${language} now); /cat lang too`],
         ['/cat songs <language>', `what ${name()} sings: ${SONG_LANGUAGES.join(', ')} (${songLanguage} now)`],
         ['/cat temper on|off', `whether ${name()} slaps Clawd, swats you, sits on your keyboard (${isTempered ? 'on' : 'off'} now)`],
@@ -1265,10 +1278,11 @@ export const register: Register = (on, options) => {
         ['/cat resolution high|low', `the yard as a fine picture where the terminal shows them (kitty, Ghostty), or in cells (${resolution} now)`],
         ['/cat ai on|off', `songs and nudges written for each prompt: one small Haiku call a turn, only the topic words sent (${isAiOn ? 'on' : 'off'} now)`],
         ['/cat asturias', 'Asturias: ginger, rioplatense Spanish, coplas and a temper'],
+        ['/cat jamona', 'Jamona: grey tabby, posh British, prog rock couplets, sweet and cuddly'],
         ['/cat manousos', 'Manousos as he came: brown, Greek, mantinades, no temper (/cat reset too)'],
         ['/cat pet', 'pet the cat (or press pet under the yard)'],
         ['/cat treat', 'toss the cat a sardine (or press treat)'],
-        ['/cat play', 'dangle the fishing toy (or press play)'],
+        ['/cat play', 'dangle the fishing toy (or press play); Jamona fetches a hairband'],
         ['/cat stats', 'sardines and pets'],
         ['/cat config', 'every setting and what it is now (/cat settings too)'],
         ['/cat hide|show', 'hide the cat, or bring it back (/cat alone toggles)'],
